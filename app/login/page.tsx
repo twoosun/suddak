@@ -113,7 +113,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ color: theme.subText, lineHeight: 1.7 }}>
-          수학수확 계정으로 로그인해.
+          수딱 계정으로 로그인해.
         </p>
 
         <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
