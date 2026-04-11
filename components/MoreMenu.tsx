@@ -70,21 +70,27 @@ export default function MoreMenu({
       itemHover: isDark ? "#1f2937" : "#f3f4f6",
       muted: isDark ? "#94a3b8" : "#6b7280",
       danger: "#dc2626",
+      shadow: isDark
+        ? "0 18px 40px rgba(0,0,0,0.38)"
+        : "0 18px 40px rgba(15,23,42,0.14)",
     }),
     [isDark]
   );
 
   const triggerStyle: React.CSSProperties = {
-    minHeight: "42px",
-    padding: "10px 14px",
+    width: "42px",
+    height: "42px",
+    minWidth: "42px",
     borderRadius: "12px",
     border: `1px solid ${theme.buttonBorder}`,
     backgroundColor: theme.buttonBg,
     color: theme.buttonText,
-    fontWeight: 700,
-    fontSize: "14px",
     cursor: "pointer",
-    whiteSpace: "nowrap",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    flexShrink: 0,
   };
 
   const itemStyle: React.CSSProperties = {
@@ -96,7 +102,7 @@ export default function MoreMenu({
     border: "none",
     color: theme.buttonText,
     fontSize: "14px",
-    fontWeight: 600,
+    fontWeight: 700,
     textDecoration: "none",
     cursor: "pointer",
     borderRadius: "10px",
@@ -115,15 +121,49 @@ export default function MoreMenu({
   };
 
   return (
-    <div ref={menuRef} style={{ position: "relative" }}>
+    <div ref={menuRef} style={{ position: "relative", flexShrink: 0 }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         style={triggerStyle}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="메뉴 열기"
       >
-        더보기
+        <div
+          style={{
+            width: "18px",
+            height: "14px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              height: "2px",
+              borderRadius: "999px",
+              backgroundColor: theme.buttonText,
+            }}
+          />
+          <span
+            style={{
+              display: "block",
+              height: "2px",
+              borderRadius: "999px",
+              backgroundColor: theme.buttonText,
+            }}
+          />
+          <span
+            style={{
+              display: "block",
+              height: "2px",
+              borderRadius: "999px",
+              backgroundColor: theme.buttonText,
+            }}
+          />
+        </div>
       </button>
 
       {open && (
@@ -132,13 +172,16 @@ export default function MoreMenu({
             position: "absolute",
             top: "calc(100% + 8px)",
             right: 0,
-            width: "220px",
+            left: "auto",
+            width: "min(220px, calc(100vw - 24px))",
+            maxWidth: "calc(100vw - 24px)",
             backgroundColor: theme.menuBg,
             border: `1px solid ${theme.menuBorder}`,
             borderRadius: "16px",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.14)",
+            boxShadow: theme.shadow,
             padding: "8px",
             zIndex: 1000,
+            overflow: "hidden",
           }}
         >
           <div

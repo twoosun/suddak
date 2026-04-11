@@ -1,16 +1,16 @@
 "use client";
 
-import ApprovalGate from "@/components/ApprovalGate";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
+import ApprovalGate from "@/components/ApprovalGate";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import MoreMenu from "@/components/MoreMenu";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import TopLinks from "@/components/top-links";
-import MoreMenu from "@/components/MoreMenu";
 
 type SubjectCategory =
   | "highschool_math_1st_year"
@@ -230,14 +230,13 @@ export default function Home() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    const dark = savedTheme === "dark";
-    setIsDark(dark);
-    document.documentElement.classList.toggle("dark", dark);
+    if (savedTheme === "dark") {
+      setIsDark(true);
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem("theme", isDark ? "dark" : "light");
-    document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
 
   useEffect(() => {
@@ -323,6 +322,19 @@ export default function Home() {
     transition: "all 0.15s ease",
   };
 
+  const headerActionButtonStyle: React.CSSProperties = {
+    width: "100%",
+    minHeight: isMobile ? "36px" : "42px",
+    padding: isMobile ? "8px 8px" : "10px 14px",
+    borderRadius: isMobile ? "10px" : "12px",
+    border: `1px solid ${theme.subtleButtonBorder}`,
+    backgroundColor: theme.subtleButtonBg,
+    color: theme.subtleButtonText,
+    fontWeight: 700,
+    fontSize: isMobile ? "12px" : "14px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -492,17 +504,18 @@ export default function Home() {
     loadUsage();
   }, [session]);
 
-  const handleToggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      localStorage.setItem("theme", next ? "dark" : "light");
-      document.documentElement.classList.toggle("dark", next);
-      return next;
-    });
-  };
-
   const handleLogoClick = () => {
     router.push("/");
+  };
+
+  const handleGoHistory = () => {
+    router.push("/history");
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
   };
 
   return (
@@ -538,122 +551,82 @@ export default function Home() {
           <div
             style={{
               display: "flex",
-              alignItems: isMobile ? "flex-start" : "center",
+              alignItems: "center",
               justifyContent: "space-between",
-              gap: "16px",
-              flexDirection: isMobile ? "column" : "row",
+              gap: "12px",
             }}
           >
-            <button
-              onClick={handleLogoClick}
-              style={{
-                appearance: "none",
-                border: "none",
-                background: "transparent",
-                padding: 0,
-                margin: 0,
-                textAlign: "left",
-                cursor: "pointer",
-                width: "fit-content",
-              }}
+            <Link
+              href="/"
               aria-label="메인 화면으로 이동"
+              style={{
+                textDecoration: "none",
+                minWidth: 0,
+                flex: "1 1 auto",
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? "10px" : "12px",
+              }}
             >
               <div
                 style={{
-                  fontSize: "13px",
-                  fontWeight: 700,
-                  color: theme.primary,
-                  marginBottom: "8px",
-                  letterSpacing: "0.02em",
+                  width: isMobile ? "46px" : "52px",
+                  height: isMobile ? "46px" : "52px",
+                  borderRadius: isMobile ? "14px" : "16px",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                  border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)"}`,
+                  boxShadow: isDark
+                    ? "0 8px 22px rgba(0,0,0,0.32)"
+                    : "0 8px 20px rgba(37,99,235,0.16)",
+                  backgroundColor: isDark ? "#0f172a" : "#ffffff",
                 }}
               >
-                AI 수학 문제 도우미
+                <img
+                  src="/logo.png"
+                  alt="수딱 로고"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: isMobile ? "8px" : "10px",
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    gap: isMobile ? "2px" : "4px",
+                    fontSize: isMobile ? "30px" : "34px",
+                    fontWeight: 950,
+                    letterSpacing: "-0.06em",
+                    lineHeight: 0.95,
+                    color: theme.title,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: isMobile ? "44px" : "64px",
-                      fontWeight: 950,
-                      letterSpacing: "-0.07em",
-                      lineHeight: 0.95,
-                      backgroundImage: theme.logoGradient,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                      textShadow: isDark
-                        ? "0 8px 24px rgba(96,165,250,0.08)"
-                        : "0 8px 24px rgba(49,87,200,0.08)",
-                    }}
-                  >
-                    수딱
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      paddingLeft: isMobile ? "2px" : "4px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: isMobile ? "16px" : "20px",
-                        fontWeight: 800,
-                        letterSpacing: "0.08em",
-                        color: theme.logoSub,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Suddak
-                    </div>
-
-                    <div
-                      style={{
-                        height: "1px",
-                        width: isMobile ? "36px" : "52px",
-                        background: isDark
-                          ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
-                          : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
-                      }}
-                    />
-                  </div>
+                  수딱
+                </div>
+                <div
+                  style={{
+                    fontSize: isMobile ? "13px" : "14px",
+                    fontWeight: 800,
+                    color: theme.logoSub,
+                    lineHeight: 1.1,
+                    marginTop: "4px",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  AI Math Solver
                 </div>
               </div>
-            </button>
+            </Link>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: isMobile ? "stretch" : "center",
-                justifyContent: isMobile ? "flex-start" : "flex-end",
-                width: isMobile ? "100%" : "auto",
-                flexShrink: 0,
-              }}
-            >
-              <MoreMenu
-                isDark={isDark}
-                onToggleTheme={handleToggleTheme}
-                themeLabel={isDark ? "주간모드" : "야간모드"}
-                redirectAfterLogout="/login"
-              />
-            </div>
+            <MoreMenu
+              isDark={isDark}
+              onToggleTheme={() => setIsDark((prev) => !prev)}
+              themeLabel={isDark ? "주간모드" : "야간모드"}
+              redirectAfterLogout="/login"
+            />
           </div>
 
           <div

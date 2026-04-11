@@ -1,7 +1,12 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { READ_DAILY_LIMIT, SOLVE_DAILY_LIMIT } from "@/lib/limits";
+import {
+  NEW_ACCOUNT_SOLVE_DAILY_LIMIT,
+  NEW_ACCOUNT_WINDOW_HOURS,
+  READ_DAILY_LIMIT,
+  SOLVE_DAILY_LIMIT,
+} from "@/lib/limits";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -265,13 +270,28 @@ async function getUserFromRequest(req: Request) {
 async function getUserProfile(userId: string) {
   const { data, error } = await supabaseAdmin
     .from("user_profiles")
-    .select("is_approved, is_admin")
+    .select("is_admin")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data ?? { is_admin: false };
 }
+
+function isNewAccount(createdAt?: string | null) {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  const windowMs = NEW_ACCOUNT_WINDOW_HOURS * 60 * 60 * 1000;
+  return Date.now() - created < windowMs;
+}
+
+function getSolveDailyLimitForUser(createdAt?: string | null) {
+  return isNewAccount(createdAt)
+    ? NEW_ACCOUNT_SOLVE_DAILY_LIMIT
+    : SOLVE_DAILY_LIMIT;
+}
+
 
 async function checkDailyLimit(userId: string, actionType: ActionType) {
   const start = new Date();
@@ -395,26 +415,20 @@ export async function POST(req: Request) {
 
     const profile = await getUserProfile(user.id);
 
-    if (!profile?.is_approved) {
-      return NextResponse.json(
-        { error: "관리자 승인 후 이용 가능합니다." },
-        { status: 403 }
-      );
-    }
-
     const formData = await req.formData();
     const mode = String(formData.get("mode") || "");
 
     if (mode === "read") {
       try {
-        if (!profile.is_admin) {
-          const usedReadToday = await checkDailyLimit(user.id, "read");
-          if (usedReadToday >= READ_DAILY_LIMIT) {
-            return NextResponse.json(
-              { error: `오늘 문제 인식 횟수를 모두 썼습니다. (하루 ${READ_DAILY_LIMIT}회)` },
-              { status: 429 }
-            );
-          }
+        const usedReadToday = !profile.is_admin
+          ? await checkDailyLimit(user.id, "read")
+          : 0;
+
+        if (!profile.is_admin && usedReadToday >= READ_DAILY_LIMIT) {
+          return NextResponse.json(
+            { error: `오늘 문제 인식 횟수를 모두 썼습니다. (하루 ${READ_DAILY_LIMIT}회)` },
+            { status: 429 }
+          );
         }
 
         const image = formData.get("image");
@@ -479,7 +493,12 @@ export async function POST(req: Request) {
 
         return NextResponse.json({
           result,
-          meta: { model: response.model },
+          meta: {
+            model: response.model,
+            isNewAccount: isNewAccount(user.created_at),
+            readToday: usedReadToday + 1,
+            readDailyLimit: READ_DAILY_LIMIT,
+          },
         });
       } catch (error) {
         console.error("[solve/read] error:", error);
@@ -494,11 +513,18 @@ export async function POST(req: Request) {
     }
 
     if (mode === "solve") {
+      const solveDailyLimit = getSolveDailyLimitForUser(user.created_at);
+      let usedSolveToday = 0;
+
       if (!profile.is_admin) {
-        const usedSolveToday = await checkDailyLimit(user.id, "solve");
-        if (usedSolveToday >= SOLVE_DAILY_LIMIT) {
+        usedSolveToday = await checkDailyLimit(user.id, "solve");
+        if (usedSolveToday >= solveDailyLimit) {
+          const quotaMessage = isNewAccount(user.created_at)
+            ? `신규 계정은 가입 후 ${NEW_ACCOUNT_WINDOW_HOURS}시간 동안 하루 ${solveDailyLimit}회만 풀이할 수 있습니다.`
+            : `오늘 풀이 횟수를 모두 썼습니다. (하루 ${solveDailyLimit}회)`;
+
           return NextResponse.json(
-            { error: `오늘 풀이 횟수를 모두 썼습니다. (하루 ${SOLVE_DAILY_LIMIT}회)` },
+            { error: quotaMessage },
             { status: 429 }
           );
         }
@@ -782,6 +808,9 @@ export async function POST(req: Request) {
           graphRequested,
           graphNeeded: normalizedParsed.graph_needed,
           isAdminModel: profile.is_admin,
+          isNewAccount: isNewAccount(user.created_at),
+          solveToday: profile.is_admin ? 0 : usedSolveToday + 1,
+          solveDailyLimit: profile.is_admin ? null : solveDailyLimit,
           isValid: normalizedParsed.is_valid,
         },
         graph: normalizedParsed.graph_spec,

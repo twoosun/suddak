@@ -21,22 +21,24 @@ export default function SuddakCommunityHeader({
   const theme = useMemo(
     () => ({
       cardBorder: isDark ? "#253041" : "#e5e7eb",
-      headerBg: isDark ? "rgba(17,24,39,0.86)" : "rgba(255,255,255,0.88)",
-      logoGradient: isDark
-        ? "linear-gradient(135deg, #ffffff 0%, #93c5fd 45%, #60a5fa 100%)"
-        : "linear-gradient(135deg, #0f172a 0%, #3157c8 45%, #60a5fa 100%)",
-      logoSub: isDark ? "#93c5fd" : "#3157c8",
+      headerBg: isDark ? "rgba(17,24,39,0.88)" : "rgba(255,255,255,0.9)",
+      text: isDark ? "#f8fafc" : "#111827",
+      subText: isDark ? "#93c5fd" : "#3157c8",
       subtleButtonBg: isDark ? "#0f172a" : "#ffffff",
       subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
       subtleButtonText: isDark ? "#f9fafb" : "#111827",
       primary: "#3157c8",
+      logoBorder: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)",
+      logoShadow: isDark
+        ? "0 8px 20px rgba(0,0,0,0.30)"
+        : "0 8px 20px rgba(37,99,235,0.14)",
     }),
     [isDark]
   );
 
-  const baseButtonStyle: React.CSSProperties = {
-    minHeight: "40px",
-    padding: "10px 14px",
+  const navButtonStyle: React.CSSProperties = {
+    minHeight: "36px",
+    padding: "8px 13px",
     borderRadius: "999px",
     border: `1px solid ${theme.subtleButtonBorder}`,
     backgroundColor: theme.subtleButtonBg,
@@ -51,15 +53,10 @@ export default function SuddakCommunityHeader({
     lineHeight: 1,
   };
 
-  const activeButtonStyle: React.CSSProperties = {
+  const activeStyle: React.CSSProperties = {
     backgroundColor: theme.primary,
     color: "#ffffff",
     border: `1px solid ${theme.primary}`,
-  };
-
-  const handleToggleTheme = () => {
-    const next = toggleTheme();
-    setIsDark(next === "dark");
   };
 
   return (
@@ -77,159 +74,121 @@ export default function SuddakCommunityHeader({
         style={{
           maxWidth: "1100px",
           margin: "0 auto",
-          padding: "14px 12px",
+          padding: "12px 12px 10px",
         }}
       >
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "space-between",
             gap: "12px",
           }}
         >
-          <div
+          <Link
+            href="/"
+            aria-label="메인 화면으로 이동"
             style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <Link
-              href="/"
-              aria-label="메인 화면으로 이동"
-              style={{
-                textDecoration: "none",
-                minWidth: 0,
-                flex: "1 1 auto",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: theme.primary,
-                  marginBottom: "6px",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                AI 수학 문제 도우미
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    minWidth: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "36px",
-                      fontWeight: 950,
-                      letterSpacing: "-0.07em",
-                      lineHeight: 0.95,
-                      backgroundImage: theme.logoGradient,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}
-                  >
-                    수딱
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      paddingLeft: "2px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 800,
-                        letterSpacing: "0.08em",
-                        color: theme.logoSub,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Suddak
-                    </div>
-
-                    <div
-                      style={{
-                        height: "1px",
-                        width: "28px",
-                        background: isDark
-                          ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
-                          : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            <MoreMenu
-              isDark={isDark}
-              onToggleTheme={handleToggleTheme}
-              themeLabel={isDark ? "주간모드" : "야간모드"}
-              redirectAfterLogout="/login"
-            />
-          </div>
-
-          <div
-            style={{
+              textDecoration: "none",
+              minWidth: 0,
+              flex: "1 1 auto",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: "10px",
-              flexWrap: "wrap",
+              gap: "12px",
             }}
           >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flexWrap: "wrap",
-                flex: "1 1 auto",
+                width: "46px",
+                height: "46px",
+                borderRadius: "14px",
+                overflow: "hidden",
+                flexShrink: 0,
+                border: `1px solid ${theme.logoBorder}`,
+                boxShadow: theme.logoShadow,
+                backgroundColor: isDark ? "#0f172a" : "#ffffff",
               }}
             >
-              <Link
-                href="/"
+              <img
+                src="/logo.png"
+                alt="수딱 로고"
                 style={{
-                  ...baseButtonStyle,
-                  ...(current === "home" ? activeButtonStyle : {}),
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
                 }}
-              >
-                홈
-              </Link>
-
-              <Link
-                href="/community"
-                style={{
-                  ...baseButtonStyle,
-                  ...(current === "community" ? activeButtonStyle : {}),
-                }}
-              >
-                커뮤니티
-              </Link>
+              />
             </div>
+
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: "28px",
+                  fontWeight: 950,
+                  letterSpacing: "-0.06em",
+                  lineHeight: 0.95,
+                  color: theme.text,
+                }}
+              >
+                수딱
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: theme.subText,
+                  marginTop: "4px",
+                  lineHeight: 1.1,
+                }}
+              >
+                Community
+              </div>
+            </div>
+          </Link>
+
+          <div
+            style={{
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <MoreMenu
+              isDark={isDark}
+              onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
+              themeLabel={isDark ? "주간모드" : "야간모드"}
+              redirectAfterLogout="/login"
+            />
           </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "10px",
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          <Link
+            href="/"
+            style={{
+              ...navButtonStyle,
+              ...(current === "home" ? activeStyle : {}),
+            }}
+          >
+            홈
+          </Link>
+          <Link
+            href="/community"
+            style={{
+              ...navButtonStyle,
+              ...(current === "community" ? activeStyle : {}),
+            }}
+          >
+            커뮤니티
+          </Link>
         </div>
       </div>
     </header>

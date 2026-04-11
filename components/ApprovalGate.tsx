@@ -25,26 +25,6 @@ export default function ApprovalGate({ children }: Props) {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("is_approved")
-        .eq("id", user.id)
-        .single();
-
-      if (error || !data) {
-        setAllowed(false);
-        setMessage("사용자 정보를 불러오지 못했습니다.");
-        setLoading(false);
-        return;
-      }
-
-      if (!data.is_approved) {
-        setAllowed(false);
-        setMessage("관리자 승인 후 이용 가능합니다.");
-        setLoading(false);
-        return;
-      }
-
       setAllowed(true);
       setLoading(false);
     };

@@ -19,13 +19,13 @@ type CommunityPost = {
   solve_result: string | null;
   image_url: string | null;
   is_public: boolean;
-  is_notice: boolean;
   like_count: number;
   comment_count: number;
   created_at: string;
   updated_at: string;
   author_name: string | null;
   author_avatar_url: string | null;
+  is_notice?: boolean;
 };
 
 type CommunityResponse = {
@@ -169,24 +169,23 @@ export default function CommunityPage() {
         style={{
           maxWidth: "1100px",
           margin: "0 auto",
-          padding: "18px 12px 40px",
+          padding: "16px 12px 36px",
         }}
       >
         <section
-          className="community-hero-grid"
           style={{
-            marginBottom: "18px",
+            marginBottom: "16px",
             display: "grid",
-            gap: "14px",
-            gridTemplateColumns: "minmax(0,1.1fr) minmax(0,0.9fr)",
+            gap: "12px",
+            gridTemplateColumns: "minmax(0,1fr)",
           }}
         >
           <div
             style={{
               backgroundColor: theme.card,
               border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "22px",
-              padding: "20px",
+              borderRadius: "20px",
+              padding: "18px",
               boxShadow: theme.shadow,
             }}
           >
@@ -208,7 +207,7 @@ export default function CommunityPage() {
             <h1
               style={{
                 margin: 0,
-                fontSize: "clamp(24px, 5.5vw, 46px)",
+                fontSize: "clamp(24px, 6vw, 40px)",
                 fontWeight: 900,
                 letterSpacing: "-0.05em",
                 lineHeight: 1.14,
@@ -236,8 +235,8 @@ export default function CommunityPage() {
             style={{
               backgroundColor: theme.card,
               border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "22px",
-              padding: "16px",
+              borderRadius: "20px",
+              padding: "12px",
               boxShadow: theme.shadow,
             }}
           >
@@ -247,25 +246,24 @@ export default function CommunityPage() {
                 textDecoration: "none",
                 display: "flex",
                 alignItems: "center",
-                gap: "14px",
-                height: "100%",
-                minHeight: "128px",
-                borderRadius: "18px",
-                padding: "20px",
+                gap: "12px",
+                borderRadius: "16px",
+                padding: "14px 16px",
                 background: "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
                 color: "#ffffff",
+                minHeight: "unset",
               }}
             >
               <div
                 style={{
-                  width: "46px",
-                  height: "46px",
-                  borderRadius: "14px",
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "12px",
                   backgroundColor: "rgba(255,255,255,0.15)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "24px",
+                  fontSize: "22px",
                   fontWeight: 800,
                   flexShrink: 0,
                 }}
@@ -273,12 +271,12 @@ export default function CommunityPage() {
                 +
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "18px", fontWeight: 900 }}>새 글 작성</div>
+                <div style={{ fontSize: "16px", fontWeight: 900 }}>새 글 작성</div>
                 <div
                   style={{
-                    marginTop: "6px",
-                    fontSize: "13px",
-                    lineHeight: 1.55,
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    lineHeight: 1.5,
                     color: "rgba(255,255,255,0.92)",
                   }}
                 >
@@ -294,8 +292,8 @@ export default function CommunityPage() {
             marginBottom: "14px",
             backgroundColor: theme.card,
             border: `1px solid ${theme.cardBorder}`,
-            borderRadius: "22px",
-            padding: "14px",
+            borderRadius: "20px",
+            padding: "12px",
             boxShadow: theme.shadow,
           }}
         >
@@ -308,7 +306,7 @@ export default function CommunityPage() {
                 style={{
                   border: "none",
                   cursor: "pointer",
-                  padding: "10px 14px",
+                  padding: "9px 13px",
                   borderRadius: "999px",
                   fontSize: "13px",
                   fontWeight: 800,
@@ -323,11 +321,11 @@ export default function CommunityPage() {
 
           <form
             onSubmit={handleSearchSubmit}
-            className="community-search-form"
             style={{
               marginTop: "12px",
               display: "flex",
               gap: "8px",
+              alignItems: "stretch",
             }}
           >
             <input
@@ -337,7 +335,7 @@ export default function CommunityPage() {
               style={{
                 flex: 1,
                 minWidth: 0,
-                padding: "13px 15px",
+                padding: "12px 14px",
                 borderRadius: "14px",
                 border: `1px solid ${theme.inputBorder}`,
                 backgroundColor: theme.inputBg,
@@ -349,7 +347,7 @@ export default function CommunityPage() {
             <button
               type="submit"
               style={{
-                padding: "13px 16px",
+                padding: "12px 14px",
                 borderRadius: "14px",
                 border: `1px solid ${theme.inputBorder}`,
                 backgroundColor: theme.softCard,
@@ -358,6 +356,7 @@ export default function CommunityPage() {
                 fontWeight: 800,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               검색
@@ -371,8 +370,8 @@ export default function CommunityPage() {
               style={{
                 backgroundColor: theme.card,
                 border: `1px solid ${theme.cardBorder}`,
-                borderRadius: "22px",
-                padding: "20px",
+                borderRadius: "20px",
+                padding: "18px",
                 color: theme.subText,
                 boxShadow: theme.shadow,
               }}
@@ -384,8 +383,8 @@ export default function CommunityPage() {
               style={{
                 backgroundColor: theme.card,
                 border: `1px solid ${theme.cardBorder}`,
-                borderRadius: "22px",
-                padding: "20px",
+                borderRadius: "20px",
+                padding: "18px",
                 color: theme.subText,
                 boxShadow: theme.shadow,
               }}
@@ -402,8 +401,8 @@ export default function CommunityPage() {
                   display: "block",
                   backgroundColor: theme.card,
                   border: `1px solid ${theme.cardBorder}`,
-                  borderRadius: "22px",
-                  padding: "16px",
+                  borderRadius: "20px",
+                  padding: "14px",
                   boxShadow: theme.shadow,
                   color: theme.text,
                 }}
@@ -417,12 +416,12 @@ export default function CommunityPage() {
                     flexWrap: "wrap",
                   }}
                 >
-                  {post.is_notice ? (
+                  {post.is_notice && (
                     <span
                       style={{
                         padding: "6px 10px",
                         borderRadius: "999px",
-                        fontSize: "11px",
+                        fontSize: "12px",
                         fontWeight: 900,
                         backgroundColor: isDark ? "#7c2d12" : "#fff7ed",
                         color: isDark ? "#fdba74" : "#c2410c",
@@ -430,13 +429,13 @@ export default function CommunityPage() {
                     >
                       공지
                     </span>
-                  ) : null}
+                  )}
 
                   <span
                     style={{
                       padding: "6px 10px",
                       borderRadius: "999px",
-                      fontSize: "11px",
+                      fontSize: "12px",
                       fontWeight: 800,
                       backgroundColor:
                         post.post_type === "problem"
@@ -458,53 +457,43 @@ export default function CommunityPage() {
                   >
                     {post.post_type === "problem" ? "문제글" : "자유글"}
                   </span>
-                  <span style={{ fontSize: "12px", color: theme.subText }}>
-                    {formatDate(post.created_at)}
+
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: theme.subText,
+                    }}
+                  >
+                    {post.author_name || "익명"} · {formatDate(post.created_at)}
                   </span>
                 </div>
 
-                <h2
+                <div
                   style={{
-                    margin: 0,
-                    fontSize: "clamp(19px, 4.6vw, 24px)",
+                    fontSize: "17px",
                     fontWeight: 900,
-                    letterSpacing: "-0.03em",
-                    lineHeight: 1.28,
+                    lineHeight: 1.35,
+                    marginBottom: "10px",
                     wordBreak: "break-word",
-                    overflowWrap: "anywhere",
                   }}
                 >
                   {post.title}
-                </h2>
-
-                <div
-                  style={{
-                    marginTop: "7px",
-                    fontSize: "12px",
-                    color: theme.subText,
-                  }}
-                >
-                  작성자 {post.author_name ?? "익명"}
                 </div>
+
+                <PreviewMarkdown isDark={isDark}>
+                  {getPreviewText(post)}
+                </PreviewMarkdown>
 
                 <div
                   style={{
                     marginTop: "12px",
-                    color: theme.subText,
-                    fontSize: "14px",
-                  }}
-                >
-                  <PreviewMarkdown isDark={isDark}>{getPreviewText(post)}</PreviewMarkdown>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "14px",
                     display: "flex",
-                    gap: "14px",
+                    alignItems: "center",
+                    gap: "12px",
                     flexWrap: "wrap",
-                    fontSize: "12px",
                     color: theme.subText,
+                    fontSize: "13px",
+                    fontWeight: 700,
                   }}
                 >
                   <span>좋아요 {post.like_count}</span>
@@ -515,28 +504,6 @@ export default function CommunityPage() {
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        .community-hero-grid {
-          grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-        }
-
-        .community-search-form {
-          flex-direction: row;
-        }
-
-        @media (max-width: 820px) {
-          .community-hero-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .community-search-form {
-            flex-direction: column;
-          }
-        }
-      `}</style>
     </main>
   );
 }
