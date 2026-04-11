@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { SOLVE_DAILY_LIMIT } from "@/lib/limits";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
