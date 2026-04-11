@@ -256,8 +256,8 @@ export default function Home() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
     });
 
     return () => {
@@ -362,10 +362,10 @@ export default function Home() {
 
     try {
       const {
-        data: { session },
+        data: { session: currentSession },
       } = await supabase.auth.getSession();
 
-      if (!session?.access_token) {
+      if (!currentSession?.access_token) {
         setRecognizedText("로그인이 필요합니다.");
         return;
       }
@@ -378,14 +378,22 @@ export default function Home() {
         method: "POST",
         body: formData,
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setRecognizedText(data.error || "오류가 발생했습니다.");
+        const errorMessage = [
+          data.error || "오류가 발생했습니다.",
+          data.detail ? `\n\n상세: ${data.detail}` : "",
+          data.raw ? `\n\nraw:\n${data.raw}` : "",
+          data.cleaned ? `\n\ncleaned:\n${data.cleaned}` : "",
+          data.stack ? `\n\nstack:\n${data.stack}` : "",
+        ].join("");
+
+        setRecognizedText(errorMessage);
       } else {
         setRecognizedText(data.result || "응답이 비어 있습니다.");
       }
@@ -407,10 +415,10 @@ export default function Home() {
 
     try {
       const {
-        data: { session },
+        data: { session: currentSession },
       } = await supabase.auth.getSession();
 
-      if (!session?.access_token) {
+      if (!currentSession?.access_token) {
         setSolveResult("로그인이 필요합니다.");
         return;
       }
@@ -427,14 +435,22 @@ export default function Home() {
         method: "POST",
         body: formData,
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setSolveResult(data.error || "오류가 발생했습니다.");
+        const errorMessage = [
+          data.error || "오류가 발생했습니다.",
+          data.detail ? `\n\n상세: ${data.detail}` : "",
+          data.raw ? `\n\nraw:\n${data.raw}` : "",
+          data.cleaned ? `\n\ncleaned:\n${data.cleaned}` : "",
+          data.stack ? `\n\nstack:\n${data.stack}` : "",
+        ].join("");
+
+        setSolveResult(errorMessage);
       } else {
         setSolveResult(data.result || "응답이 비어 있습니다.");
         setSolveMeta(data.meta ?? null);
@@ -450,10 +466,10 @@ export default function Home() {
 
   const loadUsage = async () => {
     const {
-      data: { session },
+      data: { session: currentSession },
     } = await supabase.auth.getSession();
 
-    if (!session?.access_token) {
+    if (!currentSession?.access_token) {
       setUsageText("");
       setIsAdminUser(false);
       return;
@@ -461,7 +477,7 @@ export default function Home() {
 
     const res = await fetch("/api/usage", {
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${currentSession.access_token}`,
       },
     });
 
@@ -653,16 +669,10 @@ export default function Home() {
 
                 {session ? (
                   <>
-                    <button
-                      onClick={handleGoHistory}
-                      style={headerActionButtonStyle}
-                    >
+                    <button onClick={handleGoHistory} style={headerActionButtonStyle}>
                       기록
                     </button>
-                    <button
-                      onClick={handleLogout}
-                      style={headerActionButtonStyle}
-                    >
+                    <button onClick={handleLogout} style={headerActionButtonStyle}>
                       로그아웃
                     </button>
                   </>
