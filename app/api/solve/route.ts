@@ -508,14 +508,28 @@ ${recognizedProblem}
         },
       });
 
-      const parsed = response.output_parsed as ParsedSolveResult | null;
+     const rawText = response.output_text || "";
 
-      if (!parsed) {
-        return NextResponse.json(
-          { error: "풀이 결과를 구조화하지 못했습니다." },
-          { status: 500 }
-        );
-      }
+let parsed: ParsedSolveResult | null = null;
+
+try {
+  parsed = JSON.parse(rawText) as ParsedSolveResult;
+} catch {
+  return NextResponse.json(
+    {
+      error: "풀이 결과를 JSON으로 해석하지 못했습니다.",
+      raw: rawText,
+    },
+    { status: 500 }
+  );
+}
+
+if (!parsed) {
+  return NextResponse.json(
+    { error: "풀이 결과를 구조화하지 못했습니다." },
+    { status: 500 }
+  );
+}
 
       const normalizedGraphNeeded =
         graphRequested && parsed.graph_needed && parsed.graph_spec !== null;
