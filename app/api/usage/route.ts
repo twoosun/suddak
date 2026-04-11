@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { SOLVE_DAILY_LIMIT } from "@/lib/limits";
 
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = SOLVE_DAILY_LIMIT;
 
 async function getUserFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization");
