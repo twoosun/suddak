@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import ReactMarkdown from "react-markdown";
@@ -76,7 +76,7 @@ function PreviewBox({
   );
 }
 
-export default function CommunityWritePage() {
+function CommunityWritePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -569,5 +569,12 @@ export default function CommunityWritePage() {
         </form>
       </div>
     </main>
+  );
+}
+export default function CommunityWritePage() {
+  return (
+    <Suspense fallback={null}>
+      <CommunityWritePageInner />
+    </Suspense>
   );
 }
