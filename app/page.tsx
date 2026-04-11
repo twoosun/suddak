@@ -1,14 +1,18 @@
 "use client";
 
 import ApprovalGate from "@/components/ApprovalGate";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import AuthButtons from "@/components/AuthButtons";
+import { useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 
 export default function Home() {
+  const router = useRouter();
+
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -19,8 +23,10 @@ export default function Home() {
   const [solving, setSolving] = useState(false);
   const [usageText, setUsageText] = useState("");
   const [isEditingRecognized, setIsEditingRecognized] = useState(false);
+
   const [isMobile, setIsMobile] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -44,9 +50,114 @@ export default function Home() {
     localStorage.setItem("theme", isDark ? "dark" : "light");
   }, [isDark]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const initSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (mounted) {
+        setSession(session);
+      }
+    };
+
+    initSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const theme = useMemo(
+    () => ({
+      bg: isDark
+        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
+        : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
+      text: isDark ? "#f9fafb" : "#1f2937",
+      title: isDark ? "#ffffff" : "#111827",
+      subText: isDark ? "#cbd5e1" : "#6b7280",
+      card: isDark ? "#111827" : "#ffffff",
+      cardBorder: isDark ? "#253041" : "#e5e7eb",
+      softCard: isDark ? "#0f172a" : "#fbfcfe",
+      softBorder: isDark ? "#334155" : "#edf0f5",
+      primary: "#3157c8",
+      badgeBg: isDark ? "#1e3a8a" : "#e8eefc",
+      usageBg: isDark ? "#0f172a" : "#f8faff",
+      inputBg: isDark ? "#0b1220" : "#ffffff",
+      inputBorder: isDark ? "#374151" : "#d1d5db",
+      shadow: isDark
+        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
+        : "0 8px 30px rgba(15, 23, 42, 0.05)",
+      headerBg: isDark ? "rgba(17,24,39,0.82)" : "rgba(255,255,255,0.8)",
+      logoGradient: isDark
+        ? "linear-gradient(135deg, #ffffff 0%, #93c5fd 45%, #60a5fa 100%)"
+        : "linear-gradient(135deg, #0f172a 0%, #3157c8 45%, #60a5fa 100%)",
+      logoSub: isDark ? "#93c5fd" : "#3157c8",
+      logoBadgeBg: isDark
+        ? "linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)"
+        : "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
+      logoBadgeShadow: isDark
+        ? "0 10px 24px rgba(37, 99, 235, 0.28)"
+        : "0 10px 24px rgba(49, 87, 200, 0.22)",
+      subtleButtonBg: isDark ? "#0f172a" : "#ffffff",
+      subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
+      subtleButtonText: isDark ? "#f9fafb" : "#111827",
+      secondaryMutedBg: isDark ? "#1f2937" : "#f3f4f6",
+    }),
+    [isDark]
+  );
+
+  const sectionCardStyle: React.CSSProperties = {
+    backgroundColor: theme.card,
+    border: `1px solid ${theme.cardBorder}`,
+    borderRadius: isMobile ? "20px" : "24px",
+    padding: isMobile ? "18px" : "24px",
+    boxShadow: theme.shadow,
+  };
+
+  const buttonBaseStyle: React.CSSProperties = {
+    width: isMobile ? "100%" : "auto",
+    padding: "12px 18px",
+    borderRadius: "14px",
+    fontWeight: 700,
+    fontSize: "15px",
+    transition: "all 0.15s ease",
+  };
+
+  const headerActionButtonStyle: React.CSSProperties = {
+    width: isMobile ? "100%" : "auto",
+    minHeight: "42px",
+    padding: isMobile ? "11px 14px" : "10px 14px",
+    borderRadius: "12px",
+    border: `1px solid ${theme.subtleButtonBorder}`,
+    backgroundColor: theme.subtleButtonBg,
+    color: theme.subtleButtonText,
+    fontWeight: 700,
+    fontSize: "14px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
+
+    if (preview) URL.revokeObjectURL(preview);
 
     setFile(selected);
     setPreview(URL.createObjectURL(selected));
@@ -176,44 +287,20 @@ export default function Home() {
 
   useEffect(() => {
     loadUsage();
-  }, []);
+  }, [session]);
 
-  const theme = {
-    bg: isDark
-      ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
-      : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
-    text: isDark ? "#f9fafb" : "#1f2937",
-    title: isDark ? "#ffffff" : "#111827",
-    subText: isDark ? "#cbd5e1" : "#6b7280",
-    card: isDark ? "#111827" : "#ffffff",
-    cardBorder: isDark ? "#253041" : "#e5e7eb",
-    softCard: isDark ? "#0f172a" : "#fbfcfe",
-    softBorder: isDark ? "#334155" : "#edf0f5",
-    primary: "#3157c8",
-    badgeBg: isDark ? "#1e3a8a" : "#e8eefc",
-    usageBg: isDark ? "#0f172a" : "#f8faff",
-    inputBg: isDark ? "#0b1220" : "#ffffff",
-    inputBorder: isDark ? "#374151" : "#d1d5db",
-    shadow: isDark
-      ? "0 8px 30px rgba(0, 0, 0, 0.35)"
-      : "0 8px 30px rgba(15, 23, 42, 0.05)",
-    headerBg: isDark ? "rgba(17,24,39,0.82)" : "rgba(255,255,255,0.8)",
+  const handleLogoClick = () => {
+    router.push("/");
   };
 
-  const sectionCardStyle: React.CSSProperties = {
-    backgroundColor: theme.card,
-    border: `1px solid ${theme.cardBorder}`,
-    borderRadius: isMobile ? "20px" : "24px",
-    padding: isMobile ? "18px" : "24px",
-    boxShadow: theme.shadow,
+  const handleGoHistory = () => {
+    router.push("/history");
   };
 
-  const buttonBaseStyle: React.CSSProperties = {
-    width: isMobile ? "100%" : "auto",
-    padding: "12px 18px",
-    borderRadius: "14px",
-    fontWeight: 700,
-    fontSize: "15px",
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
   };
 
   return (
@@ -248,13 +335,27 @@ export default function Home() {
             gap: "16px",
           }}
         >
-          <div>
+          <button
+            onClick={handleLogoClick}
+            style={{
+              appearance: "none",
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              margin: 0,
+              textAlign: "left",
+              cursor: "pointer",
+              width: "fit-content",
+            }}
+            aria-label="메인 화면으로 이동"
+          >
             <div
               style={{
                 fontSize: "13px",
                 fontWeight: 700,
                 color: theme.primary,
-                marginBottom: "6px",
+                marginBottom: "8px",
+                letterSpacing: "0.02em",
               }}
             >
               AI 수학 문제 도우미
@@ -263,66 +364,136 @@ export default function Home() {
             <div
               style={{
                 display: "flex",
-                alignItems: isMobile ? "flex-end" : "center",
-                gap: isMobile ? "10px" : "14px",
+                alignItems: "center",
+                gap: isMobile ? "12px" : "16px",
                 flexWrap: "wrap",
               }}
             >
               <div
                 style={{
-                  fontSize: isMobile ? "40px" : "54px",
-                  fontWeight: 900,
-                  letterSpacing: "-0.05em",
-                  color: theme.title,
-                  lineHeight: 1,
+                  width: isMobile ? "44px" : "56px",
+                  height: isMobile ? "44px" : "56px",
+                  borderRadius: isMobile ? "14px" : "18px",
+                  background: theme.logoBadgeBg,
+                  boxShadow: theme.logoBadgeShadow,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
-                수딱
+                <span
+                  style={{
+                    color: "#ffffff",
+                    fontWeight: 900,
+                    fontSize: isMobile ? "20px" : "26px",
+                    letterSpacing: "-0.04em",
+                    lineHeight: 1,
+                  }}
+                >
+                  수
+                </span>
               </div>
 
               <div
                 style={{
-                  fontSize: isMobile ? "18px" : "22px",
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
-                  color: isDark ? "#93c5fd" : "#3157c8",
-                  paddingBottom: isMobile ? "5px" : "7px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: isMobile ? "2px" : "4px",
                 }}
               >
-                Suddak
+                <div
+                  style={{
+                    fontSize: isMobile ? "44px" : "64px",
+                    fontWeight: 950,
+                    letterSpacing: "-0.07em",
+                    lineHeight: 0.95,
+                    backgroundImage: theme.logoGradient,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    textShadow: isDark
+                      ? "0 8px 24px rgba(96,165,250,0.08)"
+                      : "0 8px 24px rgba(49,87,200,0.08)",
+                  }}
+                >
+                  수딱
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    paddingLeft: isMobile ? "2px" : "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: isMobile ? "16px" : "20px",
+                      fontWeight: 800,
+                      letterSpacing: "0.08em",
+                      color: theme.logoSub,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Suddak
+                  </div>
+
+                  <div
+                    style={{
+                      height: "1px",
+                      width: isMobile ? "36px" : "52px",
+                      background: isDark
+                        ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
+                        : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </button>
 
           <div
             style={{
-              display: "flex",
-              flexDirection: isMobile ? "column" : "row",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(3, auto)",
               gap: "10px",
               width: isMobile ? "100%" : "auto",
-              alignItems: isMobile ? "stretch" : "center",
+              alignItems: "stretch",
+              justifyContent: isMobile ? "stretch" : "end",
             }}
           >
             <button
               onClick={() => setIsDark((prev) => !prev)}
-              style={{
-                width: isMobile ? "100%" : "auto",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                border: `1px solid ${isDark ? "#374151" : "#d1d5db"}`,
-                backgroundColor: isDark ? "#111827" : "#ffffff",
-                color: isDark ? "#f9fafb" : "#111827",
-                fontWeight: 700,
-                fontSize: "14px",
-                cursor: "pointer",
-              }}
+              style={headerActionButtonStyle}
             >
               {isDark ? "주간모드" : "야간모드"}
             </button>
 
-            <div style={{ width: isMobile ? "100%" : "auto" }}>
-              <AuthButtons />
-            </div>
+            {session ? (
+              <>
+                <button
+                  onClick={handleGoHistory}
+                  style={headerActionButtonStyle}
+                >
+                  기록
+                </button>
+                <button onClick={handleLogout} style={headerActionButtonStyle}>
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <div
+                style={{
+                  gridColumn: isMobile ? "1 / -1" : "auto",
+                  width: isMobile ? "100%" : "auto",
+                }}
+              >
+                <AuthButtons />
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -357,7 +528,7 @@ export default function Home() {
                 padding: "6px 12px",
                 borderRadius: "999px",
                 backgroundColor: theme.badgeBg,
-                color: "#dbeafe",
+                color: isDark ? "#dbeafe" : "#3157c8",
                 fontSize: "13px",
                 fontWeight: 700,
                 marginBottom: "14px",
@@ -370,11 +541,11 @@ export default function Home() {
               style={{
                 margin: 0,
                 marginBottom: "14px",
-                fontSize: isMobile ? "30px" : "42px",
+                fontSize: isMobile ? "32px" : "46px",
                 fontWeight: 800,
-                letterSpacing: "-0.04em",
+                letterSpacing: "-0.05em",
                 color: theme.title,
-                lineHeight: isMobile ? 1.25 : 1.15,
+                lineHeight: isMobile ? 1.2 : 1.12,
               }}
             >
               문제를 먼저 읽고,
@@ -454,7 +625,13 @@ export default function Home() {
                   >
                     {index + 1}
                   </div>
-                  <div style={{ fontSize: "15px", fontWeight: 600, color: theme.text }}>
+                  <div
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      color: theme.text,
+                    }}
+                  >
                     {item}
                   </div>
                 </div>
@@ -592,9 +769,7 @@ export default function Home() {
                   ...buttonBaseStyle,
                   border: `1px solid ${theme.inputBorder}`,
                   backgroundColor: solving
-                    ? isDark
-                      ? "#1f2937"
-                      : "#f3f4f6"
+                    ? theme.secondaryMutedBg
                     : theme.inputBg,
                   color: theme.text,
                   cursor:
