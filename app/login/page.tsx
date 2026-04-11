@@ -232,7 +232,7 @@ export default function LoginPage() {
         <div style={styles.top}>
           <div>
             <div style={styles.title}>로그인</div>
-            <div style={styles.desc}>수딱 계정으로 로그인해.</div>
+            <div style={styles.desc}>수딱 계정으로 로그인해. CAPTCHA가 보이지 않으면 광고 차단기 또는 개인정보 보호 확장 프로그램을 잠시 끄고 다시 시도해 봐.</div>
           </div>
 
           <button type="button" onClick={toggleTheme} style={styles.themeBtn}>
