@@ -26,6 +26,7 @@ type CommunityPost = {
   solve_result: string | null;
   image_url: string | null;
   is_public: boolean;
+  is_notice: boolean;
   like_count: number;
   comment_count: number;
   created_at: string;
@@ -90,6 +91,8 @@ export default function CommunityDetailPage() {
   const [errorText, setErrorText] = useState("");
   const [messageText, setMessageText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [noticeLoading, setNoticeLoading] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -122,6 +125,7 @@ export default function CommunityDetailPage() {
   );
 
   const isOwner = !!post && !!currentUserId && post.user_id === currentUserId;
+  const canDeletePost = isOwner || isAdmin;
 
   const topLevelComments = useMemo(
     () => comments.filter((comment) => !comment.parent_comment_id),
@@ -137,6 +141,29 @@ export default function CommunityDetailPage() {
     } = await supabase.auth.getSession();
 
     setCurrentUserId(session?.user?.id ?? null);
+
+    if (!session?.access_token) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
+      const usageRes = await fetch("/api/usage", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const usageData = await usageRes.json();
+
+      if (usageRes.ok) {
+        setIsAdmin(Boolean(usageData?.isAdmin));
+      } else {
+        setIsAdmin(false);
+      }
+    } catch {
+      setIsAdmin(false);
+    }
   };
 
   const fetchPost = async () => {
@@ -144,8 +171,17 @@ export default function CommunityDetailPage() {
       setLoading(true);
       setErrorText("");
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const res = await fetch(`/api/community/${postId}`, {
         cache: "no-store",
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
       });
       const data = await res.json();
 
@@ -156,6 +192,7 @@ export default function CommunityDetailPage() {
       }
 
       setPost(data.post);
+      setIsAdmin(Boolean(data?.viewer_is_admin));
     } catch (error) {
       console.error(error);
       setErrorText("게시글을 불러오지 못했습니다.");
@@ -342,6 +379,57 @@ export default function CommunityDetailPage() {
       setMessageText("대댓글 작성 중 오류가 발생했습니다.");
     } finally {
       setReplyLoading(false);
+    }
+  };
+
+  const handleNoticeToggle = async () => {
+    if (!post) return;
+
+    try {
+      setNoticeLoading(true);
+      setMessageText("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setMessageText("로그인이 필요합니다.");
+        return;
+      }
+
+      const res = await fetch(`/api/community/${postId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          is_notice: !post.is_notice,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessageText(data?.error || "공지 상태 변경에 실패했습니다.");
+        return;
+      }
+
+      setMessageText(data?.message || "공지 상태가 변경되었습니다.");
+      setPost((prev) =>
+        prev
+          ? {
+              ...prev,
+              is_notice: Boolean(data?.post?.is_notice),
+            }
+          : prev
+      );
+    } catch (error) {
+      console.error(error);
+      setMessageText("공지 상태 변경 중 오류가 발생했습니다.");
+    } finally {
+      setNoticeLoading(false);
     }
   };
 
@@ -639,42 +727,71 @@ export default function CommunityDetailPage() {
             </button>
 
             {isOwner ? (
-              <>
-                <Link
-                  href={`/community/${post.id}/edit`}
-                  style={{
-                    textDecoration: "none",
-                    padding: "12px 16px",
-                    borderRadius: "16px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.softCard,
-                    color: theme.text,
-                    fontWeight: 800,
-                    fontSize: "14px",
-                  }}
-                >
-                  수정
-                </Link>
+              <Link
+                href={`/community/${post.id}/edit`}
+                style={{
+                  textDecoration: "none",
+                  padding: "12px 16px",
+                  borderRadius: "16px",
+                  border: `1px solid ${theme.inputBorder}`,
+                  backgroundColor: theme.softCard,
+                  color: theme.text,
+                  fontWeight: 800,
+                  fontSize: "14px",
+                }}
+              >
+                수정
+              </Link>
+            ) : null}
 
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleteLoading}
-                  style={{
-                    cursor: "pointer",
-                    padding: "12px 16px",
-                    borderRadius: "16px",
-                    border: isDark ? "1px solid rgba(248,113,113,0.3)" : "1px solid #fecaca",
-                    backgroundColor: isDark ? "rgba(127,29,29,0.15)" : "#fff5f5",
-                    color: isDark ? "#fca5a5" : "#dc2626",
-                    fontWeight: 800,
-                    fontSize: "14px",
-                    opacity: deleteLoading ? 0.7 : 1,
-                  }}
-                >
-                  {deleteLoading ? "삭제 중..." : "삭제"}
-                </button>
-              </>
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={handleNoticeToggle}
+                disabled={noticeLoading}
+                style={{
+                  border: "none",
+                  cursor: noticeLoading ? "default" : "pointer",
+                  padding: "12px 16px",
+                  borderRadius: "16px",
+                  fontWeight: 800,
+                  fontSize: "14px",
+                  backgroundColor: post.is_notice
+                    ? isDark
+                      ? "#7c2d12"
+                      : "#fff7ed"
+                    : theme.primary,
+                  color: post.is_notice
+                    ? isDark
+                      ? "#fdba74"
+                      : "#c2410c"
+                    : "#ffffff",
+                  opacity: noticeLoading ? 0.7 : 1,
+                }}
+              >
+                {noticeLoading ? "처리 중..." : post.is_notice ? "공지 해제" : "공지로 지정"}
+              </button>
+            ) : null}
+
+            {canDeletePost ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                style={{
+                  cursor: "pointer",
+                  padding: "12px 16px",
+                  borderRadius: "16px",
+                  border: isDark ? "1px solid rgba(248,113,113,0.3)" : "1px solid #fecaca",
+                  backgroundColor: isDark ? "rgba(127,29,29,0.15)" : "#fff5f5",
+                  color: isDark ? "#fca5a5" : "#dc2626",
+                  fontWeight: 800,
+                  fontSize: "14px",
+                  opacity: deleteLoading ? 0.7 : 1,
+                }}
+              >
+                {deleteLoading ? "삭제 중..." : isOwner ? "삭제" : "관리자 삭제"}
+              </button>
             ) : null}
           </div>
 

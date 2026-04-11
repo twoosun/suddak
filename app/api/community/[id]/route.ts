@@ -51,8 +51,18 @@ async function getUserFromRequest(req: NextRequest) {
   return { user, error: null, status: 200 };
 }
 
+async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
+  const { data } = await supabase
+    .from("user_profiles")
+    .select("is_admin")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return Boolean(data?.is_admin);
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
@@ -102,12 +112,23 @@ export async function GET(
 
     const { data: userData } = await supabase.auth.admin.getUserById(data.user_id);
 
+    let viewerIsAdmin = false;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "").trim();
+      const { data: authData } = await supabase.auth.getUser(token);
+      if (authData.user) {
+        viewerIsAdmin = await getIsAdmin(supabase, authData.user.id);
+      }
+    }
+
     return NextResponse.json({
       post: {
         ...data,
         author_name: getAuthorName(userData.user),
         author_avatar_url: null,
       },
+      viewer_is_admin: viewerIsAdmin,
     });
   } catch (error) {
     console.error("[GET /api/community/[id]] unexpected error:", error);
@@ -141,6 +162,7 @@ export async function PATCH(
     }
 
     const user = authResult.user;
+    const isAdmin = await getIsAdmin(supabase, user.id);
     const body = await req.json();
 
     const { data: existingPost, error: existingError } = await supabase
@@ -156,6 +178,38 @@ export async function PATCH(
       );
     }
 
+    const onlyNoticeToggle =
+      Object.keys(body).length > 0 &&
+      Object.keys(body).every((key) => ["is_notice"].includes(key));
+
+    if (onlyNoticeToggle) {
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: "관리자만 공지사항을 지정할 수 있습니다." },
+          { status: 403 }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("community_posts")
+        .update({ is_notice: Boolean(body.is_notice) })
+        .eq("id", postId)
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        return NextResponse.json(
+          { error: "공지 상태 변경에 실패했습니다." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        message: data.is_notice ? "공지사항으로 지정되었습니다." : "공지사항이 해제되었습니다.",
+        post: data,
+      });
+    }
+
     if (existingPost.user_id !== user.id) {
       return NextResponse.json(
         { error: "본인 글만 수정할 수 있습니다." },
@@ -166,23 +220,19 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
 
     if (body.post_type !== undefined) {
-      const postType: PostType = body.post_type;
-      if (postType !== "free" && postType !== "problem") {
+      if (body.post_type !== "free" && body.post_type !== "problem") {
         return NextResponse.json(
           { error: "post_type은 free 또는 problem 이어야 합니다." },
           { status: 400 }
         );
       }
-      updateData.post_type = postType;
+      updateData.post_type = body.post_type as PostType;
     }
 
     if (body.title !== undefined) {
-      const title = String(body.title).trim();
+      const title = String(body.title ?? "").trim();
       if (!title) {
-        return NextResponse.json(
-          { error: "제목을 입력해주세요." },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
       }
       if (title.length > 200) {
         return NextResponse.json(
@@ -194,12 +244,9 @@ export async function PATCH(
     }
 
     if (body.content !== undefined) {
-      const content = String(body.content).trim();
+      const content = String(body.content ?? "").trim();
       if (!content) {
-        return NextResponse.json(
-          { error: "내용을 입력해주세요." },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
       }
       if (content.length > 10000) {
         return NextResponse.json(
@@ -211,21 +258,15 @@ export async function PATCH(
     }
 
     if (body.recognized_text !== undefined) {
-      updateData.recognized_text = body.recognized_text
-        ? String(body.recognized_text).trim()
-        : null;
+      updateData.recognized_text = body.recognized_text?.trim() || null;
     }
 
     if (body.solve_result !== undefined) {
-      updateData.solve_result = body.solve_result
-        ? String(body.solve_result).trim()
-        : null;
+      updateData.solve_result = body.solve_result?.trim() || null;
     }
 
     if (body.image_url !== undefined) {
-      updateData.image_url = body.image_url
-        ? String(body.image_url).trim()
-        : null;
+      updateData.image_url = body.image_url?.trim() || null;
     }
 
     if (body.is_public !== undefined) {
@@ -233,14 +274,11 @@ export async function PATCH(
     }
 
     if (body.history_id !== undefined) {
-      if (
-        body.history_id === null ||
-        body.history_id === "" ||
-        body.history_id === undefined
-      ) {
+      const rawHistoryId = body.history_id;
+      if (rawHistoryId === null || rawHistoryId === "") {
         updateData.history_id = null;
       } else {
-        const historyId = Number(body.history_id);
+        const historyId = Number(rawHistoryId);
         if (Number.isNaN(historyId)) {
           return NextResponse.json(
             { error: "history_id 형식이 올바르지 않습니다." },
@@ -353,6 +391,7 @@ export async function DELETE(
     }
 
     const user = authResult.user;
+    const isAdmin = await getIsAdmin(supabase, user.id);
 
     const { data: existingPost, error: existingError } = await supabase
       .from("community_posts")
@@ -367,9 +406,9 @@ export async function DELETE(
       );
     }
 
-    if (existingPost.user_id !== user.id) {
+    if (existingPost.user_id !== user.id && !isAdmin) {
       return NextResponse.json(
-        { error: "본인 글만 삭제할 수 있습니다." },
+        { error: "본인 글 또는 관리자만 삭제할 수 있습니다." },
         { status: 403 }
       );
     }
@@ -388,7 +427,9 @@ export async function DELETE(
     }
 
     return NextResponse.json({
-      message: "게시글이 삭제되었습니다.",
+      message: isAdmin && existingPost.user_id !== user.id
+        ? "관리자 권한으로 게시글을 삭제했습니다."
+        : "게시글이 삭제되었습니다.",
     });
   } catch (error) {
     console.error("[DELETE /api/community/[id]] unexpected error:", error);

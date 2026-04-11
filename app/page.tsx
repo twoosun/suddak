@@ -6,11 +6,11 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import AuthButtons from "@/components/AuthButtons";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import TopLinks from "@/components/top-links";
+import MoreMenu from "@/components/MoreMenu";
 
 type SubjectCategory =
   | "highschool_math_1st_year"
@@ -230,13 +230,14 @@ export default function Home() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
-      setIsDark(true);
-    }
+    const dark = savedTheme === "dark";
+    setIsDark(dark);
+    document.documentElement.classList.toggle("dark", dark);
   }, []);
 
   useEffect(() => {
     localStorage.setItem("theme", isDark ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
 
   useEffect(() => {
@@ -322,19 +323,6 @@ export default function Home() {
     transition: "all 0.15s ease",
   };
 
-  const headerActionButtonStyle: React.CSSProperties = {
-    width: "100%",
-    minHeight: isMobile ? "36px" : "42px",
-    padding: isMobile ? "8px 8px" : "10px 14px",
-    borderRadius: isMobile ? "10px" : "12px",
-    border: `1px solid ${theme.subtleButtonBorder}`,
-    backgroundColor: theme.subtleButtonBg,
-    color: theme.subtleButtonText,
-    fontWeight: 700,
-    fontSize: isMobile ? "12px" : "14px",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -504,18 +492,17 @@ export default function Home() {
     loadUsage();
   }, [session]);
 
+  const handleToggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev;
+      localStorage.setItem("theme", next ? "dark" : "light");
+      document.documentElement.classList.toggle("dark", next);
+      return next;
+    });
+  };
+
   const handleLogoClick = () => {
     router.push("/");
-  };
-
-  const handleGoHistory = () => {
-    router.push("/history");
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
   };
 
   return (
@@ -651,70 +638,23 @@ export default function Home() {
               </div>
             </button>
 
-            {!isMobile && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: session ? "repeat(3, auto)" : "auto auto",
-                  gap: "10px",
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  onClick={() => setIsDark((prev) => !prev)}
-                  style={headerActionButtonStyle}
-                >
-                  {isDark ? "주간모드" : "야간모드"}
-                </button>
-
-                {session ? (
-                  <>
-                    <button onClick={handleGoHistory} style={headerActionButtonStyle}>
-                      기록
-                    </button>
-                    <button onClick={handleLogout} style={headerActionButtonStyle}>
-                      로그아웃
-                    </button>
-                  </>
-                ) : (
-                  <AuthButtons />
-                )}
-              </div>
-            )}
-          </div>
-
-          {isMobile && (
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: session ? "repeat(3, 1fr)" : "1fr",
-                gap: "8px",
-                width: "100%",
+                display: "flex",
+                alignItems: isMobile ? "stretch" : "center",
+                justifyContent: isMobile ? "flex-start" : "flex-end",
+                width: isMobile ? "100%" : "auto",
+                flexShrink: 0,
               }}
             >
-              <button
-                onClick={() => setIsDark((prev) => !prev)}
-                style={headerActionButtonStyle}
-              >
-                {isDark ? "주간" : "야간"}
-              </button>
-
-              {session ? (
-                <>
-                  <button onClick={handleGoHistory} style={headerActionButtonStyle}>
-                    기록
-                  </button>
-                  <button onClick={handleLogout} style={headerActionButtonStyle}>
-                    로그아웃
-                  </button>
-                </>
-              ) : (
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <AuthButtons />
-                </div>
-              )}
+              <MoreMenu
+                isDark={isDark}
+                onToggleTheme={handleToggleTheme}
+                themeLabel={isDark ? "주간모드" : "야간모드"}
+                redirectAfterLogout="/login"
+              />
             </div>
-          )}
+          </div>
 
           <div
             style={{

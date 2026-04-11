@@ -96,6 +96,8 @@ function CommunityWritePageInner() {
   const [imageUrl, setImageUrl] = useState("");
   const [historyId, setHistoryId] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [isNotice, setIsNotice] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -106,6 +108,33 @@ function CommunityWritePageInner() {
   useEffect(() => {
     setIsDark(getStoredTheme() === "dark");
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const loadAdmin = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/usage", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const data = await res.json();
+        setIsAdmin(Boolean(data?.isAdmin));
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    loadAdmin();
   }, []);
 
   const theme = useMemo(
@@ -215,6 +244,7 @@ function CommunityWritePageInner() {
           image_url: imageUrl.trim() || null,
           history_id: historyId.trim() ? Number(historyId.trim()) : null,
           is_public: isPublic,
+          is_notice: isAdmin ? isNotice : false,
         }),
       });
 
@@ -596,6 +626,28 @@ function CommunityWritePageInner() {
               </div>
             </div>
           )}
+
+          {isAdmin ? (
+            <div
+              style={{
+                marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
+            >
+              <input
+                id="is_notice"
+                type="checkbox"
+                checked={isNotice}
+                onChange={(e) => setIsNotice(e.target.checked)}
+              />
+              <label htmlFor="is_notice" style={{ fontSize: "14px", fontWeight: 700 }}>
+                이 글을 공지사항으로 등록
+              </label>
+            </div>
+          ) : null}
 
           <div
             style={{

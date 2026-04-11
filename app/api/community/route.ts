@@ -34,6 +34,16 @@ function getAuthorName(user: User | null | undefined) {
   );
 }
 
+async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
+  const { data } = await supabase
+    .from("user_profiles")
+    .select("is_admin")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return Boolean(data?.is_admin);
+}
+
 async function enrichPostsWithAuthors(
   supabase: ReturnType<typeof createAdminClient>,
   posts: any[]
@@ -77,6 +87,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("community_posts")
       .select("*", { count: "exact" })
+      .order("is_notice", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (onlyPublic) {
@@ -149,6 +160,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isAdmin = await getIsAdmin(supabase, user.id);
     const body = await req.json();
 
     const postType: PostType = body.post_type;
@@ -157,8 +169,8 @@ export async function POST(req: NextRequest) {
     const recognizedText = body.recognized_text?.trim() || null;
     const solveResult = body.solve_result?.trim() || null;
     const imageUrl = body.image_url?.trim() || null;
-    const isPublic =
-      typeof body.is_public === "boolean" ? body.is_public : true;
+    const isPublic = typeof body.is_public === "boolean" ? body.is_public : true;
+    const isNotice = isAdmin && typeof body.is_notice === "boolean" ? body.is_notice : false;
     const historyId =
       body.history_id === null ||
       body.history_id === undefined ||
@@ -174,17 +186,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!title) {
-      return NextResponse.json(
-        { error: "제목을 입력해주세요." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
     }
 
     if (!content) {
-      return NextResponse.json(
-        { error: "내용을 입력해주세요." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
     }
 
     if (title.length > 200) {
@@ -254,11 +260,12 @@ export async function POST(req: NextRequest) {
         solve_result: solveResult,
         image_url: imageUrl,
         is_public: isPublic,
+        is_notice: isNotice,
       })
       .select("*")
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error("[POST /api/community] insert error:", error);
       return NextResponse.json(
         { error: "게시글 작성에 실패했습니다." },
@@ -268,7 +275,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: "게시글이 작성되었습니다.",
-      post: data,
+      post: {
+        ...data,
+        author_name: getAuthorName(user),
+        author_avatar_url: null,
+      },
     });
   } catch (error) {
     console.error("[POST /api/community] unexpected error:", error);

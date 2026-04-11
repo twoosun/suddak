@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import type { Session } from "@supabase/supabase-js";
+import MoreMenu from "@/components/MoreMenu";
 import { getStoredTheme, toggleTheme } from "@/lib/theme";
 
 type Props = {
@@ -14,35 +13,9 @@ export default function SuddakCommunityHeader({
   current = "community",
 }: Props) {
   const [isDark, setIsDark] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     setIsDark(getStoredTheme() === "dark");
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const initSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (mounted) setSession(session);
-    };
-
-    initSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
   }, []);
 
   const theme = useMemo(
@@ -57,9 +30,6 @@ export default function SuddakCommunityHeader({
       subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
       subtleButtonText: isDark ? "#f9fafb" : "#111827",
       primary: "#3157c8",
-      primarySoft: isDark ? "#1d4ed8" : "#e8eefc",
-      primarySoftText: isDark ? "#dbeafe" : "#3157c8",
-      mutedText: isDark ? "#cbd5e1" : "#6b7280",
     }),
     [isDark]
   );
@@ -87,9 +57,9 @@ export default function SuddakCommunityHeader({
     border: `1px solid ${theme.primary}`,
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/";
+  const handleToggleTheme = () => {
+    const next = toggleTheme();
+    setIsDark(next === "dark");
   };
 
   return (
@@ -213,18 +183,12 @@ export default function SuddakCommunityHeader({
               </div>
             </Link>
 
-            <button
-              type="button"
-              onClick={() => setIsDark(toggleTheme() === "dark")}
-              style={{
-                ...baseButtonStyle,
-                cursor: "pointer",
-                padding: "10px 12px",
-                flexShrink: 0,
-              }}
-            >
-              {isDark ? "주간모드" : "야간모드"}
-            </button>
+            <MoreMenu
+              isDark={isDark}
+              onToggleTheme={handleToggleTheme}
+              themeLabel={isDark ? "주간모드" : "야간모드"}
+              redirectAfterLogout="/login"
+            />
           </div>
 
           <div
@@ -264,55 +228,6 @@ export default function SuddakCommunityHeader({
               >
                 커뮤니티
               </Link>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
-            >
-              {session ? (
-                <>
-                  <div
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: "999px",
-                      border: `1px solid ${theme.cardBorder}`,
-                      backgroundColor: theme.primarySoft,
-                      color: theme.primarySoftText,
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      maxWidth: "180px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      display: "none",
-                    }}
-                    className="suddak-session-chip"
-                  >
-                    로그인됨
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    style={{
-                      ...baseButtonStyle,
-                      cursor: "pointer",
-                    }}
-                  >
-                    로그아웃
-                  </button>
-                </>
-              ) : (
-                <Link href="/login" style={baseButtonStyle}>
-                  로그인
-                </Link>
-              )}
             </div>
           </div>
         </div>

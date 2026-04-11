@@ -19,6 +19,7 @@ type CommunityPost = {
   solve_result: string | null;
   image_url: string | null;
   is_public: boolean;
+  is_notice: boolean;
   like_count: number;
   comment_count: number;
   created_at: string;
@@ -416,6 +417,21 @@ export default function CommunityPage() {
                     flexWrap: "wrap",
                   }}
                 >
+                  {post.is_notice ? (
+                    <span
+                      style={{
+                        padding: "6px 10px",
+                        borderRadius: "999px",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        backgroundColor: isDark ? "#7c2d12" : "#fff7ed",
+                        color: isDark ? "#fdba74" : "#c2410c",
+                      }}
+                    >
+                      공지
+                    </span>
+                  ) : null}
+
                   <span
                     style={{
                       padding: "6px 10px",
