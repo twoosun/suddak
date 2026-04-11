@@ -20,6 +20,7 @@ export default function Home() {
   const [usageText, setUsageText] = useState("");
   const [isEditingRecognized, setIsEditingRecognized] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -31,6 +32,17 @@ export default function Home() {
 
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark") {
+      setIsDark(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -166,12 +178,34 @@ export default function Home() {
     loadUsage();
   }, []);
 
+  const theme = {
+    bg: isDark
+      ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
+      : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
+    text: isDark ? "#f9fafb" : "#1f2937",
+    title: isDark ? "#ffffff" : "#111827",
+    subText: isDark ? "#cbd5e1" : "#6b7280",
+    card: isDark ? "#111827" : "#ffffff",
+    cardBorder: isDark ? "#253041" : "#e5e7eb",
+    softCard: isDark ? "#0f172a" : "#fbfcfe",
+    softBorder: isDark ? "#334155" : "#edf0f5",
+    primary: "#3157c8",
+    badgeBg: isDark ? "#1e3a8a" : "#e8eefc",
+    usageBg: isDark ? "#0f172a" : "#f8faff",
+    inputBg: isDark ? "#0b1220" : "#ffffff",
+    inputBorder: isDark ? "#374151" : "#d1d5db",
+    shadow: isDark
+      ? "0 8px 30px rgba(0, 0, 0, 0.35)"
+      : "0 8px 30px rgba(15, 23, 42, 0.05)",
+    headerBg: isDark ? "rgba(17,24,39,0.82)" : "rgba(255,255,255,0.8)",
+  };
+
   const sectionCardStyle: React.CSSProperties = {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
+    backgroundColor: theme.card,
+    border: `1px solid ${theme.cardBorder}`,
     borderRadius: isMobile ? "20px" : "24px",
     padding: isMobile ? "18px" : "24px",
-    boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+    boxShadow: theme.shadow,
   };
 
   const buttonBaseStyle: React.CSSProperties = {
@@ -186,17 +220,16 @@ export default function Home() {
     <main
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
-        color: "#1f2937",
+        background: theme.bg,
+        color: theme.text,
         fontFamily:
           'Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
       <header
         style={{
-          borderBottom: "1px solid #e5e7eb",
-          backgroundColor: "rgba(255,255,255,0.8)",
+          borderBottom: `1px solid ${theme.cardBorder}`,
+          backgroundColor: theme.headerBg,
           backdropFilter: "blur(10px)",
           position: "sticky",
           top: 0,
@@ -220,26 +253,76 @@ export default function Home() {
               style={{
                 fontSize: "13px",
                 fontWeight: 700,
-                color: "#3157c8",
-                marginBottom: "4px",
+                color: theme.primary,
+                marginBottom: "6px",
               }}
             >
               AI 수학 문제 도우미
             </div>
+
             <div
               style={{
-                fontSize: isMobile ? "24px" : "28px",
-                fontWeight: 800,
-                letterSpacing: "-0.03em",
-                color: "#111827",
+                display: "flex",
+                alignItems: isMobile ? "flex-end" : "center",
+                gap: isMobile ? "10px" : "14px",
+                flexWrap: "wrap",
               }}
             >
-              수딱
+              <div
+                style={{
+                  fontSize: isMobile ? "40px" : "54px",
+                  fontWeight: 900,
+                  letterSpacing: "-0.05em",
+                  color: theme.title,
+                  lineHeight: 1,
+                }}
+              >
+                수딱
+              </div>
+
+              <div
+                style={{
+                  fontSize: isMobile ? "18px" : "22px",
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                  color: isDark ? "#93c5fd" : "#3157c8",
+                  paddingBottom: isMobile ? "5px" : "7px",
+                }}
+              >
+                Suddak
+              </div>
             </div>
           </div>
 
-          <div style={{ width: isMobile ? "100%" : "auto" }}>
-            <AuthButtons />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              gap: "10px",
+              width: isMobile ? "100%" : "auto",
+              alignItems: isMobile ? "stretch" : "center",
+            }}
+          >
+            <button
+              onClick={() => setIsDark((prev) => !prev)}
+              style={{
+                width: isMobile ? "100%" : "auto",
+                padding: "10px 14px",
+                borderRadius: "12px",
+                border: `1px solid ${isDark ? "#374151" : "#d1d5db"}`,
+                backgroundColor: isDark ? "#111827" : "#ffffff",
+                color: isDark ? "#f9fafb" : "#111827",
+                fontWeight: 700,
+                fontSize: "14px",
+                cursor: "pointer",
+              }}
+            >
+              {isDark ? "주간모드" : "야간모드"}
+            </button>
+
+            <div style={{ width: isMobile ? "100%" : "auto" }}>
+              <AuthButtons />
+            </div>
           </div>
         </div>
       </header>
@@ -261,11 +344,11 @@ export default function Home() {
         >
           <div
             style={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.cardBorder}`,
               borderRadius: isMobile ? "20px" : "24px",
               padding: isMobile ? "20px" : "28px",
-              boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+              boxShadow: theme.shadow,
             }}
           >
             <div
@@ -273,8 +356,8 @@ export default function Home() {
                 display: "inline-block",
                 padding: "6px 12px",
                 borderRadius: "999px",
-                backgroundColor: "#e8eefc",
-                color: "#3157c8",
+                backgroundColor: theme.badgeBg,
+                color: "#dbeafe",
                 fontSize: "13px",
                 fontWeight: 700,
                 marginBottom: "14px",
@@ -290,7 +373,7 @@ export default function Home() {
                 fontSize: isMobile ? "30px" : "42px",
                 fontWeight: 800,
                 letterSpacing: "-0.04em",
-                color: "#111827",
+                color: theme.title,
                 lineHeight: isMobile ? 1.25 : 1.15,
               }}
             >
@@ -302,7 +385,7 @@ export default function Home() {
             <p
               style={{
                 margin: 0,
-                color: "#4b5563",
+                color: theme.subText,
                 fontSize: isMobile ? "15px" : "17px",
                 lineHeight: 1.7,
                 maxWidth: "680px",
@@ -316,11 +399,11 @@ export default function Home() {
 
           <div
             style={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.cardBorder}`,
               borderRadius: isMobile ? "20px" : "24px",
               padding: isMobile ? "20px" : "24px",
-              boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+              boxShadow: theme.shadow,
             }}
           >
             <h2
@@ -329,7 +412,7 @@ export default function Home() {
                 marginBottom: "14px",
                 fontSize: isMobile ? "18px" : "20px",
                 fontWeight: 800,
-                color: "#111827",
+                color: theme.title,
               }}
             >
               사용 흐름
@@ -350,8 +433,8 @@ export default function Home() {
                     gap: "12px",
                     padding: "12px 14px",
                     borderRadius: "16px",
-                    backgroundColor: "#f8faff",
-                    border: "1px solid #edf2ff",
+                    backgroundColor: theme.softCard,
+                    border: `1px solid ${theme.softBorder}`,
                   }}
                 >
                   <div
@@ -359,7 +442,7 @@ export default function Home() {
                       width: "28px",
                       height: "28px",
                       borderRadius: "999px",
-                      backgroundColor: "#3157c8",
+                      backgroundColor: theme.primary,
                       color: "#fff",
                       display: "flex",
                       alignItems: "center",
@@ -371,7 +454,9 @@ export default function Home() {
                   >
                     {index + 1}
                   </div>
-                  <div style={{ fontSize: "15px", fontWeight: 600 }}>{item}</div>
+                  <div style={{ fontSize: "15px", fontWeight: 600, color: theme.text }}>
+                    {item}
+                  </div>
                 </div>
               ))}
             </div>
@@ -391,7 +476,7 @@ export default function Home() {
                 marginBottom: "10px",
                 fontSize: isMobile ? "20px" : "22px",
                 fontWeight: 800,
-                color: "#111827",
+                color: theme.title,
               }}
             >
               문제 업로드
@@ -401,7 +486,7 @@ export default function Home() {
               style={{
                 margin: 0,
                 marginBottom: "18px",
-                color: "#6b7280",
+                color: theme.subText,
                 lineHeight: 1.7,
                 fontSize: "15px",
               }}
@@ -417,9 +502,10 @@ export default function Home() {
                 display: "block",
                 width: "100%",
                 padding: "12px",
-                border: "1px solid #d1d5db",
+                border: `1px solid ${theme.inputBorder}`,
                 borderRadius: "14px",
-                backgroundColor: "#fff",
+                backgroundColor: theme.inputBg,
+                color: theme.text,
                 fontSize: isMobile ? "14px" : "15px",
               }}
             />
@@ -431,17 +517,17 @@ export default function Home() {
                     fontSize: "15px",
                     fontWeight: 700,
                     marginBottom: "10px",
-                    color: "#374151",
+                    color: theme.text,
                   }}
                 >
                   미리보기
                 </div>
                 <div
                   style={{
-                    border: "1px solid #e5e7eb",
+                    border: `1px solid ${theme.cardBorder}`,
                     borderRadius: "18px",
                     overflow: "hidden",
-                    backgroundColor: "#fafafa",
+                    backgroundColor: isDark ? "#0b1220" : "#fafafa",
                   }}
                 >
                   <img
@@ -463,9 +549,9 @@ export default function Home() {
                   marginTop: "14px",
                   padding: "12px 14px",
                   borderRadius: "12px",
-                  backgroundColor: "#f8faff",
-                  border: "1px solid #e5e7eb",
-                  color: "#374151",
+                  backgroundColor: theme.usageBg,
+                  border: `1px solid ${theme.cardBorder}`,
+                  color: theme.text,
                   fontSize: isMobile ? "13px" : "14px",
                   fontWeight: 600,
                   lineHeight: 1.6,
@@ -490,7 +576,7 @@ export default function Home() {
                 style={{
                   ...buttonBaseStyle,
                   border: "1px solid #c7d2fe",
-                  backgroundColor: reading ? "#eef2ff" : "#3157c8",
+                  backgroundColor: reading ? "#eef2ff" : theme.primary,
                   color: reading ? "#3157c8" : "#ffffff",
                   cursor: !file || reading ? "not-allowed" : "pointer",
                   opacity: !file || reading ? 0.7 : 1,
@@ -504,9 +590,13 @@ export default function Home() {
                 disabled={!recognizedText.trim() || solving}
                 style={{
                   ...buttonBaseStyle,
-                  border: "1px solid #d1d5db",
-                  backgroundColor: solving ? "#f3f4f6" : "#ffffff",
-                  color: "#111827",
+                  border: `1px solid ${theme.inputBorder}`,
+                  backgroundColor: solving
+                    ? isDark
+                      ? "#1f2937"
+                      : "#f3f4f6"
+                    : theme.inputBg,
+                  color: theme.text,
                   cursor:
                     !recognizedText.trim() || solving ? "not-allowed" : "pointer",
                   opacity: !recognizedText.trim() || solving ? 0.7 : 1,
@@ -531,7 +621,7 @@ export default function Home() {
                 marginBottom: "10px",
                 fontSize: isMobile ? "20px" : "22px",
                 fontWeight: 800,
-                color: "#111827",
+                color: theme.title,
               }}
             >
               문제 인식 결과
@@ -541,7 +631,7 @@ export default function Home() {
               style={{
                 margin: 0,
                 marginBottom: "18px",
-                color: "#6b7280",
+                color: theme.subText,
                 lineHeight: 1.7,
                 fontSize: "15px",
               }}
@@ -552,9 +642,9 @@ export default function Home() {
 
             <div
               style={{
-                border: "1px solid #edf0f5",
+                border: `1px solid ${theme.softBorder}`,
                 borderRadius: "18px",
-                backgroundColor: "#fbfcfe",
+                backgroundColor: theme.softCard,
                 padding: isMobile ? "16px" : "20px",
                 lineHeight: 1.9,
               }}
@@ -574,9 +664,9 @@ export default function Home() {
                     width: isMobile ? "100%" : "auto",
                     padding: "10px 14px",
                     borderRadius: "12px",
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#ffffff",
-                    color: "#111827",
+                    border: `1px solid ${theme.inputBorder}`,
+                    backgroundColor: theme.inputBg,
+                    color: theme.text,
                     fontWeight: 700,
                     fontSize: "14px",
                     cursor: "pointer",
@@ -592,9 +682,9 @@ export default function Home() {
                     width: isMobile ? "100%" : "auto",
                     padding: "10px 14px",
                     borderRadius: "12px",
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#ffffff",
-                    color: "#111827",
+                    border: `1px solid ${theme.inputBorder}`,
+                    backgroundColor: theme.inputBg,
+                    color: theme.text,
                     fontWeight: 700,
                     fontSize: "14px",
                     cursor: !file || reading ? "not-allowed" : "pointer",
@@ -608,7 +698,7 @@ export default function Home() {
               <p
                 style={{
                   margin: "0 0 14px",
-                  color: "#6b7280",
+                  color: theme.subText,
                   lineHeight: 1.7,
                   fontSize: "14px",
                 }}
@@ -623,22 +713,22 @@ export default function Home() {
                   style={{
                     width: "100%",
                     minHeight: isMobile ? "220px" : "260px",
-                    border: "1px solid #d1d5db",
+                    border: `1px solid ${theme.inputBorder}`,
                     borderRadius: "16px",
                     padding: "16px",
                     fontSize: "15px",
                     lineHeight: 1.7,
                     resize: "vertical",
-                    backgroundColor: "#ffffff",
-                    color: "#111827",
+                    backgroundColor: theme.inputBg,
+                    color: theme.text,
                   }}
                 />
               ) : (
                 <div
                   style={{
-                    border: "1px solid #edf0f5",
+                    border: `1px solid ${theme.softBorder}`,
                     borderRadius: "18px",
-                    backgroundColor: "#fbfcfe",
+                    backgroundColor: theme.softCard,
                     padding: isMobile ? "16px" : "20px",
                     lineHeight: 1.9,
                     overflowX: "auto",
@@ -664,7 +754,7 @@ export default function Home() {
                 marginBottom: "10px",
                 fontSize: isMobile ? "20px" : "22px",
                 fontWeight: 800,
-                color: "#111827",
+                color: theme.title,
               }}
             >
               풀이 결과
@@ -674,7 +764,7 @@ export default function Home() {
               style={{
                 margin: 0,
                 marginBottom: "18px",
-                color: "#6b7280",
+                color: theme.subText,
                 lineHeight: 1.7,
                 fontSize: "15px",
               }}
@@ -684,9 +774,9 @@ export default function Home() {
 
             <div
               style={{
-                border: "1px solid #edf0f5",
+                border: `1px solid ${theme.softBorder}`,
                 borderRadius: "18px",
-                backgroundColor: "#fbfcfe",
+                backgroundColor: theme.softCard,
                 padding: isMobile ? "16px" : "20px",
                 lineHeight: 1.9,
                 overflowX: "auto",
