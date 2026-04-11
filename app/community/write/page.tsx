@@ -48,7 +48,8 @@ function PreviewBox({
         borderRadius: "16px",
         border: `1px solid ${theme.softBorder}`,
         backgroundColor: theme.softCard,
-        padding: "16px",
+        padding: "14px",
+        overflow: "hidden",
       }}
     >
       <div
@@ -61,8 +62,15 @@ function PreviewBox({
       >
         {title}
       </div>
+
       {value.trim() ? (
-        <div className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}>
+        <div
+          style={{
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+          }}
+          className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}
+        >
           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
             {value}
           </ReactMarkdown>
@@ -251,16 +259,17 @@ function CommunityWritePageInner() {
         style={{
           maxWidth: "900px",
           margin: "0 auto",
-          padding: "24px 16px 48px",
+          padding: "18px 12px 40px",
         }}
       >
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "18px" }}>
           <h1
             style={{
               margin: 0,
-              fontSize: "34px",
+              fontSize: "clamp(28px, 6vw, 34px)",
               fontWeight: 900,
               letterSpacing: "-0.04em",
+              lineHeight: 1.1,
             }}
           >
             글쓰기
@@ -270,7 +279,8 @@ function CommunityWritePageInner() {
               marginTop: "8px",
               marginBottom: 0,
               color: theme.subText,
-              lineHeight: 1.7,
+              lineHeight: 1.65,
+              fontSize: "14px",
             }}
           >
             자유글과 문제글을 작성할 수 있어요.
@@ -283,14 +293,22 @@ function CommunityWritePageInner() {
             backgroundColor: theme.card,
             border: `1px solid ${theme.cardBorder}`,
             borderRadius: "24px",
-            padding: "24px",
+            padding: "18px",
             boxShadow: theme.shadow,
           }}
         >
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
+          <div style={{ marginBottom: "18px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "14px",
+                fontWeight: 800,
+              }}
+            >
               글 종류
             </label>
+
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
                 type="button"
@@ -298,27 +316,30 @@ function CommunityWritePageInner() {
                 style={{
                   border: "none",
                   cursor: "pointer",
-                  padding: "10px 16px",
+                  padding: "10px 15px",
                   borderRadius: "999px",
                   fontWeight: 800,
-                  fontSize: "14px",
-                  backgroundColor: postType === "free" ? theme.primary : isDark ? "#0f172a" : "#f3f4f6",
+                  fontSize: "13px",
+                  backgroundColor:
+                    postType === "free" ? theme.primary : isDark ? "#0f172a" : "#f3f4f6",
                   color: postType === "free" ? "#fff" : theme.text,
                 }}
               >
                 자유글
               </button>
+
               <button
                 type="button"
                 onClick={() => setPostType("problem")}
                 style={{
                   border: "none",
                   cursor: "pointer",
-                  padding: "10px 16px",
+                  padding: "10px 15px",
                   borderRadius: "999px",
                   fontWeight: 800,
-                  fontSize: "14px",
-                  backgroundColor: postType === "problem" ? theme.primary : isDark ? "#0f172a" : "#f3f4f6",
+                  fontSize: "13px",
+                  backgroundColor:
+                    postType === "problem" ? theme.primary : isDark ? "#0f172a" : "#f3f4f6",
                   color: postType === "problem" ? "#fff" : theme.text,
                 }}
               >
@@ -327,10 +348,18 @@ function CommunityWritePageInner() {
             </div>
           </div>
 
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
+          <div style={{ marginBottom: "18px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "14px",
+                fontWeight: 800,
+              }}
+            >
               제목
             </label>
+
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -338,8 +367,8 @@ function CommunityWritePageInner() {
               maxLength={200}
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: "16px",
+                padding: "13px 14px",
+                borderRadius: "14px",
                 border: `1px solid ${theme.inputBorder}`,
                 backgroundColor: theme.inputBg,
                 color: theme.text,
@@ -350,144 +379,233 @@ function CommunityWritePageInner() {
           </div>
 
           <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "14px",
+                fontWeight: 800,
+              }}
+            >
               내용
             </label>
+
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="내용을 입력하세요. 수식은 $...$ 또는 $$...$$ 사용"
-              rows={8}
+              rows={7}
               maxLength={10000}
               style={{
                 width: "100%",
-                padding: "14px 16px",
-                borderRadius: "16px",
+                padding: "13px 14px",
+                borderRadius: "14px",
                 border: `1px solid ${theme.inputBorder}`,
                 backgroundColor: theme.inputBg,
                 color: theme.text,
                 fontSize: "14px",
                 outline: "none",
                 resize: "vertical",
+                minHeight: "180px",
               }}
             />
           </div>
 
-          <div style={{ marginBottom: "20px" }}>
-            <PreviewBox title="내용 미리보기" value={content} isDark={isDark} theme={theme} />
+          <div style={{ marginBottom: "18px" }}>
+            <PreviewBox
+              title="내용 미리보기"
+              value={content}
+              isDark={isDark}
+              theme={theme}
+            />
           </div>
 
           {postType === "problem" && (
             <div
               style={{
-                marginBottom: "20px",
-                padding: "18px",
-                borderRadius: "20px",
+                marginBottom: "18px",
+                padding: "14px",
+                borderRadius: "18px",
                 border: `1px solid ${theme.problemBorder}`,
                 backgroundColor: theme.problemBox,
               }}
             >
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
+              <div
+                style={{
+                  marginBottom: "14px",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: theme.subText,
+                  lineHeight: 1.6,
+                }}
+              >
+                문제글 추가 정보는 필요한 것만 입력해도 돼.
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "10px",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                  }}
+                >
                   인식된 문제
                 </label>
+
                 <textarea
                   value={recognizedText}
                   onChange={(e) => setRecognizedText(e.target.value)}
                   rows={4}
                   style={{
                     width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "16px",
+                    padding: "13px 14px",
+                    borderRadius: "14px",
                     border: `1px solid ${theme.inputBorder}`,
                     backgroundColor: theme.inputBg,
                     color: theme.text,
                     fontSize: "14px",
                     outline: "none",
                     resize: "vertical",
+                    minHeight: "120px",
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <PreviewBox title="인식된 문제 미리보기" value={recognizedText} isDark={isDark} theme={theme} />
+              <div style={{ marginBottom: "14px" }}>
+                <PreviewBox
+                  title="인식된 문제 미리보기"
+                  value={recognizedText}
+                  isDark={isDark}
+                  theme={theme}
+                />
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
+              <div style={{ marginBottom: "14px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "10px",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                  }}
+                >
                   풀이 결과
                 </label>
+
                 <textarea
                   value={solveResult}
                   onChange={(e) => setSolveResult(e.target.value)}
                   rows={5}
                   style={{
                     width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "16px",
+                    padding: "13px 14px",
+                    borderRadius: "14px",
                     border: `1px solid ${theme.inputBorder}`,
                     backgroundColor: theme.inputBg,
                     color: theme.text,
                     fontSize: "14px",
                     outline: "none",
                     resize: "vertical",
+                    minHeight: "140px",
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <PreviewBox title="풀이 결과 미리보기" value={solveResult} isDark={isDark} theme={theme} />
-              </div>
-
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
-                  문제 이미지 URL
-                </label>
-                <input
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  style={{
-                    width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "16px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.text,
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
+              <div style={{ marginBottom: "14px" }}>
+                <PreviewBox
+                  title="풀이 결과 미리보기"
+                  value={solveResult}
+                  isDark={isDark}
+                  theme={theme}
                 />
               </div>
 
-              <div>
-                <label style={{ display: "block", marginBottom: "10px", fontSize: "14px", fontWeight: 800 }}>
-                  history ID
-                </label>
-                <input
-                  value={historyId}
-                  onChange={(e) => setHistoryId(e.target.value)}
-                  placeholder="예: 12"
-                  inputMode="numeric"
-                  style={{
-                    width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "16px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.text,
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
-                />
-                <p style={{ marginTop: "8px", marginBottom: 0, fontSize: "12px", color: theme.subText }}>
-                  history에서 공유 버튼을 누르면 자동으로 채워질 수 있어요.
-                </p>
+              <div className="write-problem-grid">
+                <div style={{ minWidth: 0 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "10px",
+                      fontSize: "14px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    문제 이미지 URL
+                  </label>
+
+                  <input
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://..."
+                    style={{
+                      width: "100%",
+                      padding: "13px 14px",
+                      borderRadius: "14px",
+                      border: `1px solid ${theme.inputBorder}`,
+                      backgroundColor: theme.inputBg,
+                      color: theme.text,
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "10px",
+                      fontSize: "14px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    history ID
+                  </label>
+
+                  <input
+                    value={historyId}
+                    onChange={(e) => setHistoryId(e.target.value)}
+                    placeholder="예: 12"
+                    inputMode="numeric"
+                    style={{
+                      width: "100%",
+                      padding: "13px 14px",
+                      borderRadius: "14px",
+                      border: `1px solid ${theme.inputBorder}`,
+                      backgroundColor: theme.inputBg,
+                      color: theme.text,
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+
+                  <p
+                    style={{
+                      marginTop: "8px",
+                      marginBottom: 0,
+                      fontSize: "12px",
+                      color: theme.subText,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    history에서 공유 버튼을 누르면 자동으로 채워질 수 있어요.
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            style={{
+              marginBottom: "18px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
             <input
               id="is_public"
               type="checkbox"
@@ -502,9 +620,9 @@ function CommunityWritePageInner() {
           {errorText ? (
             <div
               style={{
-                marginBottom: "16px",
-                padding: "14px 16px",
-                borderRadius: "16px",
+                marginBottom: "14px",
+                padding: "13px 14px",
+                borderRadius: "14px",
                 border: "1px solid rgba(239,68,68,0.3)",
                 backgroundColor: isDark ? "rgba(127,29,29,0.2)" : "#fef2f2",
                 color: isDark ? "#fca5a5" : "#dc2626",
@@ -518,9 +636,9 @@ function CommunityWritePageInner() {
           {successText ? (
             <div
               style={{
-                marginBottom: "16px",
-                padding: "14px 16px",
-                borderRadius: "16px",
+                marginBottom: "14px",
+                padding: "13px 14px",
+                borderRadius: "14px",
                 border: "1px solid rgba(34,197,94,0.3)",
                 backgroundColor: isDark ? "rgba(20,83,45,0.2)" : "#f0fdf4",
                 color: isDark ? "#86efac" : "#15803d",
@@ -531,7 +649,7 @@ function CommunityWritePageInner() {
             </div>
           ) : null}
 
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <div className="write-action-buttons">
             <button
               type="submit"
               disabled={submitting}
@@ -539,7 +657,7 @@ function CommunityWritePageInner() {
                 border: "none",
                 cursor: "pointer",
                 padding: "14px 20px",
-                borderRadius: "16px",
+                borderRadius: "14px",
                 backgroundColor: theme.primary,
                 color: "#fff",
                 fontSize: "14px",
@@ -555,12 +673,13 @@ function CommunityWritePageInner() {
               style={{
                 textDecoration: "none",
                 padding: "14px 20px",
-                borderRadius: "16px",
+                borderRadius: "14px",
                 border: `1px solid ${theme.inputBorder}`,
                 backgroundColor: theme.softCard,
                 color: theme.text,
                 fontSize: "14px",
                 fontWeight: 800,
+                textAlign: "center",
               }}
             >
               취소
@@ -568,9 +687,40 @@ function CommunityWritePageInner() {
           </div>
         </form>
       </div>
+
+      <style jsx>{`
+        .write-problem-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+
+        .write-action-buttons {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        @media (max-width: 640px) {
+          .write-problem-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .write-action-buttons {
+            flex-direction: column;
+          }
+
+          .write-action-buttons > :global(a),
+          .write-action-buttons > button {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      `}</style>
     </main>
   );
 }
+
 export default function CommunityWritePage() {
   return (
     <Suspense fallback={null}>

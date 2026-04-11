@@ -13,19 +13,8 @@ type Props = {
 export default function SuddakCommunityHeader({
   current = "community",
 }: Props) {
-  const [isMobile, setIsMobile] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   useEffect(() => {
     setIsDark(getStoredTheme() === "dark");
@@ -59,7 +48,7 @@ export default function SuddakCommunityHeader({
   const theme = useMemo(
     () => ({
       cardBorder: isDark ? "#253041" : "#e5e7eb",
-      headerBg: isDark ? "rgba(17,24,39,0.82)" : "rgba(255,255,255,0.8)",
+      headerBg: isDark ? "rgba(17,24,39,0.86)" : "rgba(255,255,255,0.88)",
       logoGradient: isDark
         ? "linear-gradient(135deg, #ffffff 0%, #93c5fd 45%, #60a5fa 100%)"
         : "linear-gradient(135deg, #0f172a 0%, #3157c8 45%, #60a5fa 100%)",
@@ -68,24 +57,34 @@ export default function SuddakCommunityHeader({
       subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
       subtleButtonText: isDark ? "#f9fafb" : "#111827",
       primary: "#3157c8",
+      primarySoft: isDark ? "#1d4ed8" : "#e8eefc",
+      primarySoftText: isDark ? "#dbeafe" : "#3157c8",
+      mutedText: isDark ? "#cbd5e1" : "#6b7280",
     }),
     [isDark]
   );
 
-  const actionStyle: React.CSSProperties = {
-    minHeight: isMobile ? "36px" : "42px",
-    padding: isMobile ? "8px 10px" : "10px 14px",
-    borderRadius: isMobile ? "10px" : "12px",
+  const baseButtonStyle: React.CSSProperties = {
+    minHeight: "40px",
+    padding: "10px 14px",
+    borderRadius: "999px",
     border: `1px solid ${theme.subtleButtonBorder}`,
     backgroundColor: theme.subtleButtonBg,
     color: theme.subtleButtonText,
-    fontWeight: 700,
-    fontSize: isMobile ? "12px" : "14px",
+    fontWeight: 800,
+    fontSize: "13px",
     textDecoration: "none",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     whiteSpace: "nowrap",
+    lineHeight: 1,
+  };
+
+  const activeButtonStyle: React.CSSProperties = {
+    backgroundColor: theme.primary,
+    color: "#ffffff",
+    border: `1px solid ${theme.primary}`,
   };
 
   const handleLogout = async () => {
@@ -96,142 +95,161 @@ export default function SuddakCommunityHeader({
   return (
     <header
       style={{
-        borderBottom: `1px solid ${theme.cardBorder}`,
-        backgroundColor: theme.headerBg,
-        backdropFilter: "blur(10px)",
         position: "sticky",
         top: 0,
         zIndex: 20,
+        borderBottom: `1px solid ${theme.cardBorder}`,
+        backgroundColor: theme.headerBg,
+        backdropFilter: "blur(12px)",
       }}
     >
       <div
         style={{
           maxWidth: "1100px",
           margin: "0 auto",
-          padding: isMobile ? "14px 12px" : "18px 20px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "14px",
+          padding: "14px 12px",
         }}
       >
         <div
           style={{
             display: "flex",
-            alignItems: isMobile ? "flex-start" : "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            flexDirection: isMobile ? "column" : "row",
+            flexDirection: "column",
+            gap: "12px",
           }}
         >
-          <Link
-            href="/"
-            style={{ textDecoration: "none", display: "block", width: "fit-content" }}
-            aria-label="메인 화면으로 이동"
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
           >
-            <div
+            <Link
+              href="/"
+              aria-label="메인 화면으로 이동"
               style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                color: theme.primary,
-                marginBottom: "8px",
-                letterSpacing: "0.02em",
-              }}
-            >
-              AI 수학 문제 도우미
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? "8px" : "10px",
-                flexWrap: "wrap",
+                textDecoration: "none",
+                minWidth: 0,
+                flex: "1 1 auto",
               }}
             >
               <div
                 style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: theme.primary,
+                  marginBottom: "6px",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                AI 수학 문제 도우미
+              </div>
+
+              <div
+                style={{
                   display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  gap: isMobile ? "2px" : "4px",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexWrap: "wrap",
                 }}
               >
                 <div
                   style={{
-                    fontSize: isMobile ? "44px" : "64px",
-                    fontWeight: 950,
-                    letterSpacing: "-0.07em",
-                    lineHeight: 0.95,
-                    backgroundImage: theme.logoGradient,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  수딱
-                </div>
-
-                <div
-                  style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    paddingLeft: isMobile ? "2px" : "4px",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    minWidth: 0,
                   }}
                 >
                   <div
                     style={{
-                      fontSize: isMobile ? "16px" : "20px",
-                      fontWeight: 800,
-                      letterSpacing: "0.08em",
-                      color: theme.logoSub,
-                      textTransform: "uppercase",
+                      fontSize: "36px",
+                      fontWeight: 950,
+                      letterSpacing: "-0.07em",
+                      lineHeight: 0.95,
+                      backgroundImage: theme.logoGradient,
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
                     }}
                   >
-                    Suddak
+                    수딱
                   </div>
 
                   <div
                     style={{
-                      height: "1px",
-                      width: isMobile ? "36px" : "52px",
-                      background: isDark
-                        ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
-                        : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingLeft: "2px",
+                      marginTop: "4px",
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        letterSpacing: "0.08em",
+                        color: theme.logoSub,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Suddak
+                    </div>
+
+                    <div
+                      style={{
+                        height: "1px",
+                        width: "28px",
+                        background: isDark
+                          ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
+                          : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
+            </Link>
 
-          {!isMobile && (
-            <div
+            <button
+              type="button"
+              onClick={() => setIsDark(toggleTheme() === "dark")}
               style={{
-                display: "grid",
-                gridTemplateColumns: session ? "repeat(4, auto)" : "repeat(3, auto)",
-                gap: "10px",
-                alignItems: "center",
+                ...baseButtonStyle,
+                cursor: "pointer",
+                padding: "10px 12px",
+                flexShrink: 0,
               }}
             >
-              <button
-                onClick={() => setIsDark(toggleTheme() === "dark")}
-                style={{ ...actionStyle, cursor: "pointer" }}
-              >
-                {isDark ? "주간모드" : "야간모드"}
-              </button>
+              {isDark ? "주간모드" : "야간모드"}
+            </button>
+          </div>
 
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                flex: "1 1 auto",
+              }}
+            >
               <Link
                 href="/"
                 style={{
-                  ...actionStyle,
-                  backgroundColor:
-                    current === "home" ? theme.primary : theme.subtleButtonBg,
-                  color: current === "home" ? "#fff" : theme.subtleButtonText,
-                  border:
-                    current === "home"
-                      ? `1px solid ${theme.primary}`
-                      : `1px solid ${theme.subtleButtonBorder}`,
+                  ...baseButtonStyle,
+                  ...(current === "home" ? activeButtonStyle : {}),
                 }}
               >
                 홈
@@ -240,99 +258,64 @@ export default function SuddakCommunityHeader({
               <Link
                 href="/community"
                 style={{
-                  ...actionStyle,
-                  backgroundColor:
-                    current === "community" ? theme.primary : theme.subtleButtonBg,
-                  color: current === "community" ? "#fff" : theme.subtleButtonText,
-                  border:
-                    current === "community"
-                      ? `1px solid ${theme.primary}`
-                      : `1px solid ${theme.subtleButtonBorder}`,
+                  ...baseButtonStyle,
+                  ...(current === "community" ? activeButtonStyle : {}),
                 }}
               >
                 커뮤니티
               </Link>
+            </div>
 
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
               {session ? (
-                <button
-                  onClick={handleLogout}
-                  style={{ ...actionStyle, cursor: "pointer" }}
-                >
-                  로그아웃
-                </button>
+                <>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: "999px",
+                      border: `1px solid ${theme.cardBorder}`,
+                      backgroundColor: theme.primarySoft,
+                      color: theme.primarySoftText,
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      maxWidth: "180px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      display: "none",
+                    }}
+                    className="suddak-session-chip"
+                  >
+                    로그인됨
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    style={{
+                      ...baseButtonStyle,
+                      cursor: "pointer",
+                    }}
+                  >
+                    로그아웃
+                  </button>
+                </>
               ) : (
-                <Link href="/" style={actionStyle}>
+                <Link href="/login" style={baseButtonStyle}>
                   로그인
                 </Link>
               )}
             </div>
-          )}
-        </div>
-
-        {isMobile && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: session ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
-              gap: "8px",
-              width: "100%",
-            }}
-          >
-            <button
-              onClick={() => setIsDark(toggleTheme() === "dark")}
-              style={{ ...actionStyle, cursor: "pointer", width: "100%" }}
-            >
-              {isDark ? "주간" : "야간"}
-            </button>
-
-            <Link
-              href="/"
-              style={{
-                ...actionStyle,
-                width: "100%",
-                backgroundColor:
-                  current === "home" ? theme.primary : theme.subtleButtonBg,
-                color: current === "home" ? "#fff" : theme.subtleButtonText,
-                border:
-                  current === "home"
-                    ? `1px solid ${theme.primary}`
-                    : `1px solid ${theme.subtleButtonBorder}`,
-              }}
-            >
-              홈
-            </Link>
-
-            <Link
-              href="/community"
-              style={{
-                ...actionStyle,
-                width: "100%",
-                backgroundColor:
-                  current === "community" ? theme.primary : theme.subtleButtonBg,
-                color: current === "community" ? "#fff" : theme.subtleButtonText,
-                border:
-                  current === "community"
-                    ? `1px solid ${theme.primary}`
-                    : `1px solid ${theme.subtleButtonBorder}`,
-              }}
-            >
-              커뮤
-            </Link>
-
-            {session ? (
-              <button
-                onClick={handleLogout}
-                style={{ ...actionStyle, cursor: "pointer", width: "100%" }}
-              >
-                로그아웃
-              </button>
-            ) : (
-              <Link href="/" style={{ ...actionStyle, width: "100%" }}>
-                로그인
-              </Link>
-            )}
           </div>
-        )}
+        </div>
       </div>
     </header>
   );
