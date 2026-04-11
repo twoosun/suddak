@@ -9,6 +9,8 @@ import rehypeKatex from "rehype-katex";
 import AuthButtons from "@/components/AuthButtons";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
+import Link from "next/link";
+import TopLinks from "@/components/top-links";
 
 export default function Home() {
   const router = useRouter();
@@ -468,7 +470,7 @@ export default function Home() {
             )}
           </div>
 
-          {isMobile && (
+                    {isMobile && (
             <div
               style={{
                 display: "grid",
@@ -500,6 +502,83 @@ export default function Home() {
               )}
             </div>
           )}
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              alignItems: isMobile ? "stretch" : "center",
+              justifyContent: "space-between",
+              gap: "14px",
+              paddingTop: "2px",
+            }}
+          >
+            <TopLinks variant="home" />
+
+            <Link
+              href="/community"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                width: isMobile ? "100%" : "auto",
+                padding: isMobile ? "14px 16px" : "12px 16px",
+                borderRadius: "18px",
+                border: `1px solid ${theme.cardBorder}`,
+                background: isDark
+                  ? "rgba(15, 23, 42, 0.72)"
+                  : "rgba(255,255,255,0.88)",
+                color: theme.text,
+                boxShadow: theme.shadow,
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <div
+                style={{
+                  width: isMobile ? "40px" : "42px",
+                  height: isMobile ? "40px" : "42px",
+                  borderRadius: "14px",
+                  background: isDark
+                    ? "linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)"
+                    : "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 900,
+                  fontSize: "18px",
+                  flexShrink: 0,
+                }}
+              >
+                ✦
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    color: theme.title,
+                    marginBottom: "3px",
+                  }}
+                >
+                  커뮤니티 바로가기
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: theme.subText,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  자유글, 문제글, 풀이를 공유하고 의견을 나눠보자
+                </div>
+              </div>
+            </Link>
+          </div>
+
+       
         </div>
       </header>
 

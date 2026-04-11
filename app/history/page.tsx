@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { supabase } from "@/lib/supabase";
+import { getStoredTheme, toggleTheme } from "@/lib/theme";
 
 type HistoryItem = {
   id: number;
@@ -15,9 +16,35 @@ type HistoryItem = {
   created_at: string;
 };
 
+function buildCommunityShareUrl(item: HistoryItem) {
+  const params = new URLSearchParams();
+
+  params.set("post_type", "problem");
+  params.set("title", "문제 공유");
+  params.set("content", "수딱 히스토리에서 공유한 문제입니다.");
+  params.set("history_id", String(item.id));
+
+  if (item.recognized_text) {
+    params.set("recognized_text", item.recognized_text);
+  }
+
+  if (item.solve_result) {
+    params.set("solve_result", item.solve_result);
+  }
+
+  return `/community/write?${params.toString()}`;
+}
+
 export default function HistoryPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [message, setMessage] = useState("불러오는 중...");
+  const [isDark, setIsDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+ useEffect(() => {
+  setIsDark(getStoredTheme() === "dark");
+  setMounted(true);
+}, []);
 
   useEffect(() => {
     const load = async () => {
@@ -50,12 +77,38 @@ export default function HistoryPage() {
     load();
   }, []);
 
+  const theme = useMemo(
+    () => ({
+      bg: isDark
+        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
+        : "#f7f8fc",
+      card: isDark ? "#111827" : "#ffffff",
+      cardBorder: isDark ? "#253041" : "#e5e7eb",
+      text: isDark ? "#f9fafb" : "#111827",
+      subText: isDark ? "#cbd5e1" : "#6b7280",
+      softCard: isDark ? "#0f172a" : "#fbfcfe",
+      softBorder: isDark ? "#334155" : "#edf0f5",
+      buttonBg: isDark ? "#0f172a" : "#ffffff",
+      buttonBorder: isDark ? "#374151" : "#d1d5db",
+      buttonText: isDark ? "#f9fafb" : "#111827",
+      shadow: isDark
+        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
+        : "0 8px 30px rgba(15, 23, 42, 0.04)",
+      badgeBg: isDark ? "#1e3a8a" : "#eef2ff",
+      badgeBg2: isDark ? "#164e63" : "#ecfeff",
+    }),
+    [isDark]
+  );
+
+  if (!mounted) return null;
+
   return (
     <main
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f7f8fc",
+        background: theme.bg,
         padding: "40px 20px",
+        color: theme.text,
       }}
     >
       <div
@@ -78,35 +131,53 @@ export default function HistoryPage() {
             <h1 style={{ margin: 0, fontSize: "34px", fontWeight: 800 }}>
               내 기록
             </h1>
-            <p style={{ margin: "8px 0 0", color: "#6b7280" }}>
+            <p style={{ margin: "8px 0 0", color: theme.subText }}>
               최근 문제 읽기와 풀이 기록을 확인할 수 있어.
             </p>
           </div>
 
-          <Link
-            href="/"
-            style={{
-              textDecoration: "none",
-              padding: "10px 16px",
-              borderRadius: "12px",
-              border: "1px solid #d1d5db",
-              backgroundColor: "#ffffff",
-              color: "#111827",
-              fontWeight: 700,
-            }}
-          >
-            홈으로
-          </Link>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button
+              onClick={() => setIsDark(toggleTheme() === "dark")}
+              style={{
+                padding: "10px 16px",
+                borderRadius: "12px",
+                border: `1px solid ${theme.buttonBorder}`,
+                backgroundColor: theme.buttonBg,
+                color: theme.buttonText,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {isDark ? "주간모드" : "야간모드"}
+            </button>
+
+            <Link
+              href="/"
+              style={{
+                textDecoration: "none",
+                padding: "10px 16px",
+                borderRadius: "12px",
+                border: `1px solid ${theme.buttonBorder}`,
+                backgroundColor: theme.buttonBg,
+                color: theme.buttonText,
+                fontWeight: 700,
+              }}
+            >
+              홈으로
+            </Link>
+          </div>
         </div>
 
         {message && (
           <div
             style={{
-              backgroundColor: "#fff",
-              border: "1px solid #e5e7eb",
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.cardBorder}`,
               borderRadius: "18px",
               padding: "18px",
-              color: "#374151",
+              color: theme.subText,
+              boxShadow: theme.shadow,
             }}
           >
             {message}
@@ -116,11 +187,12 @@ export default function HistoryPage() {
         {!message && items.length === 0 && (
           <div
             style={{
-              backgroundColor: "#fff",
-              border: "1px solid #e5e7eb",
+              backgroundColor: theme.card,
+              border: `1px solid ${theme.cardBorder}`,
               borderRadius: "18px",
               padding: "18px",
-              color: "#374151",
+              color: theme.subText,
+              boxShadow: theme.shadow,
             }}
           >
             아직 저장된 기록이 없어.
@@ -132,11 +204,11 @@ export default function HistoryPage() {
             <section
               key={item.id}
               style={{
-                backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
+                backgroundColor: theme.card,
+                border: `1px solid ${theme.cardBorder}`,
                 borderRadius: "20px",
                 padding: "20px",
-                boxShadow: "0 8px 30px rgba(15, 23, 42, 0.04)",
+                boxShadow: theme.shadow,
               }}
             >
               <div
@@ -155,7 +227,7 @@ export default function HistoryPage() {
                     padding: "6px 12px",
                     borderRadius: "999px",
                     backgroundColor:
-                      item.action_type === "read" ? "#eef2ff" : "#ecfeff",
+                      item.action_type === "read" ? theme.badgeBg : theme.badgeBg2,
                     color: "#3157c8",
                     fontSize: "13px",
                     fontWeight: 700,
@@ -164,9 +236,34 @@ export default function HistoryPage() {
                   {item.action_type === "read" ? "문제 읽기" : "풀이"}
                 </div>
 
-                <div style={{ fontSize: "13px", color: "#6b7280" }}>
+                <div style={{ fontSize: "13px", color: theme.subText }}>
                   {new Date(item.created_at).toLocaleString()}
                 </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginBottom: "14px",
+                }}
+              >
+                <Link
+                  href={buildCommunityShareUrl(item)}
+                  style={{
+                    textDecoration: "none",
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    border: `1px solid ${theme.buttonBorder}`,
+                    backgroundColor: theme.buttonBg,
+                    color: theme.buttonText,
+                    fontWeight: 700,
+                    fontSize: "14px",
+                  }}
+                >
+                  커뮤니티 공유
+                </Link>
               </div>
 
               {item.recognized_text && (
@@ -176,8 +273,8 @@ export default function HistoryPage() {
                   </div>
                   <div
                     style={{
-                      backgroundColor: "#fbfcfe",
-                      border: "1px solid #edf0f5",
+                      backgroundColor: theme.softCard,
+                      border: `1px solid ${theme.softBorder}`,
                       borderRadius: "14px",
                       padding: "14px",
                       lineHeight: 1.7,
@@ -200,8 +297,8 @@ export default function HistoryPage() {
                   </div>
                   <div
                     style={{
-                      backgroundColor: "#fbfcfe",
-                      border: "1px solid #edf0f5",
+                      backgroundColor: theme.softCard,
+                      border: `1px solid ${theme.softBorder}`,
                       borderRadius: "14px",
                       padding: "14px",
                       lineHeight: 1.7,

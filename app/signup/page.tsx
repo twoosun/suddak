@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getStoredTheme, toggleTheme } from "@/lib/theme";
+
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
@@ -12,6 +14,14 @@ export default function SignupPage() {
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+ useEffect(() => {
+  setIsDark(getStoredTheme() === "dark");
+  setMounted(true);
+}, []);
+
 
   const handleSignup = async () => {
     setLoading(true);
@@ -54,37 +64,87 @@ export default function SignupPage() {
     if (!res.ok) {
       setMessage(result.error || "프로필 저장 중 오류가 발생했습니다.");
     } else {
-      setMessage("회원가입 완료. 관리자 승인 후 이용 가능합니다.");
+      setMessage("회원가입 완료. 메일함에서 인증 후, 관리자 승인시 이용 가능합니다.");
     }
 
     setLoading(false);
   };
 
+  const theme = useMemo(
+    () => ({
+      bg: isDark
+        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
+        : "#f7f8fc",
+      card: isDark ? "#111827" : "#ffffff",
+      cardBorder: isDark ? "#253041" : "#e5e7eb",
+      text: isDark ? "#f9fafb" : "#111827",
+      subText: isDark ? "#cbd5e1" : "#6b7280",
+      inputBg: isDark ? "#0b1220" : "#ffffff",
+      inputBorder: isDark ? "#374151" : "#d1d5db",
+      primary: "#3157c8",
+      shadow: isDark
+        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
+        : "0 8px 30px rgba(15, 23, 42, 0.05)",
+      buttonBg: isDark ? "#0f172a" : "#ffffff",
+      buttonText: isDark ? "#f9fafb" : "#111827",
+    }),
+    [isDark]
+  );
+
+  if (!mounted) return null;
+
   return (
     <main
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f7f8fc",
+        background: theme.bg,
         padding: "40px 20px",
+        color: theme.text,
       }}
     >
       <div
         style={{
           maxWidth: "420px",
           margin: "60px auto",
-          backgroundColor: "#fff",
-          border: "1px solid #e5e7eb",
+          backgroundColor: theme.card,
+          border: `1px solid ${theme.cardBorder}`,
           borderRadius: "20px",
           padding: "28px",
-          boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+          boxShadow: theme.shadow,
         }}
       >
-        <h1 style={{ marginTop: 0, fontSize: "30px", fontWeight: 800 }}>
-          회원가입
-        </h1>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "8px",
+            alignItems: "center",
+            marginBottom: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <h1 style={{ marginTop: 0, marginBottom: 0, fontSize: "30px", fontWeight: 800 }}>
+            회원가입
+          </h1>
 
-        <p style={{ color: "#6b7280", lineHeight: 1.7 }}>
-          수학수확 계정을 만들고 승인받은 뒤 서비스를 이용할 수 있어.
+          <button
+            onClick={() => setIsDark(toggleTheme() === "dark")}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "12px",
+              border: `1px solid ${theme.inputBorder}`,
+              backgroundColor: theme.buttonBg,
+              color: theme.buttonText,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {isDark ? "주간모드" : "야간모드"}
+          </button>
+        </div>
+
+        <p style={{ color: theme.subText, lineHeight: 1.7 }}>
+          수딱 계정을 만들고 승인받은 뒤 서비스를 이용할 수 있어.
         </p>
 
         <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
@@ -96,7 +156,9 @@ export default function SignupPage() {
             style={{
               padding: "12px",
               borderRadius: "12px",
-              border: "1px solid #d1d5db",
+              border: `1px solid ${theme.inputBorder}`,
+              backgroundColor: theme.inputBg,
+              color: theme.text,
             }}
           />
 
@@ -108,7 +170,9 @@ export default function SignupPage() {
             style={{
               padding: "12px",
               borderRadius: "12px",
-              border: "1px solid #d1d5db",
+              border: `1px solid ${theme.inputBorder}`,
+              backgroundColor: theme.inputBg,
+              color: theme.text,
             }}
           />
 
@@ -120,7 +184,9 @@ export default function SignupPage() {
             style={{
               padding: "12px",
               borderRadius: "12px",
-              border: "1px solid #d1d5db",
+              border: `1px solid ${theme.inputBorder}`,
+              backgroundColor: theme.inputBg,
+              color: theme.text,
             }}
           />
 
@@ -132,7 +198,9 @@ export default function SignupPage() {
             style={{
               padding: "12px",
               borderRadius: "12px",
-              border: "1px solid #d1d5db",
+              border: `1px solid ${theme.inputBorder}`,
+              backgroundColor: theme.inputBg,
+              color: theme.text,
             }}
           />
 
@@ -142,8 +210,8 @@ export default function SignupPage() {
             style={{
               padding: "12px 16px",
               borderRadius: "12px",
-              border: "1px solid #3157c8",
-              backgroundColor: "#3157c8",
+              border: `1px solid ${theme.primary}`,
+              backgroundColor: theme.primary,
               color: "#fff",
               fontWeight: 700,
               cursor: "pointer",
@@ -154,12 +222,12 @@ export default function SignupPage() {
         </div>
 
         {message && (
-          <p style={{ marginTop: "14px", color: "#374151", lineHeight: 1.6 }}>
+          <p style={{ marginTop: "14px", color: theme.subText, lineHeight: 1.6 }}>
             {message}
           </p>
         )}
 
-        <p style={{ marginTop: "18px", color: "#6b7280" }}>
+        <p style={{ marginTop: "18px", color: theme.subText }}>
           이미 계정이 있으면 <Link href="/login">로그인</Link>
         </p>
       </div>
