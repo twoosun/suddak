@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const DAILY_LIMIT = 10;
+const DAILY_LIMIT = 20;
 
 async function getUserFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization");
