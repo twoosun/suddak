@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { SOLVE_DAILY_LIMIT } from "@/lib/limits";
-
-const DAILY_LIMIT = SOLVE_DAILY_LIMIT;
+import { READ_DAILY_LIMIT, SOLVE_DAILY_LIMIT } from "@/lib/limits";
 
 async function getUserFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -34,7 +32,10 @@ async function getUserProfile(userId: string) {
   return data;
 }
 
-async function checkDailyLimit(userId: string) {
+async function countTodayUsage(
+  userId: string,
+  actionType: "read" | "solve"
+) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
@@ -42,6 +43,7 @@ async function checkDailyLimit(userId: string) {
     .from("usage_logs")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
+    .eq("action_type", actionType)
     .gte("created_at", start.toISOString());
 
   if (error) throw error;
@@ -71,20 +73,26 @@ export async function GET(req: Request) {
     if (profile.is_admin) {
       return NextResponse.json({
         isAdmin: true,
-        usedToday: 0,
-        dailyLimit: null,
-        remaining: null,
+        readToday: 0,
+        solveToday: 0,
+        readDailyLimit: null,
+        solveDailyLimit: null,
+        readRemaining: null,
+        solveRemaining: null,
       });
     }
 
-    const usedToday = await checkDailyLimit(user.id);
-    const remaining = Math.max(0, DAILY_LIMIT - usedToday);
+    const readToday = await countTodayUsage(user.id, "read");
+    const solveToday = await countTodayUsage(user.id, "solve");
 
     return NextResponse.json({
       isAdmin: false,
-      usedToday,
-      dailyLimit: DAILY_LIMIT,
-      remaining,
+      readToday,
+      solveToday,
+      readDailyLimit: READ_DAILY_LIMIT,
+      solveDailyLimit: SOLVE_DAILY_LIMIT,
+      readRemaining: Math.max(0, READ_DAILY_LIMIT - readToday),
+      solveRemaining: Math.max(0, SOLVE_DAILY_LIMIT - solveToday),
     });
   } catch {
     return NextResponse.json(

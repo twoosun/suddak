@@ -139,11 +139,11 @@ const loadUsage = async () => {
     return;
   }
 
-if (data.isAdmin) {
+ if (data.isAdmin) {
   setUsageText("관리자 계정 · 무제한 이용 가능");
 } else {
   setUsageText(
-    `오늘 사용 ${data.usedToday}회 / 남은 횟수 ${data.remaining}회 / 총 ${data.dailyLimit}회`
+    `문제 인식 ${data.readToday}회 사용 / ${data.readRemaining}회 남음 · 풀이 ${data.solveToday}회 사용 / ${data.solveRemaining}회 남음`
   );
 }
 };

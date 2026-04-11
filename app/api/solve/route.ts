@@ -1,13 +1,11 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { SOLVE_DAILY_LIMIT } from "@/lib/limits";
+import { READ_DAILY_LIMIT, SOLVE_DAILY_LIMIT } from "@/lib/limits";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-const DAILY_LIMIT = SOLVE_DAILY_LIMIT;
 
 async function getUserFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -39,7 +37,10 @@ async function getUserProfile(userId: string) {
   return data;
 }
 
-async function checkDailyLimit(userId: string) {
+async function checkDailyLimit(
+  userId: string,
+  actionType: "read" | "solve"
+) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
@@ -47,6 +48,7 @@ async function checkDailyLimit(userId: string) {
     .from("usage_logs")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
+    .eq("action_type", actionType)
     .gte("created_at", start.toISOString());
 
   if (error) {
@@ -103,23 +105,23 @@ export async function POST(req: Request) {
       );
     }
 
-    let usedToday = 0;
-
-    if (!profile.is_admin) {
-      usedToday = await checkDailyLimit(user.id);
-
-      if (usedToday >= SOLVE_DAILY_LIMIT) {
-        return NextResponse.json(
-          { error: `오늘 사용 횟수를 모두 썼습니다. (하루 ${SOLVE_DAILY_LIMIT}회)` },
-          { status: 429 }
-        );
-      }
-    }
-
     const formData = await req.formData();
     const mode = String(formData.get("mode") || "");
 
     if (mode === "read") {
+      if (!profile.is_admin) {
+        const usedReadToday = await checkDailyLimit(user.id, "read");
+
+        if (usedReadToday >= READ_DAILY_LIMIT) {
+          return NextResponse.json(
+            {
+              error: `오늘 문제 인식 횟수를 모두 썼습니다. (하루 ${READ_DAILY_LIMIT}회)`,
+            },
+            { status: 429 }
+          );
+        }
+      }
+
       const image = formData.get("image");
 
       if (!image || !(image instanceof File)) {
@@ -188,6 +190,19 @@ export async function POST(req: Request) {
     }
 
     if (mode === "solve") {
+      if (!profile.is_admin) {
+        const usedSolveToday = await checkDailyLimit(user.id, "solve");
+
+        if (usedSolveToday >= SOLVE_DAILY_LIMIT) {
+          return NextResponse.json(
+            {
+              error: `오늘 풀이 횟수를 모두 썼습니다. (하루 ${SOLVE_DAILY_LIMIT}회)`,
+            },
+            { status: 429 }
+          );
+        }
+      }
+
       const recognizedProblem = String(formData.get("recognizedProblem") || "");
 
       if (!recognizedProblem.trim()) {
