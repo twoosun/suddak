@@ -12,6 +12,189 @@ import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import TopLinks from "@/components/top-links";
 
+type SubjectCategory =
+  | "highschool_math_1st_year"
+  | "math1"
+  | "math2"
+  | "calculus"
+  | "probability_statistics"
+  | "geometry";
+
+type DifficultyLevel = "easy" | "medium" | "hard";
+
+type GraphPoint = {
+  x: number;
+  y: number;
+  label: string;
+};
+
+type GraphSpec = {
+  graph_type: "function" | "points";
+  equation: string;
+  x_min: number;
+  x_max: number;
+  y_min: number | null;
+  y_max: number | null;
+  points: GraphPoint[];
+  note: string;
+};
+
+type SolveMeta = {
+  model: string;
+  subject: SubjectCategory;
+  subjectLabel: string;
+  subtopic: string;
+  confidence: "high" | "medium" | "low";
+  difficulty: DifficultyLevel;
+  graphRequested: boolean;
+  graphNeeded: boolean;
+  isAdminModel: boolean;
+};
+
+const difficultyLabelMap: Record<DifficultyLevel, string> = {
+  easy: "쉬움",
+  medium: "보통",
+  hard: "어려움",
+};
+
+function GraphPreview({
+  graph,
+  isDark,
+}: {
+  graph: GraphSpec;
+  isDark: boolean;
+}) {
+  const width = 360;
+  const height = 240;
+  const padding = 28;
+
+  const xMin = graph.x_min;
+  const xMax = graph.x_max;
+
+  const pointYs = graph.points.map((p) => p.y);
+  const autoYMin = pointYs.length > 0 ? Math.min(...pointYs) - 1 : -5;
+  const autoYMax = pointYs.length > 0 ? Math.max(...pointYs) + 1 : 5;
+
+  const yMin = graph.y_min ?? autoYMin;
+  const yMax = graph.y_max ?? autoYMax;
+
+  const safeXMax = xMax === xMin ? xMin + 1 : xMax;
+  const safeYMax = yMax === yMin ? yMin + 1 : yMax;
+
+  const mapX = (x: number) =>
+    padding + ((x - xMin) / (safeXMax - xMin)) * (width - padding * 2);
+
+  const mapY = (y: number) =>
+    height - padding - ((y - yMin) / (safeYMax - yMin)) * (height - padding * 2);
+
+  const axisColor = isDark ? "#64748b" : "#94a3b8";
+  const pointColor = isDark ? "#93c5fd" : "#3157c8";
+  const textColor = isDark ? "#e5e7eb" : "#334155";
+  const bgColor = isDark ? "#0f172a" : "#ffffff";
+  const borderColor = isDark ? "#334155" : "#e2e8f0";
+
+  const xAxisY = yMin <= 0 && 0 <= safeYMax ? mapY(0) : mapY(yMin);
+  const yAxisX = xMin <= 0 && 0 <= safeXMax ? mapX(0) : mapX(xMin);
+
+  return (
+    <div
+      style={{
+        borderRadius: "18px",
+        border: `1px solid ${borderColor}`,
+        backgroundColor: bgColor,
+        padding: "14px",
+        overflowX: "auto",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 800,
+          marginBottom: "10px",
+          color: textColor,
+        }}
+      >
+        그래프 미리보기
+      </div>
+
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          height: "auto",
+          display: "block",
+        }}
+      >
+        <rect x="0" y="0" width={width} height={height} fill={bgColor} rx="16" />
+
+        <line
+          x1={padding}
+          y1={xAxisY}
+          x2={width - padding}
+          y2={xAxisY}
+          stroke={axisColor}
+          strokeWidth="1.5"
+        />
+        <line
+          x1={yAxisX}
+          y1={padding}
+          x2={yAxisX}
+          y2={height - padding}
+          stroke={axisColor}
+          strokeWidth="1.5"
+        />
+
+        {graph.points.map((point, index) => {
+          const cx = mapX(point.x);
+          const cy = mapY(point.y);
+
+          return (
+            <g key={`${point.label}-${index}`}>
+              <circle cx={cx} cy={cy} r="4.5" fill={pointColor} />
+              <text
+                x={cx + 6}
+                y={cy - 8}
+                fontSize="11"
+                fill={textColor}
+                style={{ userSelect: "none" }}
+              >
+                {point.label || `(${point.x}, ${point.y})`}
+              </text>
+            </g>
+          );
+        })}
+
+        <text x={width - 18} y={xAxisY - 8} fontSize="11" fill={textColor}>
+          x
+        </text>
+        <text x={yAxisX + 8} y={16} fontSize="11" fill={textColor}>
+          y
+        </text>
+      </svg>
+
+      <div
+        style={{
+          marginTop: "10px",
+          fontSize: "13px",
+          lineHeight: 1.6,
+          color: textColor,
+        }}
+      >
+        <div>
+          <strong>식:</strong> {graph.equation}
+        </div>
+        <div>
+          <strong>x 범위:</strong> {graph.x_min} ~ {graph.x_max}
+        </div>
+        <div>
+          <strong>설명:</strong> {graph.note || "없음"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
 
@@ -20,6 +203,8 @@ export default function Home() {
 
   const [recognizedText, setRecognizedText] = useState("");
   const [solveResult, setSolveResult] = useState("");
+  const [solveMeta, setSolveMeta] = useState<SolveMeta | null>(null);
+  const [graphSpec, setGraphSpec] = useState<GraphSpec | null>(null);
 
   const [reading, setReading] = useState(false);
   const [solving, setSolving] = useState(false);
@@ -29,6 +214,8 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [includeGraph, setIncludeGraph] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -160,6 +347,8 @@ export default function Home() {
     setRecognizedText("");
     setSolveResult("");
     setIsEditingRecognized(false);
+    setSolveMeta(null);
+    setGraphSpec(null);
   };
 
   const handleReadProblem = async () => {
@@ -168,6 +357,8 @@ export default function Home() {
     setReading(true);
     setRecognizedText("");
     setSolveResult("");
+    setSolveMeta(null);
+    setGraphSpec(null);
 
     try {
       const {
@@ -211,6 +402,8 @@ export default function Home() {
 
     setSolving(true);
     setSolveResult("");
+    setSolveMeta(null);
+    setGraphSpec(null);
 
     try {
       const {
@@ -226,6 +419,10 @@ export default function Home() {
       formData.append("mode", "solve");
       formData.append("recognizedProblem", recognizedText);
 
+      if (isAdminUser) {
+        formData.append("includeGraph", includeGraph ? "true" : "false");
+      }
+
       const res = await fetch("/api/solve", {
         method: "POST",
         body: formData,
@@ -240,6 +437,8 @@ export default function Home() {
         setSolveResult(data.error || "오류가 발생했습니다.");
       } else {
         setSolveResult(data.result || "응답이 비어 있습니다.");
+        setSolveMeta(data.meta ?? null);
+        setGraphSpec(data.graph ?? null);
       }
     } catch {
       setSolveResult("요청 중 오류가 발생했습니다.");
@@ -256,6 +455,7 @@ export default function Home() {
 
     if (!session?.access_token) {
       setUsageText("");
+      setIsAdminUser(false);
       return;
     }
 
@@ -269,12 +469,15 @@ export default function Home() {
 
     if (!res.ok) {
       setUsageText("");
+      setIsAdminUser(false);
       return;
     }
 
     if (data.isAdmin) {
+      setIsAdminUser(true);
       setUsageText("관리자 계정 · 무제한 이용 가능");
     } else {
+      setIsAdminUser(false);
       setUsageText(
         `문제 인식 ${data.readToday}회 사용 / ${data.readRemaining}회 남음 · 풀이 ${data.solveToday}회 사용 / ${data.solveRemaining}회 남음`
       );
@@ -470,7 +673,7 @@ export default function Home() {
             )}
           </div>
 
-                    {isMobile && (
+          {isMobile && (
             <div
               style={{
                 display: "grid",
@@ -577,8 +780,6 @@ export default function Home() {
               </div>
             </Link>
           </div>
-
-       
         </div>
       </header>
 
@@ -822,6 +1023,40 @@ export default function Home() {
               </div>
             )}
 
+            {isAdminUser && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: `1px solid ${theme.cardBorder}`,
+                  backgroundColor: theme.softCard,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <input
+                  id="include-graph"
+                  type="checkbox"
+                  checked={includeGraph}
+                  onChange={(e) => setIncludeGraph(e.target.checked)}
+                />
+                <label
+                  htmlFor="include-graph"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: theme.text,
+                    cursor: "pointer",
+                  }}
+                >
+                  관리자 전용: 그래프 포함 풀이
+                </label>
+              </div>
+            )}
+
             <div
               style={{
                 display: "flex",
@@ -1031,6 +1266,74 @@ export default function Home() {
               최종 답, 풀이, 검산을 차례대로 확인해봐.
             </p>
 
+            {solveMeta && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  marginBottom: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "999px",
+                    backgroundColor: theme.badgeBg,
+                    color: isDark ? "#dbeafe" : "#3157c8",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                  }}
+                >
+                  과목: {solveMeta.subjectLabel}
+                </div>
+
+                {solveMeta.subtopic ? (
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: "999px",
+                      backgroundColor: theme.softCard,
+                      border: `1px solid ${theme.softBorder}`,
+                      color: theme.text,
+                      fontSize: "13px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    단원: {solveMeta.subtopic}
+                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "999px",
+                    backgroundColor: theme.softCard,
+                    border: `1px solid ${theme.softBorder}`,
+                    color: theme.text,
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  난도: {difficultyLabelMap[solveMeta.difficulty]}
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "999px",
+                    backgroundColor: theme.softCard,
+                    border: `1px solid ${theme.softBorder}`,
+                    color: theme.text,
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  신뢰도: {solveMeta.confidence}
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 border: `1px solid ${theme.softBorder}`,
@@ -1048,6 +1351,12 @@ export default function Home() {
                 {solveResult}
               </ReactMarkdown>
             </div>
+
+            {solveMeta?.graphNeeded && graphSpec && (
+              <div style={{ marginTop: "18px" }}>
+                <GraphPreview graph={graphSpec} isDark={isDark} />
+              </div>
+            )}
           </section>
         )}
       </div>
