@@ -108,12 +108,6 @@ export default function Home() {
         ? "linear-gradient(135deg, #ffffff 0%, #93c5fd 45%, #60a5fa 100%)"
         : "linear-gradient(135deg, #0f172a 0%, #3157c8 45%, #60a5fa 100%)",
       logoSub: isDark ? "#93c5fd" : "#3157c8",
-      logoBadgeBg: isDark
-        ? "linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)"
-        : "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
-      logoBadgeShadow: isDark
-        ? "0 10px 24px rgba(37, 99, 235, 0.28)"
-        : "0 10px 24px rgba(49, 87, 200, 0.22)",
       subtleButtonBg: isDark ? "#0f172a" : "#ffffff",
       subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
       subtleButtonText: isDark ? "#f9fafb" : "#111827",
@@ -140,15 +134,15 @@ export default function Home() {
   };
 
   const headerActionButtonStyle: React.CSSProperties = {
-    width: isMobile ? "100%" : "auto",
-    minHeight: "42px",
-    padding: isMobile ? "11px 14px" : "10px 14px",
-    borderRadius: "12px",
+    width: "100%",
+    minHeight: isMobile ? "36px" : "42px",
+    padding: isMobile ? "8px 8px" : "10px 14px",
+    borderRadius: isMobile ? "10px" : "12px",
     border: `1px solid ${theme.subtleButtonBorder}`,
     backgroundColor: theme.subtleButtonBg,
     color: theme.subtleButtonText,
     fontWeight: 700,
-    fontSize: "14px",
+    fontSize: isMobile ? "12px" : "14px",
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
@@ -327,174 +321,185 @@ export default function Home() {
           style={{
             maxWidth: "1100px",
             margin: "0 auto",
-            padding: isMobile ? "16px 14px" : "18px 20px",
+            padding: isMobile ? "14px 12px" : "18px 20px",
             display: "flex",
-            flexDirection: isMobile ? "column" : "row",
-            alignItems: isMobile ? "stretch" : "center",
-            justifyContent: "space-between",
-            gap: "16px",
+            flexDirection: "column",
+            gap: "14px",
           }}
         >
-          <button
-            onClick={handleLogoClick}
+          <div
             style={{
-              appearance: "none",
-              border: "none",
-              background: "transparent",
-              padding: 0,
-              margin: 0,
-              textAlign: "left",
-              cursor: "pointer",
-              width: "fit-content",
+              display: "flex",
+              alignItems: isMobile ? "flex-start" : "center",
+              justifyContent: "space-between",
+              gap: "16px",
+              flexDirection: isMobile ? "column" : "row",
             }}
-            aria-label="메인 화면으로 이동"
           >
-            <div
+            <button
+              onClick={handleLogoClick}
               style={{
-                fontSize: "13px",
-                fontWeight: 700,
-                color: theme.primary,
-                marginBottom: "8px",
-                letterSpacing: "0.02em",
+                appearance: "none",
+                border: "none",
+                background: "transparent",
+                padding: 0,
+                margin: 0,
+                textAlign: "left",
+                cursor: "pointer",
+                width: "fit-content",
               }}
-            >
-              AI 수학 문제 도우미
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? "12px" : "16px",
-                flexWrap: "wrap",
-              }}
+              aria-label="메인 화면으로 이동"
             >
               <div
                 style={{
-                  width: isMobile ? "44px" : "56px",
-                  height: isMobile ? "44px" : "56px",
-                  borderRadius: isMobile ? "14px" : "18px",
-                  background: theme.logoBadgeBg,
-                  boxShadow: theme.logoBadgeShadow,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: theme.primary,
+                  marginBottom: "8px",
+                  letterSpacing: "0.02em",
                 }}
               >
-                <span
-                  style={{
-                    color: "#ffffff",
-                    fontWeight: 900,
-                    fontSize: isMobile ? "20px" : "26px",
-                    letterSpacing: "-0.04em",
-                    lineHeight: 1,
-                  }}
-                >
-                  수
-                </span>
+                AI 수학 문제 도우미
               </div>
 
               <div
                 style={{
                   display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  gap: isMobile ? "2px" : "4px",
+                  alignItems: "center",
+                  gap: isMobile ? "8px" : "10px",
+                  flexWrap: "wrap",
                 }}
               >
                 <div
                   style={{
-                    fontSize: isMobile ? "44px" : "64px",
-                    fontWeight: 950,
-                    letterSpacing: "-0.07em",
-                    lineHeight: 0.95,
-                    backgroundImage: theme.logoGradient,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                    textShadow: isDark
-                      ? "0 8px 24px rgba(96,165,250,0.08)"
-                      : "0 8px 24px rgba(49,87,200,0.08)",
-                  }}
-                >
-                  수딱
-                </div>
-
-                <div
-                  style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    paddingLeft: isMobile ? "2px" : "4px",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: isMobile ? "2px" : "4px",
                   }}
                 >
                   <div
                     style={{
-                      fontSize: isMobile ? "16px" : "20px",
-                      fontWeight: 800,
-                      letterSpacing: "0.08em",
-                      color: theme.logoSub,
-                      textTransform: "uppercase",
+                      fontSize: isMobile ? "44px" : "64px",
+                      fontWeight: 950,
+                      letterSpacing: "-0.07em",
+                      lineHeight: 0.95,
+                      backgroundImage: theme.logoGradient,
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                      textShadow: isDark
+                        ? "0 8px 24px rgba(96,165,250,0.08)"
+                        : "0 8px 24px rgba(49,87,200,0.08)",
                     }}
                   >
-                    Suddak
+                    수딱
                   </div>
 
                   <div
                     style={{
-                      height: "1px",
-                      width: isMobile ? "36px" : "52px",
-                      background: isDark
-                        ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
-                        : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      paddingLeft: isMobile ? "2px" : "4px",
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        fontSize: isMobile ? "16px" : "20px",
+                        fontWeight: 800,
+                        letterSpacing: "0.08em",
+                        color: theme.logoSub,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Suddak
+                    </div>
+
+                    <div
+                      style={{
+                        height: "1px",
+                        width: isMobile ? "36px" : "52px",
+                        background: isDark
+                          ? "linear-gradient(90deg, #60a5fa 0%, transparent 100%)"
+                          : "linear-gradient(90deg, #3157c8 0%, transparent 100%)",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </button>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(3, auto)",
-              gap: "10px",
-              width: isMobile ? "100%" : "auto",
-              alignItems: "stretch",
-              justifyContent: isMobile ? "stretch" : "end",
-            }}
-          >
-            <button
-              onClick={() => setIsDark((prev) => !prev)}
-              style={headerActionButtonStyle}
-            >
-              {isDark ? "주간모드" : "야간모드"}
             </button>
 
-            {session ? (
-              <>
-                <button
-                  onClick={handleGoHistory}
-                  style={headerActionButtonStyle}
-                >
-                  기록
-                </button>
-                <button onClick={handleLogout} style={headerActionButtonStyle}>
-                  로그아웃
-                </button>
-              </>
-            ) : (
+            {!isMobile && (
               <div
                 style={{
-                  gridColumn: isMobile ? "1 / -1" : "auto",
-                  width: isMobile ? "100%" : "auto",
+                  display: "grid",
+                  gridTemplateColumns: session ? "repeat(3, auto)" : "auto auto",
+                  gap: "10px",
+                  alignItems: "center",
                 }}
               >
-                <AuthButtons />
+                <button
+                  onClick={() => setIsDark((prev) => !prev)}
+                  style={headerActionButtonStyle}
+                >
+                  {isDark ? "주간모드" : "야간모드"}
+                </button>
+
+                {session ? (
+                  <>
+                    <button
+                      onClick={handleGoHistory}
+                      style={headerActionButtonStyle}
+                    >
+                      기록
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      style={headerActionButtonStyle}
+                    >
+                      로그아웃
+                    </button>
+                  </>
+                ) : (
+                  <AuthButtons />
+                )}
               </div>
             )}
           </div>
+
+          {isMobile && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: session ? "repeat(3, 1fr)" : "1fr",
+                gap: "8px",
+                width: "100%",
+              }}
+            >
+              <button
+                onClick={() => setIsDark((prev) => !prev)}
+                style={headerActionButtonStyle}
+              >
+                {isDark ? "주간" : "야간"}
+              </button>
+
+              {session ? (
+                <>
+                  <button onClick={handleGoHistory} style={headerActionButtonStyle}>
+                    기록
+                  </button>
+                  <button onClick={handleLogout} style={headerActionButtonStyle}>
+                    로그아웃
+                  </button>
+                </>
+              ) : (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <AuthButtons />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
