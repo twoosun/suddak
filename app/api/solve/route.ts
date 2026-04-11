@@ -6,7 +6,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = SOLVE_DAILY_LIMIT;
 
 async function getUserFromRequest(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -107,9 +107,9 @@ export async function POST(req: Request) {
     if (!profile.is_admin) {
       usedToday = await checkDailyLimit(user.id);
 
-      if (usedToday >= DAILY_LIMIT) {
+      if (usedToday >= SOLVE_DAILY_LIMIT) {
         return NextResponse.json(
-          { error: `오늘 사용 횟수를 모두 썼습니다. (하루 ${DAILY_LIMIT}회)` },
+          { error: `오늘 사용 횟수를 모두 썼습니다. (하루 ${SOLVE_DAILY_LIMIT}회)` },
           { status: 429 }
         );
       }
