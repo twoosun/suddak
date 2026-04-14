@@ -1,16 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import { supabase } from "@/lib/supabase";
-import ApprovalGate from "@/components/ApprovalGate";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import MoreMenu from "@/components/MoreMenu";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import Link from "next/link";
-import TopLinks from "@/components/top-links";
+
+import { supabase } from "@/lib/supabase";
+import { getStoredTheme, initTheme } from "@/lib/theme";
+import {
+  DEFAULT_OCR_PREPROCESS_OPTIONS,
+  type OcrPreprocessOptions,
+  buildPreprocessedPreviewUrl,
+} from "@/lib/ocr-preprocess";
+import { buildShareUrlFromSolve } from "@/lib/community-share";
+import { Settings } from "lucide-react";
+
+import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
+import PageContainer from "@/components/common/PageContainer";
+import SectionCard from "@/components/common/SectionCard";
+import ThemeToggleButton from "@/components/common/ThemeToggleButton";
+import FileDropzone from "@/components/home/FileDropzone";
+import OcrPreprocessPanel from "@/components/home/OcrPreprocessPanel";
+import MoreMenu from "@/components/MoreMenu";
 
 type SubjectCategory =
   | "highschool_math_1st_year"
@@ -57,6 +68,13 @@ const difficultyLabelMap: Record<DifficultyLevel, string> = {
   hard: "어려움",
 };
 
+const confidenceLabelMap: Record<NonNullable<SolveMeta["confidence"]>, string> = {
+  high: "높음",
+  medium: "보통",
+  low: "낮음",
+};
+
+/* # 1. 그래프 미리보기 */
 function GraphPreview({
   graph,
   isDark,
@@ -90,8 +108,8 @@ function GraphPreview({
   const axisColor = isDark ? "#64748b" : "#94a3b8";
   const pointColor = isDark ? "#93c5fd" : "#3157c8";
   const textColor = isDark ? "#e5e7eb" : "#334155";
-  const bgColor = isDark ? "#0f172a" : "#ffffff";
-  const borderColor = isDark ? "#334155" : "#e2e8f0";
+  const bgColor = "var(--card)";
+  const borderColor = "var(--border)";
 
   const xAxisY = yMin <= 0 && 0 <= safeYMax ? mapY(0) : mapY(yMin);
   const yAxisX = xMin <= 0 && 0 <= safeXMax ? mapX(0) : mapX(xMin);
@@ -177,7 +195,7 @@ function GraphPreview({
         style={{
           marginTop: "10px",
           fontSize: "13px",
-          lineHeight: 1.6,
+          lineHeight: 1.7,
           color: textColor,
         }}
       >
@@ -195,11 +213,23 @@ function GraphPreview({
   );
 }
 
-export default function Home() {
+export default function HomePage() {
   const router = useRouter();
 
+  /* # 2. 상태값 */
+  const [session, setSession] = useState<Session | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
+  const [processedPreviewUrl, setProcessedPreviewUrl] = useState<string | null>(null);
+
+  const [imageAdjustOptions, setImageAdjustOptions] = useState<OcrPreprocessOptions>(
+    DEFAULT_OCR_PREPROCESS_OPTIONS
+  );
+  const [preprocessLoading, setPreprocessLoading] = useState(false);
+  const [showAdvancedAdjust, setShowAdvancedAdjust] = useState(false);
 
   const [recognizedText, setRecognizedText] = useState("");
   const [solveResult, setSolveResult] = useState("");
@@ -208,47 +238,28 @@ export default function Home() {
 
   const [reading, setReading] = useState(false);
   const [solving, setSolving] = useState(false);
-  const [usageText, setUsageText] = useState("");
   const [isEditingRecognized, setIsEditingRecognized] = useState(false);
-
-  const [isMobile, setIsMobile] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdminUser, setIsAdminUser] = useState(false);
   const [includeGraph, setIncludeGraph] = useState(false);
 
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [usageText, setUsageText] = useState("");
+  const [noticeText, setNoticeText] = useState("");
+
+  /* # 3. 마운트 및 세션 */
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
+    initTheme();
+    setIsDark(getStoredTheme() === "dark");
+    setMounted(true);
 
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
-      setIsDark(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("theme", isDark ? "dark" : "light");
-  }, [isDark]);
-
-  useEffect(() => {
-    let mounted = true;
+    let isAlive = true;
 
     const initSession = async () => {
       const {
-        data: { session },
+        data: { session: currentSession },
       } = await supabase.auth.getSession();
 
-      if (mounted) {
-        setSession(session);
+      if (isAlive) {
+        setSession(currentSession);
       }
     };
 
@@ -258,103 +269,157 @@ export default function Home() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setIsDark(getStoredTheme() === "dark");
     });
 
     return () => {
-      mounted = false;
+      isAlive = false;
       subscription.unsubscribe();
     };
   }, []);
 
+  /* # 4. 미리보기 정리 */
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
+      if (processedPreviewUrl) URL.revokeObjectURL(processedPreviewUrl);
     };
-  }, [preview]);
+  }, [originalPreviewUrl, processedPreviewUrl]);
 
-  const theme = useMemo(
-    () => ({
-      bg: isDark
-        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
-        : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
-      text: isDark ? "#f9fafb" : "#1f2937",
-      title: isDark ? "#ffffff" : "#111827",
-      subText: isDark ? "#cbd5e1" : "#6b7280",
-      card: isDark ? "#111827" : "#ffffff",
-      cardBorder: isDark ? "#253041" : "#e5e7eb",
-      softCard: isDark ? "#0f172a" : "#fbfcfe",
-      softBorder: isDark ? "#334155" : "#edf0f5",
-      primary: "#3157c8",
-      badgeBg: isDark ? "#1e3a8a" : "#e8eefc",
-      usageBg: isDark ? "#0f172a" : "#f8faff",
-      inputBg: isDark ? "#0b1220" : "#ffffff",
-      inputBorder: isDark ? "#374151" : "#d1d5db",
-      shadow: isDark
-        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
-        : "0 8px 30px rgba(15, 23, 42, 0.05)",
-      headerBg: isDark ? "rgba(17,24,39,0.82)" : "rgba(255,255,255,0.8)",
-      logoGradient: isDark
-        ? "linear-gradient(135deg, #ffffff 0%, #93c5fd 45%, #60a5fa 100%)"
-        : "linear-gradient(135deg, #0f172a 0%, #3157c8 45%, #60a5fa 100%)",
-      logoSub: isDark ? "#93c5fd" : "#3157c8",
-      subtleButtonBg: isDark ? "#0f172a" : "#ffffff",
-      subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
-      subtleButtonText: isDark ? "#f9fafb" : "#111827",
-      secondaryMutedBg: isDark ? "#1f2937" : "#f3f4f6",
-    }),
-    [isDark]
-  );
+  /* # 5. 사용량 불러오기 */
+  const loadUsage = async () => {
+    const {
+      data: { session: currentSession },
+    } = await supabase.auth.getSession();
 
-  const sectionCardStyle: React.CSSProperties = {
-    backgroundColor: theme.card,
-    border: `1px solid ${theme.cardBorder}`,
-    borderRadius: isMobile ? "20px" : "24px",
-    padding: isMobile ? "18px" : "24px",
-    boxShadow: theme.shadow,
+    if (!currentSession?.access_token) {
+      setUsageText("비로그인 상태 · 로그인 후 기록 및 풀이 저장 가능");
+      setIsAdminUser(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/usage", {
+        headers: {
+          Authorization: `Bearer ${currentSession.access_token}`,
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setUsageText("");
+        setIsAdminUser(false);
+        return;
+      }
+
+      if (data.isAdmin) {
+        setIsAdminUser(true);
+        setUsageText("관리자 계정 · 무제한 이용 가능");
+      } else {
+        setIsAdminUser(false);
+        setUsageText(
+          `문제 인식 ${data.readToday}회 사용 / ${data.readRemaining}회 남음 · 풀이 ${data.solveToday}회 사용 / ${data.solveRemaining}회 남음`
+        );
+      }
+    } catch {
+      setUsageText("");
+      setIsAdminUser(false);
+    }
   };
 
-  const buttonBaseStyle: React.CSSProperties = {
-    width: isMobile ? "100%" : "auto",
-    padding: "12px 18px",
-    borderRadius: "14px",
-    fontWeight: 700,
-    fontSize: "15px",
-    transition: "all 0.15s ease",
-  };
+  useEffect(() => {
+    if (!mounted) return;
+    loadUsage();
+  }, [session, mounted]);
 
-  const headerActionButtonStyle: React.CSSProperties = {
-    width: "100%",
-    minHeight: isMobile ? "36px" : "42px",
-    padding: isMobile ? "8px 8px" : "10px 14px",
-    borderRadius: isMobile ? "10px" : "12px",
-    border: `1px solid ${theme.subtleButtonBorder}`,
-    backgroundColor: theme.subtleButtonBg,
-    color: theme.subtleButtonText,
-    fontWeight: 700,
-    fontSize: isMobile ? "12px" : "14px",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
-    if (preview) URL.revokeObjectURL(preview);
-
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+  /* # 6. 파일 선택 */
+  const resetOutputs = () => {
     setRecognizedText("");
     setSolveResult("");
-    setIsEditingRecognized(false);
     setSolveMeta(null);
     setGraphSpec(null);
+    setNoticeText("");
+    setIsEditingRecognized(false);
   };
 
-  const handleReadProblem = async () => {
+  const handleFileSelect = async (selected: File) => {
+    resetOutputs();
+
+    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
+    if (processedPreviewUrl) URL.revokeObjectURL(processedPreviewUrl);
+
+    setFile(selected);
+    setOriginalPreviewUrl(URL.createObjectURL(selected));
+    setProcessedPreviewUrl(null);
+
+    try {
+      setPreprocessLoading(true);
+      const { previewUrl } = await buildPreprocessedPreviewUrl(
+        selected,
+        imageAdjustOptions
+      );
+      setProcessedPreviewUrl(previewUrl);
+    } catch {
+      setNoticeText("이미지 준비 중 일부 보정 미리보기를 만들지 못했습니다.");
+    } finally {
+      setPreprocessLoading(false);
+    }
+  };
+
+  /* # 7. 세부 조정 변경 시 미리보기 재생성 */
+  useEffect(() => {
     if (!file) return;
 
+    let cancelled = false;
+
+    const rerenderPreview = async () => {
+      try {
+        setPreprocessLoading(true);
+
+        if (processedPreviewUrl) {
+          URL.revokeObjectURL(processedPreviewUrl);
+          setProcessedPreviewUrl(null);
+        }
+
+        const { previewUrl } = await buildPreprocessedPreviewUrl(
+          file,
+          imageAdjustOptions
+        );
+
+        if (!cancelled) {
+          setProcessedPreviewUrl(previewUrl);
+        } else {
+          URL.revokeObjectURL(previewUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setNoticeText("이미지 보정 미리보기 갱신에 실패했습니다.");
+        }
+      } finally {
+        if (!cancelled) setPreprocessLoading(false);
+      }
+    };
+
+    rerenderPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageAdjustOptions, file]);
+
+  const currentPreview = useMemo(() => {
+    return processedPreviewUrl || originalPreviewUrl;
+  }, [processedPreviewUrl, originalPreviewUrl]);
+
+  /* # 8. 문제 읽기 */
+  const handleReadProblem = async () => {
+    if (!file) {
+      setNoticeText("먼저 문제 이미지를 업로드해줘.");
+      return;
+    }
+
     setReading(true);
+    setNoticeText("");
     setRecognizedText("");
     setSolveResult("");
     setSolveMeta(null);
@@ -366,7 +431,7 @@ export default function Home() {
       } = await supabase.auth.getSession();
 
       if (!currentSession?.access_token) {
-        setRecognizedText("로그인이 필요합니다.");
+        setNoticeText("로그인 후 문제 인식 기능을 사용할 수 있어.");
         return;
       }
 
@@ -385,30 +450,30 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        const errorMessage = [
-          data.error || "오류가 발생했습니다.",
-          data.detail ? `\n\n상세: ${data.detail}` : "",
-          data.raw ? `\n\nraw:\n${data.raw}` : "",
-          data.cleaned ? `\n\ncleaned:\n${data.cleaned}` : "",
-          data.stack ? `\n\nstack:\n${data.stack}` : "",
-        ].join("");
-
-        setRecognizedText(errorMessage);
-      } else {
-        setRecognizedText(data.result || "응답이 비어 있습니다.");
+        setNoticeText(data?.error || "문제 인식에 실패했습니다.");
+        return;
       }
+
+      setRecognizedText(data.result || "");
+      setIsEditingRecognized(false);
+      setNoticeText("문제 인식이 완료됐어. 틀린 부분이 있으면 바로 수정해도 돼.");
     } catch {
-      setRecognizedText("요청 중 오류가 발생했습니다.");
+      setNoticeText("문제 인식 중 오류가 발생했습니다.");
     } finally {
       setReading(false);
       await loadUsage();
     }
   };
 
+  /* # 9. 문제 풀이 */
   const handleSolveProblem = async () => {
-    if (!recognizedText.trim()) return;
+    if (!recognizedText.trim()) {
+      setNoticeText("먼저 문제를 인식하거나 직접 입력해줘.");
+      return;
+    }
 
     setSolving(true);
+    setNoticeText("");
     setSolveResult("");
     setSolveMeta(null);
     setGraphSpec(null);
@@ -419,7 +484,7 @@ export default function Home() {
       } = await supabase.auth.getSession();
 
       if (!currentSession?.access_token) {
-        setSolveResult("로그인이 필요합니다.");
+        setNoticeText("로그인 후 풀이 기능을 사용할 수 있어.");
         return;
       }
 
@@ -442,847 +507,536 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        const errorMessage = [
-          data.error || "오류가 발생했습니다.",
-          data.detail ? `\n\n상세: ${data.detail}` : "",
-          data.raw ? `\n\nraw:\n${data.raw}` : "",
-          data.cleaned ? `\n\ncleaned:\n${data.cleaned}` : "",
-          data.stack ? `\n\nstack:\n${data.stack}` : "",
-        ].join("");
-
-        setSolveResult(errorMessage);
-      } else {
-        setSolveResult(data.result || "응답이 비어 있습니다.");
-        setSolveMeta(data.meta ?? null);
-        setGraphSpec(data.graph ?? null);
+        setNoticeText(data?.error || "풀이 생성에 실패했습니다.");
+        return;
       }
+
+      setSolveResult(data.result || "");
+      setSolveMeta(data.meta ?? null);
+      setGraphSpec(data.graph ?? null);
+      setNoticeText("풀이가 생성됐어. 마음에 들면 바로 커뮤니티에 공유할 수 있어.");
     } catch {
-      setSolveResult("요청 중 오류가 발생했습니다.");
+      setNoticeText("풀이 생성 중 오류가 발생했습니다.");
     } finally {
       setSolving(false);
       await loadUsage();
     }
   };
 
-  const loadUsage = async () => {
-    const {
-      data: { session: currentSession },
-    } = await supabase.auth.getSession();
-
-    if (!currentSession?.access_token) {
-      setUsageText("");
-      setIsAdminUser(false);
-      return;
-    }
-
-    const res = await fetch("/api/usage", {
-      headers: {
-        Authorization: `Bearer ${currentSession.access_token}`,
-      },
+  /* # 10. 공유 URL */
+  const shareUrl = useMemo(() => {
+    return buildShareUrlFromSolve({
+      recognizedText,
+      solveResult,
     });
+  }, [recognizedText, solveResult]);
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      setUsageText("");
-      setIsAdminUser(false);
-      return;
-    }
-
-    if (data.isAdmin) {
-      setIsAdminUser(true);
-      setUsageText("관리자 계정 · 무제한 이용 가능");
-    } else {
-      setIsAdminUser(false);
-      setUsageText(
-        `문제 인식 ${data.readToday}회 사용 / ${data.readRemaining}회 남음 · 풀이 ${data.solveToday}회 사용 / ${data.solveRemaining}회 남음`
-      );
-    }
+  const heroTitleStyle: React.CSSProperties = {
+    fontSize: "clamp(2.1rem, 5vw, 4.2rem)",
+    fontWeight: 950,
+    letterSpacing: "-0.06em",
+    lineHeight: 0.95,
+    margin: 0,
   };
 
-  useEffect(() => {
-    loadUsage();
-  }, [session]);
-
-  const handleLogoClick = () => {
-    router.push("/");
+  const heroSubStyle: React.CSSProperties = {
+    margin: "12px 0 0",
+    color: "var(--muted)",
+    fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
+    lineHeight: 1.8,
+    maxWidth: "760px",
   };
 
-  const handleGoHistory = () => {
-    router.push("/history");
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
-  };
+  if (!mounted) return null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: theme.bg,
-        color: theme.text,
-        fontFamily:
-          'Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
+    <PageContainer topPadding={18} bottomPadding={52}>
+      {/* # 11. 상단 헤더 */}
       <header
+        className="suddak-card"
         style={{
-          borderBottom: `1px solid ${theme.cardBorder}`,
-          backgroundColor: theme.headerBg,
-          backdropFilter: "blur(10px)",
           position: "sticky",
-          top: 0,
-          zIndex: 10,
+          top: 14,
+          zIndex: 20,
+          padding: "14px 16px",
+          marginBottom: "18px",
+          background: "var(--header-bg)",
+          backdropFilter: "blur(12px)",
         }}
       >
         <div
           style={{
-            maxWidth: "1100px",
-            margin: "0 auto",
-            padding: isMobile ? "14px 12px" : "18px 20px",
             display: "flex",
-            flexDirection: "column",
-            gap: "14px",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "inherit",
+            }}
+          >
+            <div
+              style={{
+                width: "50px",
+                height: "50px",
+                borderRadius: "16px",
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src="/logo.png"
+                alt="수딱 로고"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            </div>
+
+            <div style={{ textAlign: "left" }}>
+              <div
+                style={{
+                  fontSize: "clamp(1.6rem, 4vw, 2.6rem)",
+                  fontWeight: 950,
+                  letterSpacing: "-0.06em",
+                  lineHeight: 0.95,
+                }}
+              >
+                수딱
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: "var(--primary)",
+                  marginTop: "4px",
+                }}
+              >
+                Suddak · AI 수학 문제 도우미
+              </div>
+            </div>
+          </button>
+
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
+              gap: "8px",
+              flexWrap: "wrap",
+              width: "min(100%, 420px)",
+              marginLeft: "auto",
             }}
           >
-            <Link
-              href="/"
-              aria-label="메인 화면으로 이동"
-              style={{
-                textDecoration: "none",
-                minWidth: 0,
-                flex: "1 1 auto",
-                display: "flex",
-                alignItems: "center",
-                gap: isMobile ? "10px" : "12px",
-              }}
-            >
-              <div
-                style={{
-                  width: isMobile ? "46px" : "52px",
-                  height: isMobile ? "46px" : "52px",
-                  borderRadius: isMobile ? "14px" : "16px",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)"}`,
-                  boxShadow: isDark
-                    ? "0 8px 22px rgba(0,0,0,0.32)"
-                    : "0 8px 20px rgba(37,99,235,0.16)",
-                  backgroundColor: isDark ? "#0f172a" : "#ffffff",
-                }}
-              >
-                <img
-                  src="/logo.png"
-                  alt="수딱 로고"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: isMobile ? "30px" : "34px",
-                    fontWeight: 950,
-                    letterSpacing: "-0.06em",
-                    lineHeight: 0.95,
-                    color: theme.title,
-                  }}
-                >
-                  수딱
-                </div>
-                <div
-                  style={{
-                    fontSize: isMobile ? "13px" : "14px",
-                    fontWeight: 800,
-                    color: theme.logoSub,
-                    lineHeight: 1.1,
-                    marginTop: "4px",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  AI Math Solver
-                </div>
-              </div>
+            <Link href="/community" className="suddak-btn suddak-btn-ghost">
+              커뮤니티
             </Link>
-
+            <Link href="/history" className="suddak-btn suddak-btn-ghost">
+              기록
+            </Link>
+            <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
+              <ThemeToggleButton mobileFull={false} />
+            </div>
             <MoreMenu
               isDark={isDark}
-              onToggleTheme={() => setIsDark((prev) => !prev)}
+              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
               themeLabel={isDark ? "주간모드" : "야간모드"}
               redirectAfterLogout="/login"
             />
+          </div>
+        </div>
+      </header>
+
+      {/* # 12. 히어로 */}
+      <section
+        className="suddak-card"
+        style={{
+          padding: "24px",
+          marginBottom: "18px",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gap: "18px",
+          }}
+        >
+          <div>
+            <h1 style={heroTitleStyle}>문제 사진 올리고, 바로 읽고, 정확히 풀자</h1>
+            <p style={heroSubStyle}>
+              문제를 먼저 인식한 뒤, 수정 가능한 텍스트를 바탕으로 풀이해서
+              수식형 접근뿐 아니라 그래프·조건 분석까지 더 안정적으로 보여주는 수학 문제 도우미야.
+            </p>
           </div>
 
           <div
             style={{
               display: "flex",
-              flexDirection: isMobile ? "column" : "row",
-              alignItems: isMobile ? "stretch" : "center",
-              justifyContent: "space-between",
-              gap: "14px",
-              paddingTop: "2px",
+              gap: "10px",
+              flexWrap: "wrap",
             }}
           >
-            <TopLinks variant="home" />
+            <span className="suddak-badge">고등학교 수학 중심</span>
+            <span className="suddak-badge">인식 후 수정 가능</span>
+            <span className="suddak-badge">풀이 후 커뮤니티 공유</span>
+            <span className="suddak-badge">모바일 최적화</span>
+          </div>
 
-            <Link
-              href="/community"
-              style={{
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                width: isMobile ? "100%" : "auto",
-                padding: isMobile ? "14px 16px" : "12px 16px",
-                borderRadius: "18px",
-                border: `1px solid ${theme.cardBorder}`,
-                background: isDark
-                  ? "rgba(15, 23, 42, 0.72)"
-                  : "rgba(255,255,255,0.88)",
-                color: theme.text,
-                boxShadow: theme.shadow,
-                backdropFilter: "blur(10px)",
-              }}
-            >
-              <div
-                style={{
-                  width: isMobile ? "40px" : "42px",
-                  height: isMobile ? "40px" : "42px",
-                  borderRadius: "14px",
-                  background: isDark
-                    ? "linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%)"
-                    : "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontWeight: 900,
-                  fontSize: "18px",
-                  flexShrink: 0,
-                }}
-              >
-                ✦
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 800,
-                    color: theme.title,
-                    marginBottom: "3px",
-                  }}
-                >
-                  커뮤니티 바로가기
-                </div>
-                <div
-                  style={{
-                    fontSize: "13px",
-                    color: theme.subText,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  자유글, 문제글, 풀이를 공유하고 의견을 나눠보자
-                </div>
-              </div>
-            </Link>
+          <div
+            className="suddak-card-soft"
+            style={{
+              padding: "14px 16px",
+              fontSize: "14px",
+              lineHeight: 1.7,
+              color: "var(--muted)",
+            }}
+          >
+            {usageText || "로그인 후 사용량과 기록 저장 상태를 확인할 수 있어."}
           </div>
         </div>
-      </header>
+      </section>
 
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          padding: isMobile ? "20px 14px 40px" : "36px 20px 56px",
-        }}
-      >
-        <section
+      {/* # 13. 공지 문구 */}
+      {noticeText && (
+        <div
+          className="suddak-card"
           style={{
-            marginBottom: "28px",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1.2fr 0.8fr",
-            gap: "20px",
+            padding: "14px 16px",
+            marginBottom: "18px",
+            borderColor: "var(--success-border)",
+            background: "var(--success-soft)",
+            fontWeight: 700,
+            lineHeight: 1.7,
           }}
         >
-          <div
-            style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: isMobile ? "20px" : "24px",
-              padding: isMobile ? "20px" : "28px",
-              boxShadow: theme.shadow,
-            }}
+          {noticeText}
+        </div>
+      )}
+
+      {/* # 14. 메인 2단 레이아웃 */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
+          gap: "18px",
+        }}
+      >
+        <div style={{ display: "grid", gap: "18px" }}>
+          {/* # 14-1. 업로드 영역 */}
+          <SectionCard
+            title="사진 업로드"
+            description="문제 사진을 넣으면 자동으로 이미지가 정리돼서 더 안정적으로 읽을 수 있어."
           >
-            <div
-              style={{
-                display: "inline-block",
-                padding: "6px 12px",
-                borderRadius: "999px",
-                backgroundColor: theme.badgeBg,
-                color: isDark ? "#dbeafe" : "#3157c8",
-                fontSize: "13px",
-                fontWeight: 700,
-                marginBottom: "14px",
-              }}
-            >
-              두 단계 풀이 방식
-            </div>
+            <div style={{ display: "grid", gap: "16px" }}>
+              <FileDropzone
+                previewUrl={currentPreview}
+                onFileSelect={handleFileSelect}
+                disabled={reading || solving}
+              />
 
-            <h1
-              style={{
-                margin: 0,
-                marginBottom: "14px",
-                fontSize: isMobile ? "32px" : "46px",
-                fontWeight: 800,
-                letterSpacing: "-0.05em",
-                color: theme.title,
-                lineHeight: isMobile ? 1.2 : 1.12,
-              }}
-            >
-              문제를 먼저 읽고,
-              <br />
-              그다음 정확하게 풉니다.
-            </h1>
+             <div
+  style={{
+    display: "flex",
+    justifyContent: "flex-end",
+  }}
+>
+  <div style={{ position: "relative" }}>
+    <button
+      type="button"
+      onClick={() => setShowAdvancedAdjust((v) => !v)}
+      aria-label="이미지 세부 조정"
+      title="이미지 세부 조정"
+      style={{
+        width: "36px",
+        height: "36px",
+        borderRadius: "999px",
+        border: "1px solid var(--border)",
+        background: "var(--card)",
+        color: "var(--muted)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        boxShadow: "var(--shadow-soft)",
+      }}
+    >
+      <Settings size={16} />
+    </button>
 
-            <p
-              style={{
-                margin: 0,
-                color: theme.subText,
-                fontSize: isMobile ? "15px" : "17px",
-                lineHeight: 1.7,
-                maxWidth: "680px",
-              }}
-            >
-              수딱은 문제 사진을 바로 풀이하지 않고, 먼저 문제를 인식한 뒤
-              그 텍스트를 바탕으로 풀이합니다. 그래서 식이 복잡한 고등학교
-              수학 문제도 더 안정적으로 다룰 수 있습니다.
-            </p>
-          </div>
+    {showAdvancedAdjust && (
+      <div
+        className="suddak-card"
+        style={{
+          position: "absolute",
+          top: "44px",
+          right: 0,
+          zIndex: 10,
+          width: "min(320px, calc(100vw - 40px))",
+          padding: "12px",
+        }}
+      >
+        <OcrPreprocessPanel
+          value={imageAdjustOptions}
+          onChange={setImageAdjustOptions}
+        />
+      </div>
+    )}
+  </div>
+</div>
 
-          <div
-            style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: isMobile ? "20px" : "24px",
-              padding: isMobile ? "20px" : "24px",
-              boxShadow: theme.shadow,
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                marginBottom: "14px",
-                fontSize: isMobile ? "18px" : "20px",
-                fontWeight: 800,
-                color: theme.title,
-              }}
-            >
-              사용 흐름
-            </h2>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              {[
-                "문제 사진 업로드",
-                "1단계: 문제 읽기",
-                "인식 결과 확인",
-                "2단계: 풀이하기",
-              ].map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 14px",
-                    borderRadius: "16px",
-                    backgroundColor: theme.softCard,
-                    border: `1px solid ${theme.softBorder}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "999px",
-                      backgroundColor: theme.primary,
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 800,
-                      fontSize: "13px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {index + 1}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: 600,
-                      color: theme.text,
-                    }}
-                  >
-                    {item}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <ApprovalGate>
-          <section
-            style={{
-              ...sectionCardStyle,
-              marginBottom: "24px",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                marginBottom: "10px",
-                fontSize: isMobile ? "20px" : "22px",
-                fontWeight: 800,
-                color: theme.title,
-              }}
-            >
-              문제 업로드
-            </h2>
-
-            <p
-              style={{
-                margin: 0,
-                marginBottom: "18px",
-                color: theme.subText,
-                lineHeight: 1.7,
-                fontSize: "15px",
-              }}
-            >
-              문제 사진을 고른 뒤, 먼저 문제를 읽게 하고 그 결과를 확인해봐.
-            </p>
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleChange}
-              style={{
-                display: "block",
-                width: "100%",
-                padding: "12px",
-                border: `1px solid ${theme.inputBorder}`,
-                borderRadius: "14px",
-                backgroundColor: theme.inputBg,
-                color: theme.text,
-                fontSize: isMobile ? "14px" : "15px",
-              }}
-            />
-
-            {preview && (
-              <div style={{ marginTop: "22px" }}>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    marginBottom: "10px",
-                    color: theme.text,
-                  }}
-                >
-                  미리보기
-                </div>
-                <div
-                  style={{
-                    border: `1px solid ${theme.cardBorder}`,
-                    borderRadius: "18px",
-                    overflow: "hidden",
-                    backgroundColor: isDark ? "#0b1220" : "#fafafa",
-                  }}
-                >
-                  <img
-                    src={preview}
-                    alt="업로드한 문제"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      height: "auto",
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {usageText && (
               <div
                 style={{
-                  marginTop: "14px",
-                  padding: "12px 14px",
-                  borderRadius: "12px",
-                  backgroundColor: theme.usageBg,
-                  border: `1px solid ${theme.cardBorder}`,
-                  color: theme.text,
-                  fontSize: isMobile ? "13px" : "14px",
-                  fontWeight: 600,
-                  lineHeight: 1.6,
-                }}
-              >
-                {usageText}
-              </div>
-            )}
-
-            {isAdminUser && (
-              <div
-                style={{
-                  marginTop: "18px",
-                  padding: "12px 14px",
-                  borderRadius: "14px",
-                  border: `1px solid ${theme.cardBorder}`,
-                  backgroundColor: theme.softCard,
-                  display: "flex",
-                  alignItems: "center",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                   gap: "10px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <input
-                  id="include-graph"
-                  type="checkbox"
-                  checked={includeGraph}
-                  onChange={(e) => setIncludeGraph(e.target.checked)}
-                />
-                <label
-                  htmlFor="include-graph"
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: theme.text,
-                    cursor: "pointer",
-                  }}
-                >
-                  관리자 전용: 그래프 포함 풀이
-                </label>
-              </div>
-            )}
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                gap: "12px",
-                flexWrap: "wrap",
-                marginTop: "20px",
-              }}
-            >
-              <button
-                onClick={handleReadProblem}
-                disabled={!file || reading}
-                style={{
-                  ...buttonBaseStyle,
-                  border: "1px solid #c7d2fe",
-                  backgroundColor: reading ? "#eef2ff" : theme.primary,
-                  color: reading ? "#3157c8" : "#ffffff",
-                  cursor: !file || reading ? "not-allowed" : "pointer",
-                  opacity: !file || reading ? 0.7 : 1,
-                }}
-              >
-                {reading ? "문제 읽는 중..." : "1단계: 문제 읽기"}
-              </button>
-
-              <button
-                onClick={handleSolveProblem}
-                disabled={!recognizedText.trim() || solving}
-                style={{
-                  ...buttonBaseStyle,
-                  border: `1px solid ${theme.inputBorder}`,
-                  backgroundColor: solving
-                    ? theme.secondaryMutedBg
-                    : theme.inputBg,
-                  color: theme.text,
-                  cursor:
-                    !recognizedText.trim() || solving ? "not-allowed" : "pointer",
-                  opacity: !recognizedText.trim() || solving ? 0.7 : 1,
-                }}
-              >
-                {solving ? "풀이 중..." : "2단계: 이 텍스트로 풀이"}
-              </button>
-            </div>
-          </section>
-        </ApprovalGate>
-
-        {recognizedText && (
-          <section
-            style={{
-              ...sectionCardStyle,
-              marginBottom: "24px",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                marginBottom: "10px",
-                fontSize: isMobile ? "20px" : "22px",
-                fontWeight: 800,
-                color: theme.title,
-              }}
-            >
-              문제 인식 결과
-            </h2>
-
-            <p
-              style={{
-                margin: 0,
-                marginBottom: "18px",
-                color: theme.subText,
-                lineHeight: 1.7,
-                fontSize: "15px",
-              }}
-            >
-              먼저 이 내용이 원문과 맞는지 확인해봐. 이 단계가 정확할수록 풀이도
-              더 정확해진다.
-            </p>
-
-            <div
-              style={{
-                border: `1px solid ${theme.softBorder}`,
-                borderRadius: "18px",
-                backgroundColor: theme.softCard,
-                padding: isMobile ? "16px" : "20px",
-                lineHeight: 1.9,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: isMobile ? "column" : "row",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                  marginBottom: "14px",
                 }}
               >
                 <button
-                  onClick={() => setIsEditingRecognized((prev) => !prev)}
-                  style={{
-                    width: isMobile ? "100%" : "auto",
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.text,
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {isEditingRecognized ? "미리보기로 보기" : "직접 수정하기"}
-                </button>
-
-                <button
+                  type="button"
+                  className="suddak-btn suddak-btn-primary"
                   onClick={handleReadProblem}
                   disabled={!file || reading}
-                  style={{
-                    width: isMobile ? "100%" : "auto",
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.text,
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    cursor: !file || reading ? "not-allowed" : "pointer",
-                    opacity: !file || reading ? 0.7 : 1,
-                  }}
                 >
-                  {reading ? "다시 읽는 중..." : "같은 사진 다시 읽기"}
+                  {reading ? "문제 인식 중..." : "문제 읽기"}
+                </button>
+
+                <button
+                  type="button"
+                  className="suddak-btn suddak-btn-ghost"
+                  onClick={() => {
+                    setFile(null);
+                    setRecognizedText("");
+                    setSolveResult("");
+                    setSolveMeta(null);
+                    setGraphSpec(null);
+                    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
+                    if (processedPreviewUrl) URL.revokeObjectURL(processedPreviewUrl);
+                    setOriginalPreviewUrl(null);
+                    setProcessedPreviewUrl(null);
+                    setNoticeText("");
+                  }}
+                  disabled={!file && !recognizedText && !solveResult}
+                >
+                  초기화
                 </button>
               </div>
-
-              <p
-                style={{
-                  margin: "0 0 14px",
-                  color: theme.subText,
-                  lineHeight: 1.7,
-                  fontSize: "14px",
-                }}
-              >
-                인식 결과가 원문과 다르면 직접 수정한 뒤 풀이해봐.
-              </p>
-
-              {isEditingRecognized ? (
-                <textarea
-                  value={recognizedText}
-                  onChange={(e) => setRecognizedText(e.target.value)}
-                  style={{
-                    width: "100%",
-                    minHeight: isMobile ? "220px" : "260px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    borderRadius: "16px",
-                    padding: "16px",
-                    fontSize: "15px",
-                    lineHeight: 1.7,
-                    resize: "vertical",
-                    backgroundColor: theme.inputBg,
-                    color: theme.text,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    border: `1px solid ${theme.softBorder}`,
-                    borderRadius: "18px",
-                    backgroundColor: theme.softCard,
-                    padding: isMobile ? "16px" : "20px",
-                    lineHeight: 1.9,
-                    overflowX: "auto",
-                  }}
-                >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                  >
-                    {recognizedText}
-                  </ReactMarkdown>
-                </div>
-              )}
             </div>
-          </section>
-        )}
+          </SectionCard>
 
-        {solveResult && (
-          <section style={sectionCardStyle}>
-            <h2
-              style={{
-                margin: 0,
-                marginBottom: "10px",
-                fontSize: isMobile ? "20px" : "22px",
-                fontWeight: 800,
-                color: theme.title,
-              }}
-            >
-              풀이 결과
-            </h2>
-
-            <p
-              style={{
-                margin: 0,
-                marginBottom: "18px",
-                color: theme.subText,
-                lineHeight: 1.7,
-                fontSize: "15px",
-              }}
-            >
-              최종 답, 풀이, 검산을 차례대로 확인해봐.
-            </p>
-
-            {solveMeta && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                  marginBottom: "16px",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: theme.badgeBg,
-                    color: isDark ? "#dbeafe" : "#3157c8",
-                    fontSize: "13px",
-                    fontWeight: 800,
-                  }}
+          {/* # 14-2. 문제 인식 결과 */}
+          <SectionCard
+            title="인식된 문제"
+            description="잘못 읽은 부분은 직접 수정한 뒤 풀이를 요청해."
+            rightSlot={
+              recognizedText ? (
+                <button
+                  type="button"
+                  className="suddak-btn suddak-btn-ghost"
+                  onClick={() => setIsEditingRecognized((v) => !v)}
                 >
-                  과목: {solveMeta.subjectLabel}
-                </div>
-
-                {solveMeta.subtopic ? (
+                  {isEditingRecognized ? "미리보기 보기" : "직접 수정"}
+                </button>
+              ) : null
+            }
+          >
+            {recognizedText ? (
+              <div style={{ display: "grid", gap: "14px" }}>
+                {isEditingRecognized ? (
+                  <textarea
+                    className="suddak-textarea"
+                    value={recognizedText}
+                    onChange={(e) => setRecognizedText(e.target.value)}
+                    placeholder="인식된 문제를 수정해줘"
+                  />
+                ) : (
                   <div
+                    className="suddak-card-soft"
                     style={{
-                      padding: "8px 12px",
-                      borderRadius: "999px",
-                      backgroundColor: theme.softCard,
-                      border: `1px solid ${theme.softBorder}`,
-                      color: theme.text,
-                      fontSize: "13px",
-                      fontWeight: 700,
+                      padding: "16px",
                     }}
                   >
-                    단원: {solveMeta.subtopic}
+                    <MarkdownMathBlock content={recognizedText} isDark={isDark} />
                   </div>
-                ) : null}
+                )}
 
                 <div
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: theme.softCard,
-                    border: `1px solid ${theme.softBorder}`,
-                    color: theme.text,
-                    fontSize: "13px",
-                    fontWeight: 700,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: "10px",
                   }}
                 >
-                  난도: {difficultyLabelMap[solveMeta.difficulty]}
-                </div>
+                  <button
+                    type="button"
+                    className="suddak-btn suddak-btn-primary"
+                    onClick={handleSolveProblem}
+                    disabled={!recognizedText.trim() || solving}
+                  >
+                    {solving ? "풀이 생성 중..." : "풀이 시작"}
+                  </button>
 
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: theme.softCard,
-                    border: `1px solid ${theme.softBorder}`,
-                    color: theme.text,
-                    fontSize: "13px",
-                    fontWeight: 700,
-                  }}
-                >
-                  신뢰도: {solveMeta.confidence}
+                  {isAdminUser && (
+                    <label
+                      className="suddak-card-soft"
+                      style={{
+                        padding: "12px 14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={includeGraph}
+                        onChange={(e) => setIncludeGraph(e.target.checked)}
+                      />
+                      그래프 요청 포함
+                    </label>
+                  )}
                 </div>
               </div>
+            ) : (
+              <div
+                className="suddak-card-soft"
+                style={{
+                  padding: "18px",
+                  color: "var(--muted)",
+                  lineHeight: 1.8,
+                }}
+              >
+                문제를 아직 읽지 않았어. 먼저 이미지를 업로드하고 “문제 읽기”를 눌러줘.
+              </div>
             )}
+          </SectionCard>
+        </div>
 
+        <div style={{ display: "grid", gap: "18px" }}>
+          {/* # 14-3. 풀이 결과 */}
+          <SectionCard
+            title="풀이 결과"
+            description="풀이가 생성되면 메타 정보와 함께 확인할 수 있어."
+            rightSlot={
+              solveResult ? (
+                <Link href={shareUrl} className="suddak-btn suddak-btn-primary">
+                  커뮤니티에 공유
+                </Link>
+              ) : null
+            }
+          >
+            {solveResult ? (
+              <div style={{ display: "grid", gap: "14px" }}>
+                {solveMeta && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "10px",
+                    }}
+                  >
+                    <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>과목</div>
+                      <div style={{ fontWeight: 900, marginTop: "4px" }}>
+                        {solveMeta.subjectLabel}
+                      </div>
+                    </div>
+
+                    <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>세부</div>
+                      <div style={{ fontWeight: 900, marginTop: "4px" }}>
+                        {solveMeta.subtopic || "-"}
+                      </div>
+                    </div>
+
+                    <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>난이도</div>
+                      <div style={{ fontWeight: 900, marginTop: "4px" }}>
+                        {difficultyLabelMap[solveMeta.difficulty]}
+                      </div>
+                    </div>
+
+                    <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>확신도</div>
+                      <div style={{ fontWeight: 900, marginTop: "4px" }}>
+                        {confidenceLabelMap[solveMeta.confidence]}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="suddak-card-soft" style={{ padding: "16px" }}>
+                  <MarkdownMathBlock content={solveResult} isDark={isDark} />
+                </div>
+              </div>
+            ) : (
+              <div
+                className="suddak-card-soft"
+                style={{
+                  padding: "18px",
+                  color: "var(--muted)",
+                  lineHeight: 1.8,
+                }}
+              >
+                아직 풀이 결과가 없어. 문제를 인식한 뒤 풀이 시작 버튼을 눌러줘.
+              </div>
+            )}
+          </SectionCard>
+
+          {/* # 14-4. 그래프 카드 */}
+          {graphSpec && (
+            <SectionCard
+              title="그래프 / 시각화"
+              description="풀이 과정에서 필요하다고 판단된 그래프 정보야."
+            >
+              <GraphPreview graph={graphSpec} isDark={isDark} />
+            </SectionCard>
+          )}
+
+          {/* # 14-5. 빠른 이동 */}
+          <SectionCard
+            title="빠른 이동"
+            description="풀이한 문제를 기록하거나 커뮤니티로 이어갈 수 있어."
+          >
             <div
               style={{
-                border: `1px solid ${theme.softBorder}`,
-                borderRadius: "18px",
-                backgroundColor: theme.softCard,
-                padding: isMobile ? "16px" : "20px",
-                lineHeight: 1.9,
-                overflowX: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
               }}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-              >
-                {solveResult}
-              </ReactMarkdown>
+              <Link href="/history" className="suddak-btn suddak-btn-ghost">
+                내 기록 보기
+              </Link>
+              <Link href="/community" className="suddak-btn suddak-btn-ghost">
+                커뮤니티 가기
+              </Link>
+              <Link href="/login" className="suddak-btn suddak-btn-ghost">
+                로그인
+              </Link>
+              <Link href="/signup" className="suddak-btn suddak-btn-primary">
+                회원가입
+              </Link>
             </div>
-
-            {solveMeta?.graphNeeded && graphSpec && (
-              <div style={{ marginTop: "18px" }}>
-                <GraphPreview graph={graphSpec} isDark={isDark} />
-              </div>
-            )}
-          </section>
-        )}
+          </SectionCard>
+        </div>
       </div>
-    </main>
+    </PageContainer>
   );
 }

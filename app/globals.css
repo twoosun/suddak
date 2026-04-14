@@ -1,8 +1,36 @@
 @import "tailwindcss";
 
+/* # 1. 전역 색상 토큰 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8fc;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --soft: #f8fafc;
+  --primary: #3157c8;
+  --primary-foreground: #ffffff;
+  --success-soft: #ecfdf5;
+  --success-border: #bbf7d0;
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.05);
+  --header-bg: rgba(255, 255, 255, 0.84);
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #f9fafb;
+  --card: #111827;
+  --card-foreground: #f9fafb;
+  --muted: #cbd5e1;
+  --border: #253041;
+  --soft: #0f172a;
+  --primary: #60a5fa;
+  --primary-foreground: #08111f;
+  --success-soft: rgba(16, 185, 129, 0.08);
+  --success-border: #14532d;
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.32);
+  --header-bg: rgba(17, 24, 39, 0.84);
 }
 
 @theme inline {
@@ -12,15 +40,225 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* # 2. 기본 태그 */
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(49, 87, 200, 0.08), transparent 28%),
+    linear-gradient(180deg, var(--background) 0%, var(--background) 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    var(--font-geist-sans),
+    Pretendard,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* # 3. 공통 레이아웃 */
+.suddak-shell {
+  min-height: 100vh;
+  color: var(--foreground);
+}
+
+.suddak-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+@media (max-width: 768px) {
+  .suddak-container {
+    padding: 0 14px;
+  }
+}
+
+/* # 4. 공통 카드 */
+.suddak-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.suddak-card-soft {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+@media (max-width: 768px) {
+  .suddak-card {
+    border-radius: 20px;
+  }
+
+  .suddak-card-soft {
+    border-radius: 16px;
+  }
+}
+
+/* # 5. 공통 버튼 */
+.suddak-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.suddak-btn:hover {
+  transform: translateY(-1px);
+}
+
+.suddak-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.suddak-btn-primary {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.dark .suddak-btn-primary {
+  color: var(--primary-foreground);
+}
+
+.suddak-btn-ghost {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+@media (max-width: 768px) {
+  .suddak-btn {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+/* # 6. 입력 공통 */
+.suddak-input,
+.suddak-textarea,
+.suddak-select {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.suddak-input,
+.suddak-select {
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+.suddak-textarea {
+  min-height: 144px;
+  padding: 14px;
+  resize: vertical;
+}
+
+.suddak-input:focus,
+.suddak-textarea:focus,
+.suddak-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(49, 87, 200, 0.12);
+}
+
+/* # 7. 뱃지 */
+.suddak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* # 8. 드래그 드롭 강조 */
+.suddak-dropzone-active {
+  border-color: var(--primary) !important;
+  background: rgba(49, 87, 200, 0.06) !important;
+}
+
+.dark .suddak-dropzone-active {
+  background: rgba(96, 165, 250, 0.08) !important;
+}
+
+/* # 9. 마크다운 */
+.suddak-markdown {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
+.suddak-markdown pre {
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.suddak-markdown code {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.suddak-markdown p:first-child {
+  margin-top: 0;
+}
+
+.suddak-markdown p:last-child {
+  margin-bottom: 0;
 }

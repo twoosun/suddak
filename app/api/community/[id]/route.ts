@@ -15,6 +15,7 @@ function createAdminClient() {
 
 type PostType = "free" | "problem";
 
+/* # 1. 작성자명 */
 function getAuthorName(user: User | null | undefined) {
   if (!user) return "익명";
 
@@ -29,6 +30,7 @@ function getAuthorName(user: User | null | undefined) {
   );
 }
 
+/* # 2. 요청 유저 */
 async function getUserFromRequest(req: NextRequest) {
   const supabase = createAdminClient();
   const authHeader = req.headers.get("authorization");
@@ -51,6 +53,7 @@ async function getUserFromRequest(req: NextRequest) {
   return { user, error: null, status: 200 };
 }
 
+/* # 3. 관리자 여부 */
 async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
   const { data } = await supabase
     .from("user_profiles")
@@ -113,12 +116,26 @@ export async function GET(
     const { data: userData } = await supabase.auth.admin.getUserById(data.user_id);
 
     let viewerIsAdmin = false;
+    let viewerLiked = false;
+    let currentUserId: string | null = null;
+
     const authHeader = req.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "").trim();
       const { data: authData } = await supabase.auth.getUser(token);
+
       if (authData.user) {
+        currentUserId = authData.user.id;
         viewerIsAdmin = await getIsAdmin(supabase, authData.user.id);
+
+        const { data: likeRow } = await supabase
+          .from("community_likes")
+          .select("id")
+          .eq("post_id", postId)
+          .eq("user_id", authData.user.id)
+          .maybeSingle();
+
+        viewerLiked = Boolean(likeRow);
       }
     }
 
@@ -129,6 +146,8 @@ export async function GET(
         author_avatar_url: null,
       },
       viewer_is_admin: viewerIsAdmin,
+      viewer_liked: viewerLiked,
+      current_user_id: currentUserId,
     });
   } catch (error) {
     console.error("[GET /api/community/[id]] unexpected error:", error);
@@ -393,9 +412,16 @@ export async function DELETE(
     const user = authResult.user;
     const isAdmin = await getIsAdmin(supabase, user.id);
 
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "관리자만 게시글을 삭제할 수 있습니다." },
+        { status: 403 }
+      );
+    }
+
     const { data: existingPost, error: existingError } = await supabase
       .from("community_posts")
-      .select("id, user_id")
+      .select("id")
       .eq("id", postId)
       .single();
 
@@ -403,13 +429,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },
         { status: 404 }
-      );
-    }
-
-    if (existingPost.user_id !== user.id && !isAdmin) {
-      return NextResponse.json(
-        { error: "본인 글 또는 관리자만 삭제할 수 있습니다." },
-        { status: 403 }
       );
     }
 
@@ -427,9 +446,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({
-      message: isAdmin && existingPost.user_id !== user.id
-        ? "관리자 권한으로 게시글을 삭제했습니다."
-        : "게시글이 삭제되었습니다.",
+      message: "관리자 권한으로 게시글을 삭제했습니다.",
     });
   } catch (error) {
     console.error("[DELETE /api/community/[id]] unexpected error:", error);

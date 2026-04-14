@@ -3,20 +3,18 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import SuddakCommunityHeader from "@/components/suddak-community-header";
-import { getStoredTheme } from "@/lib/theme";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
+import { getStoredTheme, initTheme } from "@/lib/theme";
+
+import PageContainer from "@/components/common/PageContainer";
+import SectionCard from "@/components/common/SectionCard";
+import ThemeToggleButton from "@/components/common/ThemeToggleButton";
+import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
+import MoreMenu from "@/components/MoreMenu";
 
 type CommunityPost = {
-  id: string;
+  id: string | number;
   user_id: string;
   post_type: "free" | "problem";
   history_id: number | null;
@@ -32,7 +30,6 @@ type CommunityPost = {
   created_at: string;
   updated_at: string;
   author_name: string | null;
-  author_avatar_url: string | null;
 };
 
 type CommunityComment = {
@@ -44,12 +41,12 @@ type CommunityComment = {
   created_at: string;
   updated_at: string;
   author_name: string | null;
-  author_avatar_url: string | null;
 };
 
+/* # 1. 날짜 포맷 */
 function formatDateTime(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return value;
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(
     date.getDate()
   ).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(
@@ -57,76 +54,119 @@ function formatDateTime(value: string) {
   ).padStart(2, "0")}`;
 }
 
-function MarkdownMath({
-  children,
-  isDark,
-}: {
-  children: string;
-  isDark: boolean;
-}) {
-  return (
-    <div className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}>
-      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-        {children}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
 export default function CommunityDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const postId = String(params.id);
+  const postId = String(params?.id || "");
+
+  /* # 2. 상태값 */
+  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   const [post, setPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<CommunityComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
+  const [viewerLiked, setViewerLiked] = useState(false);
+
   const [commentInput, setCommentInput] = useState("");
   const [replyInput, setReplyInput] = useState("");
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
   const [commentLoading, setCommentLoading] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [messageText, setMessageText] = useState("");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [noticeLoading, setNoticeLoading] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
 
+  /* # 3. 초기화 */
   useEffect(() => {
+    initTheme();
     setIsDark(getStoredTheme() === "dark");
     setMounted(true);
   }, []);
 
-  const theme = useMemo(
-    () => ({
-      bg: isDark
-        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
-        : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
-      card: isDark ? "#111827" : "#ffffff",
-      cardBorder: isDark ? "#253041" : "#e5e7eb",
-      text: isDark ? "#f9fafb" : "#111827",
-      subText: isDark ? "#cbd5e1" : "#6b7280",
-      softCard: isDark ? "#0f172a" : "#f8fafc",
-      inputBg: isDark ? "#0b1220" : "#ffffff",
-      inputBorder: isDark ? "#374151" : "#d1d5db",
-      softBorder: isDark ? "#334155" : "#e5e7eb",
-      shadow: isDark
-        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
-        : "0 8px 30px rgba(15, 23, 42, 0.05)",
-      primary: "#3157c8",
-      problemBox: isDark ? "rgba(16, 185, 129, 0.08)" : "#ecfdf5",
-      problemBorder: isDark ? "#14532d" : "#bbf7d0",
-    }),
-    [isDark]
-  );
+  /* # 4. 세션 읽기 */
+  const getAuthHeader = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  const isOwner = !!post && !!currentUserId && post.user_id === currentUserId;
-  const canDeletePost = isOwner || isAdmin;
+    if (!session?.access_token) return undefined;
 
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+    };
+  };
+
+  const fetchSessionUser = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    setCurrentUserId(session?.user?.id ?? null);
+  };
+
+  /* # 5. 게시글 불러오기 */
+  const fetchPost = async () => {
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const headers = await getAuthHeader();
+
+      const res = await fetch(`/api/community/${postId}`, {
+        cache: "no-store",
+        headers,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPost(null);
+        setMessage(data?.error || "게시글을 불러오지 못했습니다.");
+        return;
+      }
+
+      setPost(data.post);
+      setViewerIsAdmin(Boolean(data.viewer_is_admin));
+      setViewerLiked(Boolean(data.viewer_liked));
+      setCurrentUserId(data.current_user_id ?? null);
+    } catch {
+      setPost(null);
+      setMessage("게시글을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* # 6. 댓글 불러오기 */
+  const fetchComments = async () => {
+    try {
+      const res = await fetch(`/api/community/${postId}/comments`, {
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+      if (!res.ok) return;
+
+      setComments(Array.isArray(data.comments) ? data.comments : []);
+    } catch {
+      //
+    }
+  };
+
+  useEffect(() => {
+    if (!mounted || !postId) return;
+    fetchSessionUser();
+    fetchPost();
+    fetchComments();
+  }, [mounted, postId]);
+
+  /* # 7. 댓글 구조 */
   const topLevelComments = useMemo(
     () => comments.filter((comment) => !comment.parent_comment_id),
     [comments]
@@ -135,123 +175,32 @@ export default function CommunityDetailPage() {
   const getReplies = (parentId: string) =>
     comments.filter((comment) => comment.parent_comment_id === parentId);
 
-  const fetchSessionUser = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    setCurrentUserId(session?.user?.id ?? null);
-
-    if (!session?.access_token) {
-      setIsAdmin(false);
-      return;
-    }
-
-    try {
-      const usageRes = await fetch("/api/usage", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      const usageData = await usageRes.json();
-
-      if (usageRes.ok) {
-        setIsAdmin(Boolean(usageData?.isAdmin));
-      } else {
-        setIsAdmin(false);
-      }
-    } catch {
-      setIsAdmin(false);
-    }
-  };
-
-  const fetchPost = async () => {
-    try {
-      setLoading(true);
-      setErrorText("");
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const res = await fetch(`/api/community/${postId}`, {
-        cache: "no-store",
-        headers: session?.access_token
-          ? {
-              Authorization: `Bearer ${session.access_token}`,
-            }
-          : undefined,
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrorText(data?.error || "게시글을 불러오지 못했습니다.");
-        setPost(null);
-        return;
-      }
-
-      setPost(data.post);
-      setIsAdmin(Boolean(data?.viewer_is_admin));
-    } catch (error) {
-      console.error(error);
-      setErrorText("게시글을 불러오지 못했습니다.");
-      setPost(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchComments = async () => {
-    try {
-      const res = await fetch(`/api/community/${postId}/comments`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-
-      if (!res.ok) return;
-      setComments(data.comments ?? []);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  useEffect(() => {
-    if (!postId) return;
-    fetchSessionUser();
-    fetchPost();
-    fetchComments();
-  }, [postId]);
-
+  /* # 8. 좋아요 */
   const handleLikeToggle = async () => {
+    if (!post) return;
+
     try {
       setLikeLoading(true);
-      setMessageText("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageText("좋아요를 누르려면 로그인이 필요합니다.");
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 좋아요를 누를 수 있어.");
         return;
       }
 
-      const res = await fetch(`/api/community/${postId}/like`, {
+      const res = await fetch(`/api/community/${post.id}/like`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers,
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessageText(data?.error || "좋아요 처리에 실패했습니다.");
+        alert(data?.error || "좋아요 처리에 실패했습니다.");
         return;
       }
 
-      setMessageText(data?.message || "");
+      setViewerLiked(Boolean(data.liked));
       setPost((prev) =>
         prev
           ? {
@@ -260,215 +209,168 @@ export default function CommunityDetailPage() {
             }
           : prev
       );
-    } catch (error) {
-      console.error(error);
-      setMessageText("좋아요 처리 중 오류가 발생했습니다.");
     } finally {
       setLikeLoading(false);
     }
   };
 
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const trimmed = commentInput.trim();
-    if (!trimmed) return;
+  /* # 9. 댓글 작성 */
+  const handleCommentSubmit = async () => {
+    if (!post || !commentInput.trim()) return;
 
     try {
       setCommentLoading(true);
-      setMessageText("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageText("댓글 작성에는 로그인이 필요합니다.");
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 댓글을 작성할 수 있어.");
         return;
       }
 
-      const res = await fetch(`/api/community/${postId}/comments`, {
+      const res = await fetch(`/api/community/${post.id}/comments`, {
         method: "POST",
         headers: {
+          ...headers,
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          content: trimmed,
+          content: commentInput.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessageText(data?.error || "댓글 작성에 실패했습니다.");
+        alert(data?.error || "댓글 작성에 실패했습니다.");
         return;
       }
 
       setCommentInput("");
-      setMessageText(data?.message || "댓글이 작성되었습니다.");
-
       await fetchComments();
       setPost((prev) =>
-        prev
-          ? {
-              ...prev,
-              comment_count: prev.comment_count + 1,
-            }
-          : prev
+        prev ? { ...prev, comment_count: (prev.comment_count ?? 0) + 1 } : prev
       );
-    } catch (error) {
-      console.error(error);
-      setMessageText("댓글 작성 중 오류가 발생했습니다.");
     } finally {
       setCommentLoading(false);
     }
   };
 
-  const handleReplySubmit = async (parentCommentId: string) => {
-    const trimmed = replyInput.trim();
-    if (!trimmed) return;
+  /* # 10. 대댓글 작성 */
+  const handleReplySubmit = async (parentId: string) => {
+    if (!post || !replyInput.trim()) return;
 
     try {
       setReplyLoading(true);
-      setMessageText("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageText("대댓글 작성에는 로그인이 필요합니다.");
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 대댓글을 작성할 수 있어.");
         return;
       }
 
-      const res = await fetch(`/api/community/${postId}/comments`, {
+      const res = await fetch(`/api/community/${post.id}/comments`, {
         method: "POST",
         headers: {
+          ...headers,
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          content: trimmed,
-          parent_comment_id: parentCommentId,
+          content: replyInput.trim(),
+          parent_comment_id: parentId,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessageText(data?.error || "대댓글 작성에 실패했습니다.");
+        alert(data?.error || "대댓글 작성에 실패했습니다.");
         return;
       }
 
       setReplyInput("");
       setReplyingToId(null);
-      setMessageText(data?.message || "대댓글이 작성되었습니다.");
+      await fetchComments();
+      setPost((prev) =>
+        prev ? { ...prev, comment_count: (prev.comment_count ?? 0) + 1 } : prev
+      );
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
+  /* # 11. 댓글 삭제 */
+  const handleDeleteComment = async (commentId: string) => {
+    if (!post) return;
+    if (!confirm("댓글을 삭제할까?")) return;
+
+    try {
+      setDeleteCommentId(commentId);
+
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 삭제할 수 있어.");
+        return;
+      }
+
+      const beforeCount = comments.filter(
+        (comment) => comment.id === commentId || comment.parent_comment_id === commentId
+      ).length;
+
+      const res = await fetch(`/api/community/${post.id}/comments/${commentId}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "댓글 삭제에 실패했습니다.");
+        return;
+      }
 
       await fetchComments();
       setPost((prev) =>
         prev
           ? {
               ...prev,
-              comment_count: prev.comment_count + 1,
+              comment_count: Math.max((prev.comment_count ?? 0) - beforeCount, 0),
             }
           : prev
       );
-    } catch (error) {
-      console.error(error);
-      setMessageText("대댓글 작성 중 오류가 발생했습니다.");
     } finally {
-      setReplyLoading(false);
+      setDeleteCommentId(null);
     }
   };
 
-  const handleNoticeToggle = async () => {
+  /* # 12. 게시글 삭제 */
+  const handleDeletePost = async () => {
     if (!post) return;
-
-    try {
-      setNoticeLoading(true);
-      setMessageText("");
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageText("로그인이 필요합니다.");
-        return;
-      }
-
-      const res = await fetch(`/api/community/${postId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          is_notice: !post.is_notice,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessageText(data?.error || "공지 상태 변경에 실패했습니다.");
-        return;
-      }
-
-      setMessageText(data?.message || "공지 상태가 변경되었습니다.");
-      setPost((prev) =>
-        prev
-          ? {
-              ...prev,
-              is_notice: Boolean(data?.post?.is_notice),
-            }
-          : prev
-      );
-    } catch (error) {
-      console.error(error);
-      setMessageText("공지 상태 변경 중 오류가 발생했습니다.");
-    } finally {
-      setNoticeLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!post) return;
-    const ok = window.confirm("이 게시글을 삭제할까요?");
-    if (!ok) return;
+    if (!confirm("관리자 권한으로 이 게시글을 삭제할까?")) return;
 
     try {
       setDeleteLoading(true);
-      setMessageText("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageText("삭제하려면 로그인이 필요합니다.");
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 삭제할 수 있어.");
         return;
       }
 
       const res = await fetch(`/api/community/${post.id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers,
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setMessageText(data?.error || "삭제에 실패했습니다.");
+        alert(data?.error || "게시글 삭제에 실패했습니다.");
         return;
       }
 
+      alert(data?.message || "게시글이 삭제되었습니다.");
       router.push("/community");
-    } catch (error) {
-      console.error(error);
-      setMessageText("삭제 중 오류가 발생했습니다.");
+      router.refresh();
     } finally {
       setDeleteLoading(false);
     }
@@ -476,552 +378,473 @@ export default function CommunityDetailPage() {
 
   if (!mounted) return null;
 
-  if (loading) {
-    return (
-      <main style={{ minHeight: "100vh", background: theme.bg, color: theme.text }}>
-        <SuddakCommunityHeader current="community" />
-        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 16px 48px" }}>
-          <div
-            style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "24px",
-              padding: "24px",
-              color: theme.subText,
-              boxShadow: theme.shadow,
-            }}
-          >
-            불러오는 중...
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (!post) {
-    return (
-      <main style={{ minHeight: "100vh", background: theme.bg, color: theme.text }}>
-        <SuddakCommunityHeader current="community" />
-        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px 16px 48px" }}>
-          <div
-            style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "24px",
-              padding: "24px",
-              boxShadow: theme.shadow,
-            }}
-          >
-            <p style={{ margin: 0, color: "#ef4444" }}>{errorText || "게시글을 찾을 수 없습니다."}</p>
-            <Link
-              href="/community"
-              style={{
-                display: "inline-block",
-                marginTop: "16px",
-                textDecoration: "none",
-                padding: "12px 16px",
-                borderRadius: "16px",
-                border: `1px solid ${theme.inputBorder}`,
-                color: theme.text,
-                backgroundColor: theme.softCard,
-                fontWeight: 800,
-              }}
-            >
-              목록으로
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: theme.bg,
-        color: theme.text,
-      }}
-    >
-      <SuddakCommunityHeader current="community" />
-
-      <div
+    <PageContainer topPadding={18} bottomPadding={48}>
+      {/* # 13. 상단 헤더 */}
+      <header
+        className="suddak-card"
         style={{
-          maxWidth: "900px",
-          margin: "0 auto",
-          padding: "24px 16px 48px",
+          position: "sticky",
+          top: 14,
+          zIndex: 20,
+          padding: "14px 16px",
+          marginBottom: "18px",
+          background: "var(--header-bg)",
+          backdropFilter: "blur(12px)",
         }}
       >
-        <div style={{ marginBottom: "14px", display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
           <Link
             href="/community"
             style={{
-              textDecoration: "none",
-              padding: "12px 16px",
-              borderRadius: "999px",
-              border: `1px solid ${theme.inputBorder}`,
-              color: theme.text,
-              backgroundColor: theme.softCard,
-              fontWeight: 800,
-              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              minWidth: 0,
             }}
           >
-            ← 목록으로
-          </Link>
-
-          <span
-            style={{
-              padding: "8px 12px",
-              borderRadius: "999px",
-              fontSize: "12px",
-              fontWeight: 800,
-              backgroundColor:
-                post.post_type === "problem"
-                  ? isDark
-                    ? "#052e16"
-                    : "#dcfce7"
-                  : isDark
-                  ? "#082f49"
-                  : "#e0f2fe",
-              color:
-                post.post_type === "problem"
-                  ? isDark
-                    ? "#86efac"
-                    : "#15803d"
-                  : isDark
-                  ? "#7dd3fc"
-                  : "#0369a1",
-            }}
-          >
-            {post.post_type === "problem" ? "문제글" : "자유글"}
-          </span>
-        </div>
-
-        <article
-          style={{
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.cardBorder}`,
-            borderRadius: "24px",
-            padding: "24px",
-            boxShadow: theme.shadow,
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "34px",
-              fontWeight: 900,
-              letterSpacing: "-0.04em",
-            }}
-          >
-            {post.title}
-          </h1>
-
-          <div style={{ marginTop: "10px", fontSize: "14px", color: theme.subText }}>
-            작성자 {post.author_name ?? "익명"}
-          </div>
-
-          <div style={{ marginTop: "12px", display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "13px", color: theme.subText }}>
-            <span>{formatDateTime(post.created_at)}</span>
-            <span>좋아요 {post.like_count}</span>
-            <span>댓글 {post.comment_count}</span>
-          </div>
-
-          <div style={{ marginTop: "22px" }}>
-            <MarkdownMath isDark={isDark}>{post.content}</MarkdownMath>
-          </div>
-
-          {post.post_type === "problem" && (
             <div
               style={{
-                marginTop: "28px",
-                padding: "18px",
-                borderRadius: "20px",
-                border: `1px solid ${theme.problemBorder}`,
-                backgroundColor: theme.problemBox,
+                width: "48px",
+                height: "48px",
+                borderRadius: "15px",
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                flexShrink: 0,
               }}
             >
-              {post.recognized_text ? (
-                <div style={{ marginBottom: "18px" }}>
-                  <h2 style={{ margin: "0 0 10px", fontSize: "15px", fontWeight: 800 }}>
-                    인식된 문제
-                  </h2>
-                  <div
-                    style={{
-                      borderRadius: "16px",
-                      padding: "14px",
-                      backgroundColor: theme.card,
-                      border: `1px solid ${theme.cardBorder}`,
-                    }}
-                  >
-                    <MarkdownMath isDark={isDark}>{post.recognized_text}</MarkdownMath>
-                  </div>
-                </div>
-              ) : null}
-
-              {post.solve_result ? (
-                <div style={{ marginBottom: post.image_url || post.history_id ? "18px" : 0 }}>
-                  <h2 style={{ margin: "0 0 10px", fontSize: "15px", fontWeight: 800 }}>
-                    풀이 결과
-                  </h2>
-                  <div
-                    style={{
-                      borderRadius: "16px",
-                      padding: "14px",
-                      backgroundColor: theme.card,
-                      border: `1px solid ${theme.cardBorder}`,
-                    }}
-                  >
-                    <MarkdownMath isDark={isDark}>{post.solve_result}</MarkdownMath>
-                  </div>
-                </div>
-              ) : null}
-
-              {post.image_url ? (
-                <div style={{ marginBottom: post.history_id ? "18px" : 0 }}>
-                  <h2 style={{ margin: "0 0 10px", fontSize: "15px", fontWeight: 800 }}>
-                    문제 이미지
-                  </h2>
-                  <img
-                    src={post.image_url}
-                    alt="문제 이미지"
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      maxHeight: "420px",
-                      objectFit: "contain",
-                      borderRadius: "16px",
-                      border: `1px solid ${theme.cardBorder}`,
-                      backgroundColor: theme.card,
-                    }}
-                  />
-                </div>
-              ) : null}
-
-              {post.history_id ? (
-                <p style={{ margin: 0, fontSize: "12px", color: theme.subText }}>
-                  연결된 history ID: {post.history_id}
-                </p>
-              ) : null}
+              <img
+                src="/logo.png"
+                alt="수딱 로고"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
             </div>
-          )}
 
-          <div style={{ marginTop: "22px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleLikeToggle}
-              disabled={likeLoading}
-              style={{
-                border: "none",
-                cursor: "pointer",
-                padding: "12px 16px",
-                borderRadius: "16px",
-                backgroundColor: theme.primary,
-                color: "#fff",
-                fontWeight: 800,
-                fontSize: "14px",
-                opacity: likeLoading ? 0.7 : 1,
-              }}
-            >
-              {likeLoading ? "처리 중..." : "좋아요"}
-            </button>
-
-            {isOwner ? (
-              <Link
-                href={`/community/${post.id}/edit`}
-                style={{
-                  textDecoration: "none",
-                  padding: "12px 16px",
-                  borderRadius: "16px",
-                  border: `1px solid ${theme.inputBorder}`,
-                  backgroundColor: theme.softCard,
-                  color: theme.text,
-                  fontWeight: 800,
-                  fontSize: "14px",
-                }}
-              >
-                수정
-              </Link>
-            ) : null}
-
-            {isAdmin ? (
-              <button
-                type="button"
-                onClick={handleNoticeToggle}
-                disabled={noticeLoading}
-                style={{
-                  border: "none",
-                  cursor: noticeLoading ? "default" : "pointer",
-                  padding: "12px 16px",
-                  borderRadius: "16px",
-                  fontWeight: 800,
-                  fontSize: "14px",
-                  backgroundColor: post.is_notice
-                    ? isDark
-                      ? "#7c2d12"
-                      : "#fff7ed"
-                    : theme.primary,
-                  color: post.is_notice
-                    ? isDark
-                      ? "#fdba74"
-                      : "#c2410c"
-                    : "#ffffff",
-                  opacity: noticeLoading ? 0.7 : 1,
-                }}
-              >
-                {noticeLoading ? "처리 중..." : post.is_notice ? "공지 해제" : "공지로 지정"}
-              </button>
-            ) : null}
-
-            {canDeletePost ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleteLoading}
-                style={{
-                  cursor: "pointer",
-                  padding: "12px 16px",
-                  borderRadius: "16px",
-                  border: isDark ? "1px solid rgba(248,113,113,0.3)" : "1px solid #fecaca",
-                  backgroundColor: isDark ? "rgba(127,29,29,0.15)" : "#fff5f5",
-                  color: isDark ? "#fca5a5" : "#dc2626",
-                  fontWeight: 800,
-                  fontSize: "14px",
-                  opacity: deleteLoading ? 0.7 : 1,
-                }}
-              >
-                {deleteLoading ? "삭제 중..." : isOwner ? "삭제" : "관리자 삭제"}
-              </button>
-            ) : null}
-          </div>
-
-          {messageText ? (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "14px 16px",
-                borderRadius: "16px",
-                border: `1px solid ${theme.inputBorder}`,
-                backgroundColor: theme.softCard,
-                color: theme.subText,
-                fontSize: "14px",
-              }}
-            >
-              {messageText}
-            </div>
-          ) : null}
-        </article>
-
-        <section
-          style={{
-            marginTop: "20px",
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.cardBorder}`,
-            borderRadius: "24px",
-            padding: "24px",
-            boxShadow: theme.shadow,
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 900 }}>댓글</h2>
-
-          <form onSubmit={handleCommentSubmit} style={{ marginTop: "16px" }}>
-            <textarea
-              value={commentInput}
-              onChange={(e) => setCommentInput(e.target.value)}
-              placeholder="댓글을 입력하세요"
-              rows={4}
-              style={{
-                width: "100%",
-                padding: "14px 16px",
-                borderRadius: "16px",
-                border: `1px solid ${theme.inputBorder}`,
-                backgroundColor: theme.inputBg,
-                color: theme.text,
-                fontSize: "14px",
-                outline: "none",
-                resize: "vertical",
-              }}
-            />
-            <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end" }}>
-              <button
-                type="submit"
-                disabled={commentLoading}
-                style={{
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "12px 16px",
-                  borderRadius: "16px",
-                  backgroundColor: theme.primary,
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: "14px",
-                  opacity: commentLoading ? 0.7 : 1,
-                }}
-              >
-                {commentLoading ? "작성 중..." : "댓글 작성"}
-              </button>
-            </div>
-          </form>
-
-          <div style={{ marginTop: "22px", display: "grid", gap: "14px" }}>
-            {topLevelComments.length === 0 ? (
+            <div>
               <div
                 style={{
-                  borderRadius: "16px",
-                  border: `1px solid ${theme.inputBorder}`,
-                  backgroundColor: theme.softCard,
-                  padding: "16px",
-                  color: theme.subText,
-                  fontSize: "14px",
+                  fontSize: "clamp(1.55rem, 4vw, 2.3rem)",
+                  fontWeight: 950,
+                  letterSpacing: "-0.06em",
+                  lineHeight: 0.95,
                 }}
               >
-                아직 댓글이 없습니다.
+                게시글 상세
               </div>
-            ) : (
-              topLevelComments.map((comment) => (
-                <div
-                  key={comment.id}
-                  style={{
-                    borderRadius: "18px",
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.softCard,
-                    padding: "16px",
-                  }}
-                >
-                  <div style={{ marginBottom: "8px", display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "12px", color: theme.subText }}>
-                    <span>{comment.author_name ?? "익명"}</span>
-                    <span>•</span>
-                    <span>{formatDateTime(comment.created_at)}</span>
-                  </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: "var(--primary)",
+                  marginTop: "4px",
+                }}
+              >
+                좋아요 · 댓글 · 대댓글 지원
+              </div>
+            </div>
+          </Link>
 
-                  <MarkdownMath isDark={isDark}>{comment.content}</MarkdownMath>
-
-                  <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setReplyingToId((prev) => (prev === comment.id ? null : comment.id))
-                      }
-                      style={{
-                        cursor: "pointer",
-                        padding: "8px 12px",
-                        borderRadius: "12px",
-                        border: `1px solid ${theme.inputBorder}`,
-                        backgroundColor: theme.card,
-                        color: theme.text,
-                        fontSize: "12px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {replyingToId === comment.id ? "취소" : "답글"}
-                    </button>
-                  </div>
-
-                  {replyingToId === comment.id ? (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        borderRadius: "16px",
-                        backgroundColor: theme.card,
-                        border: `1px solid ${theme.cardBorder}`,
-                        padding: "14px",
-                      }}
-                    >
-                      <textarea
-                        value={replyInput}
-                        onChange={(e) => setReplyInput(e.target.value)}
-                        placeholder="대댓글을 입력하세요"
-                        rows={3}
-                        style={{
-                          width: "100%",
-                          padding: "14px 16px",
-                          borderRadius: "16px",
-                          border: `1px solid ${theme.inputBorder}`,
-                          backgroundColor: theme.inputBg,
-                          color: theme.text,
-                          fontSize: "14px",
-                          outline: "none",
-                          resize: "vertical",
-                        }}
-                      />
-                      <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplyingToId(null);
-                            setReplyInput("");
-                          }}
-                          style={{
-                            cursor: "pointer",
-                            padding: "10px 14px",
-                            borderRadius: "14px",
-                            border: `1px solid ${theme.inputBorder}`,
-                            backgroundColor: theme.softCard,
-                            color: theme.text,
-                            fontWeight: 800,
-                            fontSize: "13px",
-                          }}
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleReplySubmit(comment.id)}
-                          disabled={replyLoading}
-                          style={{
-                            border: "none",
-                            cursor: "pointer",
-                            padding: "10px 14px",
-                            borderRadius: "14px",
-                            backgroundColor: theme.primary,
-                            color: "#fff",
-                            fontWeight: 800,
-                            fontSize: "13px",
-                            opacity: replyLoading ? 0.7 : 1,
-                          }}
-                        >
-                          {replyLoading ? "작성 중..." : "답글 작성"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {getReplies(comment.id).length > 0 ? (
-                    <div
-                      style={{
-                        marginTop: "14px",
-                        paddingLeft: "14px",
-                        borderLeft: `2px solid ${theme.softBorder}`,
-                        display: "grid",
-                        gap: "10px",
-                      }}
-                    >
-                      {getReplies(comment.id).map((reply) => (
-                        <div
-                          key={reply.id}
-                          style={{
-                            borderRadius: "16px",
-                            backgroundColor: theme.card,
-                            border: `1px solid ${theme.cardBorder}`,
-                            padding: "14px",
-                          }}
-                        >
-                          <div style={{ marginBottom: "8px", display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "12px", color: theme.subText }}>
-                            <span>{reply.author_name ?? "익명"}</span>
-                            <span>•</span>
-                            <span>{formatDateTime(reply.created_at)}</span>
-                          </div>
-                          <MarkdownMath isDark={isDark}>{reply.content}</MarkdownMath>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))
-            )}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              width: "min(100%, 420px)",
+              marginLeft: "auto",
+            }}
+          >
+            <button
+              type="button"
+              className="suddak-btn suddak-btn-ghost"
+              onClick={() => router.back()}
+            >
+              뒤로가기
+            </button>
+            <Link href="/" className="suddak-btn suddak-btn-ghost">
+              홈
+            </Link>
+            <Link href="/community" className="suddak-btn suddak-btn-ghost">
+              커뮤니티
+            </Link>
+            <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
+              <ThemeToggleButton mobileFull={false} />
+            </div>
+            <MoreMenu
+              isDark={isDark}
+              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
+              themeLabel={isDark ? "주간모드" : "야간모드"}
+              redirectAfterLogout="/login"
+            />
           </div>
-        </section>
-      </div>
-    </main>
+        </div>
+      </header>
+
+      {/* # 14. 로딩 / 에러 */}
+      {loading ? (
+        <SectionCard title="게시글" description="불러오는 중이야.">
+          <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)" }}>
+            불러오는 중...
+          </div>
+        </SectionCard>
+      ) : !post ? (
+        <SectionCard title="게시글" description="상세 정보를 확인할 수 없어.">
+          <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)", lineHeight: 1.8 }}>
+            {message || "게시글을 찾을 수 없습니다."}
+          </div>
+        </SectionCard>
+      ) : (
+        <div style={{ display: "grid", gap: "18px" }}>
+          {/* # 15. 본문 */}
+          <SectionCard
+            title={post.title}
+            description="게시글 본문과 작성 정보야."
+            rightSlot={
+              <span className="suddak-badge">
+                {post.is_notice ? "공지" : post.post_type === "problem" ? "문제글" : "자유글"}
+              </span>
+            }
+          >
+            <div style={{ display: "grid", gap: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  fontSize: "14px",
+                  color: "var(--muted)",
+                  fontWeight: 700,
+                }}
+              >
+                <Link href={`/profile/${post.user_id}`} style={{ color: "var(--primary)", fontWeight: 800 }}>
+                  {post.author_name || "작성자"}
+                </Link>
+                <span>·</span>
+                <span>{formatDateTime(post.created_at)}</span>
+                <span>·</span>
+                <span>좋아요 {post.like_count ?? 0}</span>
+                <span>·</span>
+                <span>댓글 {post.comment_count ?? 0}</span>
+              </div>
+
+              <div className="suddak-card-soft" style={{ padding: "16px" }}>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.8, wordBreak: "break-word" }}>
+                  {post.content || "본문 내용이 없습니다."}
+                </div>
+              </div>
+
+              {post.post_type === "problem" && (
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {post.recognized_text && (
+                    <div className="suddak-card" style={{ padding: "16px" }}>
+                      <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
+                        인식된 문제
+                      </div>
+                      <MarkdownMathBlock content={post.recognized_text} isDark={isDark} />
+                    </div>
+                  )}
+
+                  {post.solve_result && (
+                    <div className="suddak-card" style={{ padding: "16px" }}>
+                      <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
+                        풀이 결과
+                      </div>
+                      <MarkdownMathBlock content={post.solve_result} isDark={isDark} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  type="button"
+                  className={`suddak-btn ${viewerLiked ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+                  onClick={handleLikeToggle}
+                  disabled={likeLoading}
+                >
+                  {likeLoading ? "처리 중..." : viewerLiked ? `좋아요 취소 (${post.like_count ?? 0})` : `좋아요 (${post.like_count ?? 0})`}
+                </button>
+
+                {viewerIsAdmin && (
+                  <button
+                    type="button"
+                    className="suddak-btn suddak-btn-ghost"
+                    onClick={handleDeletePost}
+                    disabled={deleteLoading}
+                  >
+                    {deleteLoading ? "삭제 중..." : "관리자 삭제"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* # 16. 댓글 작성 */}
+          <SectionCard
+            title="댓글"
+            description="댓글과 대댓글을 통해 풀이 방식이나 질문을 나눌 수 있어."
+          >
+            <div style={{ display: "grid", gap: "14px" }}>
+              <textarea
+                className="suddak-textarea"
+                placeholder="댓글을 입력해줘"
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+              />
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  type="button"
+                  className="suddak-btn suddak-btn-primary"
+                  onClick={handleCommentSubmit}
+                  disabled={!commentInput.trim() || commentLoading}
+                >
+                  {commentLoading ? "댓글 작성 중..." : "댓글 작성"}
+                </button>
+              </div>
+
+              {/* # 17. 댓글 목록 */}
+              <div style={{ display: "grid", gap: "12px" }}>
+                {topLevelComments.length === 0 ? (
+                  <div className="suddak-card-soft" style={{ padding: "16px", color: "var(--muted)" }}>
+                    아직 댓글이 없습니다.
+                  </div>
+                ) : (
+                  topLevelComments.map((comment) => {
+                    const replies = getReplies(comment.id);
+                    const canDeleteComment =
+                      viewerIsAdmin || (currentUserId && currentUserId === comment.user_id);
+
+                    return (
+                      <div key={comment.id} className="suddak-card-soft" style={{ padding: "14px" }}>
+                        <div style={{ display: "grid", gap: "10px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "10px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                                alignItems: "center",
+                                fontSize: "13px",
+                                color: "var(--muted)",
+                                fontWeight: 700,
+                              }}
+                            >
+                              <span style={{ color: "var(--primary)", fontWeight: 800 }}>
+                                {comment.author_name || "작성자"}
+                              </span>
+                              <span>·</span>
+                              <span>{formatDateTime(comment.created_at)}</span>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                className="suddak-btn suddak-btn-ghost"
+                                onClick={() =>
+                                  setReplyingToId((prev) => (prev === comment.id ? null : comment.id))
+                                }
+                              >
+                                답글
+                              </button>
+
+                              {canDeleteComment && (
+                                <button
+                                  type="button"
+                                  className="suddak-btn suddak-btn-ghost"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  disabled={deleteCommentId === comment.id}
+                                >
+                                  {deleteCommentId === comment.id ? "삭제 중..." : "삭제"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75, wordBreak: "break-word" }}>
+                            {comment.content}
+                          </div>
+
+                          {/* # 18. 대댓글 입력 */}
+                          {replyingToId === comment.id && (
+                            <div className="suddak-card" style={{ padding: "12px" }}>
+                              <div style={{ display: "grid", gap: "10px" }}>
+                                <textarea
+                                  className="suddak-textarea"
+                                  placeholder="대댓글을 입력해줘"
+                                  value={replyInput}
+                                  onChange={(e) => setReplyInput(e.target.value)}
+                                />
+
+                                <div
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                                    gap: "10px",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="suddak-btn suddak-btn-primary"
+                                    onClick={() => handleReplySubmit(comment.id)}
+                                    disabled={!replyInput.trim() || replyLoading}
+                                  >
+                                    {replyLoading ? "대댓글 작성 중..." : "대댓글 등록"}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="suddak-btn suddak-btn-ghost"
+                                    onClick={() => {
+                                      setReplyingToId(null);
+                                      setReplyInput("");
+                                    }}
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* # 19. 대댓글 목록 */}
+                          {replies.length > 0 && (
+                            <div style={{ display: "grid", gap: "10px", marginTop: "4px" }}>
+                              {replies.map((reply) => {
+                                const canDeleteReply =
+                                  viewerIsAdmin || (currentUserId && currentUserId === reply.user_id);
+
+                                return (
+                                  <div
+                                    key={reply.id}
+                                    className="suddak-card"
+                                    style={{
+                                      padding: "12px 14px",
+                                      marginLeft: "18px",
+                                      borderLeft: "3px solid var(--primary)",
+                                    }}
+                                  >
+                                    <div style={{ display: "grid", gap: "8px" }}>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          gap: "10px",
+                                          flexWrap: "wrap",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            gap: "8px",
+                                            flexWrap: "wrap",
+                                            alignItems: "center",
+                                            fontSize: "13px",
+                                            color: "var(--muted)",
+                                            fontWeight: 700,
+                                          }}
+                                        >
+                                          <span style={{ color: "var(--primary)", fontWeight: 800 }}>
+                                            {reply.author_name || "작성자"}
+                                          </span>
+                                          <span>·</span>
+                                          <span>{formatDateTime(reply.created_at)}</span>
+                                        </div>
+
+                                        {canDeleteReply && (
+                                          <button
+                                            type="button"
+                                            className="suddak-btn suddak-btn-ghost"
+                                            onClick={() => handleDeleteComment(reply.id)}
+                                            disabled={deleteCommentId === reply.id}
+                                          >
+                                            {deleteCommentId === reply.id ? "삭제 중..." : "삭제"}
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      <div
+                                        style={{
+                                          whiteSpace: "pre-wrap",
+                                          lineHeight: 1.75,
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        {reply.content}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* # 20. 하단 이동 */}
+          <SectionCard title="이동" description="다른 페이지로 바로 이동할 수 있어.">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <Link href="/community" className="suddak-btn suddak-btn-ghost">
+                커뮤니티 목록
+              </Link>
+              <Link href={`/profile/${post.user_id}`} className="suddak-btn suddak-btn-ghost">
+                작성자 프로필
+              </Link>
+              <Link href="/community/write" className="suddak-btn suddak-btn-primary">
+                새 글 작성
+              </Link>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+    </PageContainer>
   );
 }

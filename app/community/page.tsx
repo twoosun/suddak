@@ -2,508 +2,386 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import SuddakCommunityHeader from "@/components/suddak-community-header";
-import { getStoredTheme } from "@/lib/theme";
+
+import { getStoredTheme, initTheme } from "@/lib/theme";
+import { supabase } from "@/lib/supabase";
+
+import PageContainer from "@/components/common/PageContainer";
+import SectionCard from "@/components/common/SectionCard";
+import ThemeToggleButton from "@/components/common/ThemeToggleButton";
+import MoreMenu from "@/components/MoreMenu";
 
 type CommunityPost = {
-  id: string;
+  id: number | string;
   user_id: string;
   post_type: "free" | "problem";
-  history_id: number | null;
   title: string;
-  content: string;
+  content: string | null;
   recognized_text: string | null;
   solve_result: string | null;
-  image_url: string | null;
-  is_public: boolean;
   like_count: number;
   comment_count: number;
-  created_at: string;
-  updated_at: string;
-  author_name: string | null;
-  author_avatar_url: string | null;
   is_notice?: boolean;
+  created_at: string;
+  author_name?: string | null;
 };
 
-type CommunityResponse = {
-  posts: CommunityPost[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-};
+type PostFilter = "all" | "free" | "problem";
 
+/* # 1. 날짜 포맷 */
 function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(
-    date.getDate()
-  ).padStart(2, "0")}`;
-}
-
-function getPreviewText(post: CommunityPost) {
-  if (post.post_type === "problem") {
-    return post.recognized_text || post.content || "";
-  }
-  return post.content || "";
-}
-
-function PreviewMarkdown({
-  children,
-  isDark,
-}: {
-  children: string;
-  isDark: boolean;
-}) {
-  return (
-    <div
-      style={{
-        maxHeight: "88px",
-        overflow: "hidden",
-        wordBreak: "break-word",
-        overflowWrap: "anywhere",
-      }}
-    >
-      <div className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}>
-        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-          {children}
-        </ReactMarkdown>
-      </div>
-    </div>
-  );
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 }
 
 export default function CommunityPage() {
+  /* # 2. 상태값 */
+  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedType, setSelectedType] = useState<"all" | "free" | "problem">("all");
-  const [search, setSearch] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [message, setMessage] = useState("불러오는 중...");
 
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<PostFilter>("all");
+
+  /* # 3. 초기화 */
   useEffect(() => {
+    initTheme();
     setIsDark(getStoredTheme() === "dark");
     setMounted(true);
   }, []);
 
-  const theme = useMemo(
-    () => ({
-      bg: isDark
-        ? "linear-gradient(180deg, #0b1220 0%, #111827 50%, #0f172a 100%)"
-        : "linear-gradient(180deg, #f8faff 0%, #f4f6fb 50%, #f7f8fc 100%)",
-      card: isDark ? "#111827" : "#ffffff",
-      cardBorder: isDark ? "#253041" : "#e5e7eb",
-      text: isDark ? "#f9fafb" : "#111827",
-      subText: isDark ? "#cbd5e1" : "#6b7280",
-      softCard: isDark ? "#0f172a" : "#ffffff",
-      inputBg: isDark ? "#0b1220" : "#ffffff",
-      inputBorder: isDark ? "#374151" : "#d1d5db",
-      shadow: isDark
-        ? "0 8px 30px rgba(0, 0, 0, 0.35)"
-        : "0 8px 30px rgba(15, 23, 42, 0.05)",
-      primary: "#3157c8",
-    }),
-    [isDark]
-  );
-
-  const fetchPosts = async (type: "all" | "free" | "problem", keyword: string) => {
-    setLoading(true);
-
-    try {
-      const params = new URLSearchParams();
-      params.set("page", "1");
-      params.set("limit", "20");
-
-      if (type !== "all") params.set("postType", type);
-      if (keyword.trim()) params.set("search", keyword.trim());
-
-      const res = await fetch(`/api/community?${params.toString()}`, {
-        cache: "no-store",
-      });
-
-      const data: CommunityResponse = await res.json();
-      setPosts(data.posts ?? []);
-    } catch (error) {
-      console.error(error);
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  /* # 4. 게시글 로딩 */
   useEffect(() => {
-    fetchPosts(selectedType, search);
-  }, [selectedType, search]);
+    if (!mounted) return;
 
-  const emptyText = useMemo(() => {
-    if (search.trim()) return "검색 결과가 없습니다.";
-    if (selectedType === "free") return "자유 게시글이 아직 없습니다.";
-    if (selectedType === "problem") return "문제 게시글이 아직 없습니다.";
-    return "아직 게시글이 없습니다.";
-  }, [search, selectedType]);
+    const loadPosts = async () => {
+      setLoading(true);
+      setMessage("불러오는 중...");
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearch(inputValue);
-  };
+      try {
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("limit", "30");
+        if (filter !== "all") params.set("postType", filter);
+        if (search.trim()) params.set("search", search.trim());
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const headers: HeadersInit = {};
+        if (session?.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch(`/api/community?${params.toString()}`, {
+          headers,
+          cache: "no-store",
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setPosts([]);
+          setMessage(data?.error || "게시글을 불러오지 못했습니다.");
+          return;
+        }
+
+        const nextPosts = Array.isArray(data.posts) ? data.posts : [];
+        setPosts(nextPosts);
+        setMessage(nextPosts.length ? "" : "아직 게시글이 없습니다.");
+      } catch {
+        setPosts([]);
+        setMessage("게시글을 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPosts();
+  }, [mounted, search, filter]);
+
+  /* # 5. 통계 */
+  const stat = useMemo(() => {
+    return {
+      total: posts.length,
+      free: posts.filter((post) => post.post_type === "free").length,
+      problem: posts.filter((post) => post.post_type === "problem").length,
+    };
+  }, [posts]);
 
   if (!mounted) return null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: theme.bg,
-        color: theme.text,
-      }}
-    >
-      <SuddakCommunityHeader current="community" />
-
-      <div
+    <PageContainer topPadding={18} bottomPadding={48}>
+      {/* # 6. 상단 헤더 */}
+      <header
+        className="suddak-card"
         style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          padding: "16px 12px 36px",
+          position: "sticky",
+          top: 14,
+          zIndex: 20,
+          padding: "14px 16px",
+          marginBottom: "18px",
+          background: "var(--header-bg)",
+          backdropFilter: "blur(12px)",
         }}
       >
-        <section
+        <div
           style={{
-            marginBottom: "16px",
-            display: "grid",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             gap: "12px",
-            gridTemplateColumns: "minmax(0,1fr)",
+            flexWrap: "wrap",
           }}
         >
-          <div
+          <Link
+            href="/"
             style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "20px",
-              padding: "18px",
-              boxShadow: theme.shadow,
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              minWidth: 0,
             }}
           >
             <div
               style={{
-                display: "inline-block",
-                marginBottom: "10px",
-                padding: "6px 12px",
-                borderRadius: "999px",
-                backgroundColor: isDark ? "#1e3a8a" : "#e8eefc",
-                color: isDark ? "#dbeafe" : "#3157c8",
-                fontSize: "12px",
-                fontWeight: 800,
-              }}
-            >
-              Suddak Community
-            </div>
-
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "clamp(24px, 6vw, 40px)",
-                fontWeight: 900,
-                letterSpacing: "-0.05em",
-                lineHeight: 1.14,
-              }}
-            >
-              문제도 공유하고,
-              <br />
-              풀이 생각도 나눠보자.
-            </h1>
-
-            <p
-              style={{
-                marginTop: "14px",
-                marginBottom: 0,
-                fontSize: "14px",
-                lineHeight: 1.7,
-                color: theme.subText,
-              }}
-            >
-              자유글과 문제글을 한곳에서 보고, 댓글과 대댓글로 풀이 관점을 나눌 수 있어.
-            </p>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: theme.card,
-              border: `1px solid ${theme.cardBorder}`,
-              borderRadius: "20px",
-              padding: "12px",
-              boxShadow: theme.shadow,
-            }}
-          >
-            <Link
-              href="/community/write"
-              style={{
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                borderRadius: "16px",
-                padding: "14px 16px",
-                background: "linear-gradient(135deg, #3157c8 0%, #60a5fa 100%)",
-                color: "#ffffff",
-                minHeight: "unset",
-              }}
-            >
-              <div
-                style={{
-                  width: "38px",
-                  height: "38px",
-                  borderRadius: "12px",
-                  backgroundColor: "rgba(255,255,255,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "22px",
-                  fontWeight: 800,
-                  flexShrink: 0,
-                }}
-              >
-                +
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "16px", fontWeight: 900 }}>새 글 작성</div>
-                <div
-                  style={{
-                    marginTop: "4px",
-                    fontSize: "12px",
-                    lineHeight: 1.5,
-                    color: "rgba(255,255,255,0.92)",
-                  }}
-                >
-                  자유글, 문제글, 풀이 공유 시작하기
-                </div>
-              </div>
-            </Link>
-          </div>
-        </section>
-
-        <div
-          style={{
-            marginBottom: "14px",
-            backgroundColor: theme.card,
-            border: `1px solid ${theme.cardBorder}`,
-            borderRadius: "20px",
-            padding: "12px",
-            boxShadow: theme.shadow,
-          }}
-        >
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {(["all", "free", "problem"] as const).map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setSelectedType(type)}
-                style={{
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "9px 13px",
-                  borderRadius: "999px",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  backgroundColor: selectedType === type ? theme.primary : isDark ? "#0f172a" : "#f3f4f6",
-                  color: selectedType === type ? "#ffffff" : theme.text,
-                }}
-              >
-                {type === "all" ? "전체" : type === "free" ? "자유글" : "문제글"}
-              </button>
-            ))}
-          </div>
-
-          <form
-            onSubmit={handleSearchSubmit}
-            style={{
-              marginTop: "12px",
-              display: "flex",
-              gap: "8px",
-              alignItems: "stretch",
-            }}
-          >
-            <input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="제목, 내용, 인식된 문제 검색"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "12px 14px",
-                borderRadius: "14px",
-                border: `1px solid ${theme.inputBorder}`,
-                backgroundColor: theme.inputBg,
-                color: theme.text,
-                fontSize: "14px",
-                outline: "none",
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                padding: "12px 14px",
-                borderRadius: "14px",
-                border: `1px solid ${theme.inputBorder}`,
-                backgroundColor: theme.softCard,
-                color: theme.text,
-                fontSize: "14px",
-                fontWeight: 800,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                width: "48px",
+                height: "48px",
+                borderRadius: "15px",
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                background: "var(--card)",
                 flexShrink: 0,
               }}
             >
-              검색
-            </button>
-          </form>
-        </div>
-
-        <div style={{ display: "grid", gap: "10px" }}>
-          {loading ? (
-            <div
-              style={{
-                backgroundColor: theme.card,
-                border: `1px solid ${theme.cardBorder}`,
-                borderRadius: "20px",
-                padding: "18px",
-                color: theme.subText,
-                boxShadow: theme.shadow,
-              }}
-            >
-              불러오는 중...
-            </div>
-          ) : posts.length === 0 ? (
-            <div
-              style={{
-                backgroundColor: theme.card,
-                border: `1px solid ${theme.cardBorder}`,
-                borderRadius: "20px",
-                padding: "18px",
-                color: theme.subText,
-                boxShadow: theme.shadow,
-              }}
-            >
-              {emptyText}
-            </div>
-          ) : (
-            posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/community/${post.id}`}
+              <img
+                src="/logo.png"
+                alt="수딱 로고"
                 style={{
-                  textDecoration: "none",
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
                   display: "block",
-                  backgroundColor: theme.card,
-                  border: `1px solid ${theme.cardBorder}`,
-                  borderRadius: "20px",
-                  padding: "14px",
-                  boxShadow: theme.shadow,
-                  color: theme.text,
+                }}
+              />
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: "clamp(1.6rem, 4vw, 2.4rem)",
+                  fontWeight: 950,
+                  letterSpacing: "-0.06em",
+                  lineHeight: 0.95,
                 }}
               >
-                <div
+                커뮤니티
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  color: "var(--primary)",
+                  marginTop: "4px",
+                }}
+              >
+                디시식 목록 · 제목 / 작성자 / 시간 / 좋아요 / 댓글
+              </div>
+            </div>
+          </Link>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              width: "min(100%, 420px)",
+              marginLeft: "auto",
+            }}
+          >
+            <Link href="/" className="suddak-btn suddak-btn-ghost">
+              홈
+            </Link>
+            <Link href="/history" className="suddak-btn suddak-btn-ghost">
+              기록
+            </Link>
+            <Link href="/community/write" className="suddak-btn suddak-btn-primary">
+              글쓰기
+            </Link>
+            <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
+              <ThemeToggleButton mobileFull={false} />
+            </div>
+            <MoreMenu
+              isDark={isDark}
+              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
+              themeLabel={isDark ? "주간모드" : "야간모드"}
+              redirectAfterLogout="/login"
+            />
+          </div>
+        </div>
+      </header>
+
+      {/* # 7. 상단 요약 */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: "12px",
+          marginBottom: "18px",
+        }}
+      >
+        <div className="suddak-card" style={{ padding: "16px" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>전체 게시글</div>
+          <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+            {stat.total}
+          </div>
+        </div>
+        <div className="suddak-card" style={{ padding: "16px" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>자유글</div>
+          <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+            {stat.free}
+          </div>
+        </div>
+        <div className="suddak-card" style={{ padding: "16px" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>문제글</div>
+          <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+            {stat.problem}
+          </div>
+        </div>
+      </section>
+
+      {/* # 8. 검색 / 필터 */}
+      <SectionCard
+        title="게시글 찾기"
+        description="제목, 내용, 문제 텍스트까지 검색 가능해."
+        style={{ marginBottom: "18px" }}
+      >
+        <div style={{ display: "grid", gap: "12px" }}>
+          <input
+            className="suddak-input"
+            placeholder="제목, 작성자, 내용 검색"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            <select
+              className="suddak-select"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as PostFilter)}
+            >
+              <option value="all">전체 글</option>
+              <option value="free">자유글만</option>
+              <option value="problem">문제글만</option>
+            </select>
+
+            <Link href="/community/write" className="suddak-btn suddak-btn-primary">
+              새 글 작성하기
+            </Link>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* # 9. 게시글 목록 */}
+      <SectionCard
+        title="게시글 목록"
+        description="목록에서는 핵심 정보만 간단히 보이고, 상세로 들어가면 댓글과 대댓글까지 볼 수 있어."
+      >
+        {loading ? (
+          <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)" }}>
+            불러오는 중...
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)", lineHeight: 1.8 }}>
+            {message || "아직 게시글이 없습니다."}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: "10px" }}>
+            {posts.map((post) => (
+              <article
+                key={post.id}
+                className="suddak-card-soft"
+                style={{
+                  padding: "14px 16px",
+                }}
+              >
+                <Link
+                  href={`/community/${post.id}`}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
+                    display: "grid",
                     gap: "8px",
-                    marginBottom: "10px",
-                    flexWrap: "wrap",
                   }}
                 >
-                  {post.is_notice && (
-                    <span
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span className="suddak-badge">
+                      {post.is_notice ? "공지" : post.post_type === "problem" ? "문제글" : "자유글"}
+                    </span>
+
+                    <div
                       style={{
-                        padding: "6px 10px",
-                        borderRadius: "999px",
-                        fontSize: "12px",
+                        fontSize: "17px",
                         fontWeight: 900,
-                        backgroundColor: isDark ? "#7c2d12" : "#fff7ed",
-                        color: isDark ? "#fdba74" : "#c2410c",
+                        letterSpacing: "-0.03em",
+                        lineHeight: 1.35,
+                        wordBreak: "break-word",
+                        minWidth: 0,
+                        flex: 1,
                       }}
                     >
-                      공지
-                    </span>
-                  )}
+                      {post.title}
+                    </div>
+                  </div>
 
-                  <span
+                  <div
                     style={{
-                      padding: "6px 10px",
-                      borderRadius: "999px",
-                      fontSize: "12px",
-                      fontWeight: 800,
-                      backgroundColor:
-                        post.post_type === "problem"
-                          ? isDark
-                            ? "#052e16"
-                            : "#dcfce7"
-                          : isDark
-                          ? "#082f49"
-                          : "#e0f2fe",
-                      color:
-                        post.post_type === "problem"
-                          ? isDark
-                            ? "#86efac"
-                            : "#15803d"
-                          : isDark
-                          ? "#7dd3fc"
-                          : "#0369a1",
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      fontSize: "13px",
+                      color: "var(--muted)",
+                      fontWeight: 700,
                     }}
                   >
-                    {post.post_type === "problem" ? "문제글" : "자유글"}
-                  </span>
-
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      color: theme.subText,
-                    }}
-                  >
-                    {post.author_name || "익명"} · {formatDate(post.created_at)}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "17px",
-                    fontWeight: 900,
-                    lineHeight: 1.35,
-                    marginBottom: "10px",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {post.title}
-                </div>
-
-                <PreviewMarkdown isDark={isDark}>
-                  {getPreviewText(post)}
-                </PreviewMarkdown>
-
-                <div
-                  style={{
-                    marginTop: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                    color: theme.subText,
-                    fontSize: "13px",
-                    fontWeight: 700,
-                  }}
-                >
-                  <span>좋아요 {post.like_count}</span>
-                  <span>댓글 {post.comment_count}</span>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-    </main>
+                    <span>{post.author_name || "작성자"}</span>
+                    <span>·</span>
+                    <span>{formatDate(post.created_at)}</span>
+                    <span>·</span>
+                    <span>좋아요 {post.like_count ?? 0}</span>
+                    <span>·</span>
+                    <span>댓글 {post.comment_count ?? 0}</span>
+                  </div>
+                </Link>
+              </article>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </PageContainer>
   );
 }
