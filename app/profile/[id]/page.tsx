@@ -94,13 +94,13 @@ export default function ProfilePage() {
           return;
         }
 
-        const items = Array.isArray(data.items) ? data.posts : [];
-        const ownedPosts = items
-          .filter((item) => String(item.user_id) === profileId)
-          .sort(
-            (a, b) =>
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
+       const items: CommunityPost[] = Array.isArray(data.posts) ? data.posts : [];
+const ownedPosts = items
+  .filter((item: CommunityPost) => String(item.user_id) === profileId)
+  .sort(
+    (a: CommunityPost, b: CommunityPost) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
         setPosts(ownedPosts);
         setMessage(ownedPosts.length ? "" : "아직 작성한 게시글이 없습니다.");
