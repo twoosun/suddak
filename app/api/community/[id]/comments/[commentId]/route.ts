@@ -37,7 +37,10 @@ async function getUserFromRequest(req: NextRequest) {
 }
 
 /* # 2. 관리자 여부 */
-async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
+async function getIsAdmin(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string
+) {
   const { data } = await supabase
     .from("user_profiles")
     .select("is_admin")
@@ -49,24 +52,11 @@ async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId
 
 export async function DELETE(
   req: NextRequest,
-  {
-    params,
-  }: {
-    params:
-      | Promise<{ id: string; commentId: string }>
-      | { id: string; commentId: string };
-  }
+  context: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     const supabase = createAdminClient();
-
-    const resolvedParams =
-      typeof (params as Promise<{ id: string; commentId: string }>).then === "function"
-        ? await (params as Promise<{ id: string; commentId: string }>)
-        : (params as { id: string; commentId: string });
-
-    const postId = resolvedParams.id?.trim();
-    const commentId = resolvedParams.commentId?.trim();
+    const { id: postId, commentId } = await context.params;
 
     if (!postId || !commentId) {
       return NextResponse.json(
@@ -99,7 +89,7 @@ export async function DELETE(
       );
     }
 
-    if (!comment || String(comment.post_id) !== postId) {
+    if (!comment || String(comment.post_id) !== String(postId)) {
       return NextResponse.json(
         { error: "댓글을 찾을 수 없습니다." },
         { status: 404 }
@@ -126,10 +116,15 @@ export async function DELETE(
     }
 
     return NextResponse.json({
-      message: isAdmin ? "관리자 권한으로 댓글을 삭제했습니다." : "댓글이 삭제되었습니다.",
+      message: isAdmin
+        ? "관리자 권한으로 댓글을 삭제했습니다."
+        : "댓글이 삭제되었습니다.",
     });
   } catch (error) {
-    console.error("[DELETE /api/community/[id]/comments/[commentId]] unexpected error:", error);
+    console.error(
+      "[DELETE /api/community/[id]/comments/[commentId]] unexpected error:",
+      error
+    );
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
