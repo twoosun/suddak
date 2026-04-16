@@ -196,7 +196,7 @@ export default function CommunityPage() {
                   marginTop: "4px",
                 }}
               >
-                디시식 목록 · 제목 / 작성자 / 시간 / 좋아요 / 댓글
+                목록 · 제목 / 작성자 / 시간 / 좋아요 / 댓글
               </div>
             </div>
           </Link>
