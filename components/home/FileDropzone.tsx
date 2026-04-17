@@ -24,7 +24,7 @@ export default function FileDropzone({
 
   return (
     <div
-      className={`suddak-card-soft ${dragging ? "suddak-dropzone-active" : ""}`}
+      className={`suddak-card-soft home-dropzone ${dragging ? "suddak-dropzone-active" : ""}`}
       style={{
         padding: "18px",
         borderStyle: "dashed",
@@ -53,13 +53,7 @@ export default function FileDropzone({
       />
 
       {/* # 2. 안내 문구 */}
-      <div
-        style={{
-          display: "grid",
-          gap: "10px",
-          textAlign: "center",
-        }}
-      >
+      <div className="home-dropzone-content">
         <div
           style={{
             fontSize: "18px",
@@ -81,7 +75,7 @@ export default function FileDropzone({
           모바일에서는 사진 선택 또는 촬영으로 바로 넣을 수 있어.
         </div>
 
-        <div>
+        <div className="home-dropzone-cta">
           <button
             type="button"
             className="suddak-btn suddak-btn-primary"
@@ -96,15 +90,7 @@ export default function FileDropzone({
 
       {/* # 3. 미리보기 */}
       {previewUrl && (
-        <div
-          style={{
-            marginTop: "16px",
-            overflow: "hidden",
-            borderRadius: "18px",
-            border: "1px solid var(--border)",
-            background: "var(--card)",
-          }}
-        >
+        <div className="home-dropzone-preview">
           <img
             src={previewUrl}
             alt="문제 미리보기"

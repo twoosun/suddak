@@ -572,53 +572,23 @@ export default function HomePage() {
 
   return (
     <PageContainer topPadding={18} bottomPadding={52}>
+      <div className="home-page">
       {/* # 11. 상단 헤더 */}
       <header
-        className="suddak-card"
+        className="suddak-card home-header"
         style={{
           position: "sticky",
           top: 14,
           zIndex: 20,
-          padding: "14px 16px",
-          marginBottom: "18px",
-          background: "var(--header-bg)",
-          backdropFilter: "blur(12px)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="home-header-row">
           <button
             type="button"
             onClick={() => router.push("/")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              background: "transparent",
-              border: "none",
-              padding: 0,
-              cursor: "pointer",
-              color: "inherit",
-            }}
+            className="home-brand-button"
           >
-            <div
-              style={{
-                width: "50px",
-                height: "50px",
-                borderRadius: "16px",
-                overflow: "hidden",
-                border: "1px solid var(--border)",
-                background: "var(--card)",
-                flexShrink: 0,
-              }}
-            >
+            <div className="home-brand-logo">
               <img
                 src="/logo.png"
                 alt="수딱 로고"
@@ -655,16 +625,7 @@ export default function HomePage() {
             </div>
           </button>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              flexWrap: "wrap",
-              width: "min(100%, 420px)",
-              marginLeft: "auto",
-            }}
-          >
+          <div className="home-header-actions">
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
             </Link>
@@ -673,7 +634,7 @@ export default function HomePage() {
               기록
             </Link>
 <NotificationBellPopup isDark={isDark} />
-            <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
+            <div className="home-theme-slot">
               <ThemeToggleButton mobileFull={false} />
             </div>
             <MoreMenu
@@ -687,19 +648,8 @@ export default function HomePage() {
       </header>
 
       {/* # 12. 히어로 */}
-      <section
-        className="suddak-card"
-        style={{
-          padding: "24px",
-          marginBottom: "18px",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gap: "18px",
-          }}
-        >
+      <section className="suddak-card home-hero" style={{ padding: "24px" }}>
+        <div className="home-hero-content">
           <div>
             <h1 style={heroTitleStyle}>문제 사진 올리고, 바로 읽고, 정확히 풀자</h1>
             <p style={heroSubStyle}>
@@ -708,13 +658,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
+          <div className="home-badge-row">
             <span className="suddak-badge">고등학교 수학 중심</span>
             <span className="suddak-badge">인식 후 수정 가능</span>
             <span className="suddak-badge">풀이 후 커뮤니티 공유</span>
@@ -738,10 +682,9 @@ export default function HomePage() {
       {/* # 13. 공지 문구 */}
       {noticeText && (
         <div
-          className="suddak-card"
+          className="suddak-card home-notice"
           style={{
             padding: "14px 16px",
-            marginBottom: "18px",
             borderColor: "var(--success-border)",
             background: "var(--success-soft)",
             fontWeight: 700,
@@ -753,33 +696,22 @@ export default function HomePage() {
       )}
 
       {/* # 14. 메인 2단 레이아웃 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
-          gap: "18px",
-        }}
-      >
-        <div style={{ display: "grid", gap: "18px" }}>
+      <div className="home-main-grid">
+        <div className="home-main-column">
           {/* # 14-1. 업로드 영역 */}
           <SectionCard
             title="사진 업로드"
             description="문제 사진을 넣으면 자동으로 이미지가 정리돼서 더 안정적으로 읽을 수 있어."
           >
-            <div style={{ display: "grid", gap: "16px" }}>
+            <div className="home-card-stack">
               <FileDropzone
                 previewUrl={currentPreview}
                 onFileSelect={handleFileSelect}
                 disabled={reading || solving}
               />
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <div style={{ position: "relative" }}>
+              <div className="home-settings-row">
+                <div className="home-settings-anchor">
                   <button
                     type="button"
                     onClick={() => setShowAdvancedAdjust((v) => !v)}
@@ -804,13 +736,12 @@ export default function HomePage() {
 
                   {showAdvancedAdjust && (
                     <div
-                      className="suddak-card"
+                      className="suddak-card home-settings-popover"
                       style={{
                         position: "absolute",
                         top: "44px",
                         right: 0,
                         zIndex: 10,
-                        width: "min(320px, calc(100vw - 40px))",
                         padding: "12px",
                       }}
                     >
@@ -823,13 +754,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "10px",
-                }}
-              >
+              <div className="home-action-grid">
                 <button
                   type="button"
                   className="suddak-btn suddak-btn-primary"
@@ -870,7 +795,7 @@ export default function HomePage() {
               recognizedText ? (
                 <button
                   type="button"
-                  className="suddak-btn suddak-btn-ghost"
+                  className="suddak-btn suddak-btn-ghost home-section-action"
                   onClick={() => setIsEditingRecognized((v) => !v)}
                 >
                   {isEditingRecognized ? "미리보기 보기" : "직접 수정"}
@@ -879,7 +804,7 @@ export default function HomePage() {
             }
           >
             {recognizedText ? (
-              <div style={{ display: "grid", gap: "14px" }}>
+              <div className="home-card-stack-tight">
                 {isEditingRecognized ? (
                   <textarea
                     className="suddak-textarea"
@@ -898,13 +823,7 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "10px",
-                  }}
-                >
+                <div className="home-action-grid">
                   <button
                     type="button"
                     className="suddak-btn suddak-btn-primary"
@@ -951,7 +870,7 @@ export default function HomePage() {
           </SectionCard>
         </div>
 
-        <div style={{ display: "grid", gap: "18px" }}>
+        <div className="home-side-column">
           {/* # 14-3. 풀이 결과 */}
           <SectionCard
             title="풀이 결과"
@@ -965,15 +884,9 @@ export default function HomePage() {
             }
           >
             {solveResult ? (
-              <div style={{ display: "grid", gap: "14px" }}>
+              <div className="home-card-stack-tight">
                 {solveMeta && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                      gap: "10px",
-                    }}
-                  >
+                  <div className="home-meta-grid">
                     <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
                       <div style={{ fontSize: "12px", color: "var(--muted)" }}>과목</div>
                       <div style={{ fontWeight: 900, marginTop: "4px" }}>
@@ -1004,10 +917,10 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <div style={{ display: "grid", gap: "12px" }}>
+                <div className="home-card-stack-tight">
                   {parsedSolveResult.answer && (
                     <div
-                      className="suddak-card-soft"
+                      className="suddak-card-soft home-answer-card"
                       style={{
                         padding: "16px",
                         border: "1px solid var(--primary)",
@@ -1076,13 +989,7 @@ export default function HomePage() {
             title="빠른 이동"
             description="풀이한 문제를 기록하거나 커뮤니티로 이어갈 수 있어."
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: "10px",
-              }}
-            >
+            <div className="home-quick-links">
               <Link href="/history" className="suddak-btn suddak-btn-ghost">
                 내 기록 보기
               </Link>
@@ -1100,6 +1007,7 @@ export default function HomePage() {
             </div>
           </SectionCard>
         </div>
+      </div>
       </div>
     </PageContainer>
   );
