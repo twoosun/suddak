@@ -145,10 +145,11 @@ export async function GET(
 
     return NextResponse.json({
       post: {
-        ...data,
-        author_name: getAuthorName(userData.user),
-        author_avatar_url: null,
-      },
+  ...data,
+  author_name:
+    profileRow?.profile_name || profileRow?.full_name || "익명",
+  author_avatar_url: profileRow?.avatar_url || null,
+},
       viewer_is_admin: viewerIsAdmin,
       viewer_liked: viewerLiked,
       current_user_id: currentUserId,
