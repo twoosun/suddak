@@ -65,28 +65,21 @@ async function enrichCommentsWithAuthors(
 
   const { data: profiles } = await supabase
     .from("user_profiles")
-    .select("id, full_name, profile_name, avatar_url")
+    .select("id, full_name")
     .in("id", uniqueUserIds);
 
-  const profileMap = new Map<
-    string,
-    { name: string; avatar_url: string | null }
-  >();
+  const profileMap = new Map<string, string>();
 
   for (const profile of profiles || []) {
-    profileMap.set(profile.id, {
-      name: profile.profile_name || profile.full_name || "익명",
-      avatar_url: profile.avatar_url || null,
-    });
+    profileMap.set(profile.id, profile.full_name || "익명");
   }
 
   return comments.map((comment) => ({
     ...comment,
-    author_name: profileMap.get(comment.user_id)?.name ?? "익명",
-    author_avatar_url: profileMap.get(comment.user_id)?.avatar_url ?? null,
+    author_name: profileMap.get(comment.user_id) ?? "익명",
+    author_avatar_url: null,
   }));
-}
-export async function GET(
+}export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
@@ -285,9 +278,9 @@ export async function POST(
       );
     }
 
-   const { data: profileRow } = await supabase
+  const { data: profileRow } = await supabase
   .from("user_profiles")
-  .select("full_name, profile_name, avatar_url")
+  .select("full_name")
   .eq("id", user.id)
   .maybeSingle();
 
@@ -296,9 +289,8 @@ return NextResponse.json(
     message: "댓글이 등록되었습니다.",
     comment: {
       ...data,
-      author_name:
-        profileRow?.profile_name || profileRow?.full_name || "익명",
-      author_avatar_url: profileRow?.avatar_url || null,
+      author_name: profileRow?.full_name || "익명",
+      author_avatar_url: null,
     },
   },
   { status: 201 }

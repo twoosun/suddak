@@ -14,6 +14,7 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
     const nickname =
       typeof body.nickname === "string" ? body.nickname.trim() : "";
     const excludeUserId =
@@ -22,6 +23,13 @@ export async function POST(req: Request) {
     if (!nickname) {
       return NextResponse.json(
         { error: "닉네임이 필요해." },
+        { status: 400 }
+      );
+    }
+
+    if (nickname.length < 2 || nickname.length > 20) {
+      return NextResponse.json(
+        { error: "닉네임은 2자 이상 20자 이하로 입력해줘." },
         { status: 400 }
       );
     }

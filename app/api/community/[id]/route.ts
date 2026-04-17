@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -28,47 +28,25 @@ function createUserClient(token: string) {
   });
 }
 
-function getAuthorName(user: User | null | undefined) {
-  if (!user) return "익명";
-  return (
-    user.user_metadata?.full_name ||
-    user.user_metadata?.name ||
-    user.email ||
-    "익명"
-  );
-}
-/* # 2. 요청 유저 */
-async function getUserFromRequest(req: NextRequest) {
-  const supabase = createAdminClient();
+async function getCurrentUserIdFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "").trim();
 
-  if (!authHeader?.startsWith("Bearer ")) {
-    return { user: null, error: "인증 정보가 없습니다.", status: 401 };
+  if (!token) {
+    return { userId: null as string | null, token: null as string | null };
   }
 
-  const token = authHeader.replace("Bearer ", "").trim();
-
+  const userClient = createUserClient(token);
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser(token);
+  } = await userClient.auth.getUser();
 
   if (error || !user) {
-    return { user: null, error: "유효하지 않은 사용자입니다.", status: 401 };
+    return { userId: null as string | null, token: token || null };
   }
 
-  return { user, error: null, status: 200 };
-}
-
-/* # 3. 관리자 여부 */
-async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
-  const { data } = await supabase
-    .from("user_profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .maybeSingle();
-
-  return Boolean(data?.is_admin);
+  return { userId: user.id, token };
 }
 
 export async function GET(
@@ -79,11 +57,11 @@ export async function GET(
     const supabase = createAdminClient();
 
     const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
+      typeof (params as Promise<{ id: string }>?.then) === "function"
         ? await (params as Promise<{ id: string }>)
         : (params as { id: string });
 
-    const postId = resolvedParams.id?.trim();
+    const postId = String(resolvedParams?.id || "").trim();
 
     if (!postId) {
       return NextResponse.json(
@@ -92,6 +70,8 @@ export async function GET(
       );
     }
 
+    const { userId: currentUserId } = await getCurrentUserIdFromRequest(req);
+
     const { data, error } = await supabase
       .from("community_posts")
       .select("*")
@@ -99,7 +79,7 @@ export async function GET(
       .maybeSingle();
 
     if (error) {
-      console.error("[GET /api/community/[id]] select error:", error);
+      console.error("[GET /api/community/[id]] post fetch error:", error);
       return NextResponse.json(
         { error: "게시글을 불러오지 못했습니다." },
         { status: 500 }
@@ -113,7 +93,10 @@ export async function GET(
       );
     }
 
-    if (!data.is_public) {
+    const isOwner = !!currentUserId && currentUserId === data.user_id;
+    const isPublic = data.is_public !== false;
+
+    if (!isPublic && !isOwner) {
       return NextResponse.json(
         { error: "비공개 게시글입니다." },
         { status: 403 }
@@ -121,44 +104,19 @@ export async function GET(
     }
 
     const { data: profileRow } = await supabase
-  .from("user_profiles")
-  .select("full_name, profile_name, avatar_url")
-  .eq("id", data.user_id)
-  .maybeSingle();
-
-    let viewerIsAdmin = false;
-    let viewerLiked = false;
-    let currentUserId: string | null = null;
-
-    const authHeader = req.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "").trim();
-      const { data: authData } = await supabase.auth.getUser(token);
-
-      if (authData.user) {
-        currentUserId = authData.user.id;
-        viewerIsAdmin = await getIsAdmin(supabase, authData.user.id);
-
-        const { data: likeRow } = await supabase
-          .from("community_likes")
-          .select("id")
-          .eq("post_id", postId)
-          .eq("user_id", authData.user.id)
-          .maybeSingle();
-
-        viewerLiked = Boolean(likeRow);
-      }
-    }
+      .from("user_profiles")
+      .select("full_name")
+      .eq("id", data.user_id)
+      .maybeSingle();
 
     return NextResponse.json({
       post: {
-  ...data,
-  author_name:
-    profileRow?.profile_name || profileRow?.full_name || "익명",
-  author_avatar_url: profileRow?.avatar_url || null,
-},
-      viewer_is_admin: viewerIsAdmin,
-      viewer_liked: viewerLiked,
+        ...data,
+        author_name: profileRow?.full_name || "익명",
+        author_avatar_url: null,
+      },
+      viewer_is_admin: false,
+      viewer_liked: false,
       current_user_id: currentUserId,
     });
   } catch (error) {
@@ -178,11 +136,11 @@ export async function PATCH(
     const supabase = createAdminClient();
 
     const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
+      typeof (params as Promise<{ id: string }>?.then) === "function"
         ? await (params as Promise<{ id: string }>)
         : (params as { id: string });
 
-    const postId = resolvedParams.id?.trim();
+    const postId = String(resolvedParams?.id || "").trim();
 
     if (!postId) {
       return NextResponse.json(
@@ -262,6 +220,7 @@ export async function PATCH(
       title,
       content,
       is_public: isPublic,
+      updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
@@ -281,7 +240,7 @@ export async function PATCH(
 
     const { data: profileRow } = await supabase
       .from("user_profiles")
-      .select("full_name, profile_name, avatar_url")
+      .select("full_name")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -289,9 +248,8 @@ export async function PATCH(
       message: "게시글이 수정되었습니다.",
       post: {
         ...data,
-        author_name:
-          profileRow?.profile_name || profileRow?.full_name || "익명",
-        author_avatar_url: profileRow?.avatar_url || null,
+        author_name: profileRow?.full_name || "익명",
+        author_avatar_url: null,
       },
     });
   } catch (error) {
@@ -311,50 +269,95 @@ export async function DELETE(
     const supabase = createAdminClient();
 
     const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
+      typeof (params as Promise<{ id: string }>?.then) === "function"
         ? await (params as Promise<{ id: string }>)
         : (params as { id: string });
 
-    const postId = resolvedParams.id?.trim();
+    const postId = String(resolvedParams?.id || "").trim();
 
-    const authResult = await getUserFromRequest(req);
-    if (!authResult.user) {
+    if (!postId) {
       return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
+        { error: "게시글 ID가 올바르지 않습니다." },
+        { status: 400 }
       );
     }
 
-    const user = authResult.user;
-    const isAdmin = await getIsAdmin(supabase, user.id);
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "").trim();
 
-    if (!isAdmin) {
+    if (!token) {
       return NextResponse.json(
-        { error: "관리자만 게시글을 삭제할 수 있습니다." },
-        { status: 403 }
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
       );
     }
 
-    const { data: existingPost, error: existingError } = await supabase
+    const userClient = createUserClient(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "사용자 인증에 실패했습니다." },
+        { status: 401 }
+      );
+    }
+
+    const { data: existingPost, error: existingPostError } = await supabase
       .from("community_posts")
-      .select("id")
+      .select("id, user_id")
       .eq("id", postId)
-      .single();
+      .maybeSingle();
 
-    if (existingError || !existingPost) {
+    if (existingPostError) {
+      console.error("[DELETE /api/community/[id]] existing post error:", existingPostError);
+      return NextResponse.json(
+        { error: "게시글 조회에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (!existingPost) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },
         { status: 404 }
       );
     }
 
-    const { error } = await supabase
+    if (existingPost.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "본인 글만 삭제할 수 있습니다." },
+        { status: 403 }
+      );
+    }
+
+    const { error: deleteCommentsError } = await supabase
+      .from("community_comments")
+      .delete()
+      .eq("post_id", postId);
+
+    if (deleteCommentsError) {
+      console.error("[DELETE /api/community/[id]] comments delete error:", deleteCommentsError);
+    }
+
+    const { error: deleteLikesError } = await supabase
+      .from("community_likes")
+      .delete()
+      .eq("post_id", postId);
+
+    if (deleteLikesError) {
+      console.error("[DELETE /api/community/[id]] likes delete error:", deleteLikesError);
+    }
+
+    const { error: deletePostError } = await supabase
       .from("community_posts")
       .delete()
       .eq("id", postId);
 
-    if (error) {
-      console.error("[DELETE /api/community/[id]] delete error:", error);
+    if (deletePostError) {
+      console.error("[DELETE /api/community/[id]] post delete error:", deletePostError);
       return NextResponse.json(
         { error: "게시글 삭제에 실패했습니다." },
         { status: 500 }
@@ -362,7 +365,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({
-      message: "관리자 권한으로 게시글을 삭제했습니다.",
+      message: "게시글이 삭제되었습니다.",
     });
   } catch (error) {
     console.error("[DELETE /api/community/[id]] unexpected error:", error);

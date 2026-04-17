@@ -339,7 +339,7 @@ export default function SignupPage() {
       <div style={styles.card}>
         <div style={styles.top}>
           <div>
-            <div style={styles.title}>회원가입</div>
+            <div style={styles.title}>통합회원가입</div>
             <div style={styles.desc}>
               CAPTCHA가 보이지 않으면 광고 차단기 또는 개인정보 보호 확장 프로그램을 잠시 끄고 다시 시도해 주세요.
               신규 계정은 초기 일일 풀이 한도가 낮게 적용되어요.

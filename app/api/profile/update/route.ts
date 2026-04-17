@@ -61,6 +61,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (nickname.length < 2 || nickname.length > 20) {
+      return NextResponse.json(
+        { error: "닉네임은 2자 이상 20자 이하로 입력해줘." },
+        { status: 400 }
+      );
+    }
+
     const { data: duplicatedRows, error: duplicateError } = await admin
       .from("user_profiles")
       .select("id, full_name")
