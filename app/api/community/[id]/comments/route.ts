@@ -48,10 +48,7 @@ async function enrichCommentsWithAuthors(
     .select("id, full_name, avatar_url")
     .in("id", uniqueUserIds);
 
-  const profileMap = new Map<
-    string,
-    { name: string; avatar_url: string | null }
-  >();
+  const profileMap = new Map<string, { name: string; avatar_url: string | null }>();
 
   for (const profile of profiles || []) {
     profileMap.set(profile.id, {
@@ -162,10 +159,13 @@ export async function POST(
 
     const content =
       typeof body.content === "string" ? body.content.trim() : "";
-    const parentId =
+
+    const rawParentId =
       typeof body.parent_id === "number" || typeof body.parent_id === "string"
         ? String(body.parent_id).trim()
-        : null;
+        : "";
+
+    const parentId = rawParentId || null;
 
     if (!content) {
       return NextResponse.json(
@@ -205,7 +205,7 @@ export async function POST(
     if (parentId) {
       const { data: parentExists, error: parentCheckError } = await supabase
         .from("community_comments")
-        .select("id, post_id")
+        .select("id, post_id, user_id")
         .eq("id", parentId)
         .maybeSingle();
 
@@ -229,8 +229,11 @@ export async function POST(
       post_id: postId,
       user_id: user.id,
       content,
-      parent_id: parentId,
     };
+
+    if (parentId) {
+      insertPayload.parent_id = parentId;
+    }
 
     const { data, error } = await supabase
       .from("community_comments")
@@ -241,7 +244,7 @@ export async function POST(
     if (error || !data) {
       console.error("[POST /api/community/[id]/comments] insert error:", error);
       return NextResponse.json(
-        { error: "댓글 등록에 실패했습니다." },
+        { error: error?.message || "댓글 등록에 실패했습니다." },
         { status: 500 }
       );
     }
@@ -254,38 +257,42 @@ export async function POST(
 
     const actorName = actorProfile?.full_name || "누군가";
 
-    if (postRow.user_id && postRow.user_id !== user.id) {
-      await createNotification({
-        userId: postRow.user_id,
-        actorUserId: user.id,
-        type: "comment_on_post",
-        title: "내 게시글에 새 댓글",
-        body: `${actorName}님이 댓글을 남겼어.`,
-        targetUrl: `/community/${postId}`,
-      });
-    }
-
-    if (parentId) {
-      const { data: parentComment } = await supabase
-        .from("community_comments")
-        .select("id, user_id")
-        .eq("id", parentId)
-        .maybeSingle();
-
-      if (
-        parentComment?.user_id &&
-        parentComment.user_id !== user.id &&
-        parentComment.user_id !== postRow.user_id
-      ) {
+    try {
+      if (postRow.user_id && postRow.user_id !== user.id) {
         await createNotification({
-          userId: parentComment.user_id,
+          userId: postRow.user_id,
           actorUserId: user.id,
-          type: "reply_to_comment",
-          title: "내 댓글에 답글",
-          body: `${actorName}님이 답글을 남겼어.`,
+          type: "comment_on_post",
+          title: "내 게시글에 새 댓글",
+          body: `${actorName}님이 댓글을 남겼어.`,
           targetUrl: `/community/${postId}`,
         });
       }
+
+      if (parentId) {
+        const { data: parentComment } = await supabase
+          .from("community_comments")
+          .select("id, user_id")
+          .eq("id", parentId)
+          .maybeSingle();
+
+        if (
+          parentComment?.user_id &&
+          parentComment.user_id !== user.id &&
+          parentComment.user_id !== postRow.user_id
+        ) {
+          await createNotification({
+            userId: parentComment.user_id,
+            actorUserId: user.id,
+            type: "reply_to_comment",
+            title: "내 댓글에 답글",
+            body: `${actorName}님이 답글을 남겼어.`,
+            targetUrl: `/community/${postId}`,
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error("[POST /api/community/[id]/comments] notification error:", notificationError);
     }
 
     return NextResponse.json(
