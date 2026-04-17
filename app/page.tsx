@@ -15,6 +15,7 @@ import {
   buildPreprocessedPreviewUrl,
 } from "@/lib/ocr-preprocess";
 import { buildShareUrlFromSolve } from "@/lib/community-share";
+import { buildSimilarProblemUrl } from "@/lib/similar-problem";
 import { Settings } from "lucide-react";
 
 import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
@@ -1093,6 +1094,18 @@ export default function HomePage() {
                         );
                       })}
                     </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    <Link
+                      href={buildSimilarProblemUrl({
+                        historyId: solveMeta?.historyId ?? null,
+                        source: "solve",
+                      })}
+                      className="suddak-btn suddak-btn-ghost"
+                    >
+                      유사문제 생성 Beta
+                    </Link>
                   </div>
                 </div>
               </div>

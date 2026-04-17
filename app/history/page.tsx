@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 import { buildShareUrlFromHistory } from "@/lib/community-share";
+import { buildSimilarProblemUrl } from "@/lib/similar-problem";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
@@ -565,6 +566,16 @@ export default function HistoryPage() {
                     >
                       {reviewed ? "오답노트 해제" : "오답노트"}
                     </button>
+
+                    <Link
+                      href={buildSimilarProblemUrl({
+                        historyId: item.id,
+                        source: "history",
+                      })}
+                      className="suddak-btn suddak-btn-ghost"
+                    >
+                      유사문제 생성 Beta
+                    </Link>
 
                     <Link
                       href={buildShareUrlFromHistory(item)}
