@@ -903,6 +903,17 @@ a {
   line-height: 1.7;
 }
 
+.home-crop-hint {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .home-dropzone-preview-crop {
   position: relative;
   touch-action: none;

@@ -29,6 +29,8 @@ export default function FileDropzone({
   const [draftSource, setDraftSource] = useState<"upload" | "camera">("upload");
   const [draftPreviewUrl, setDraftPreviewUrl] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
+  const [detectingSelection, setDetectingSelection] = useState(false);
+  const [hasSuggestedSelection, setHasSuggestedSelection] = useState(false);
   const [selection, setSelection] = useState<CropSelection | null>(null);
   const [draftSelection, setDraftSelection] = useState<CropSelection | null>(null);
   const [pointerStart, setPointerStart] = useState<{ x: number; y: number } | null>(null);
@@ -50,12 +52,77 @@ export default function FileDropzone({
     setDraftSource("upload");
     setDraftPreviewUrl(null);
     setCropping(false);
+    setDetectingSelection(false);
+    setHasSuggestedSelection(false);
     setSelection(null);
     setDraftSelection(null);
     setPointerStart(null);
   };
 
-  const loadDraftFile = (file?: File | null, source: "upload" | "camera" = "upload") => {
+  const suggestSelectionFromImage = async (file: File) => {
+    const bitmap = await createImageBitmap(file);
+    const maxWidth = 320;
+    const scale = Math.min(1, maxWidth / bitmap.width);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    let minX = canvas.width;
+    let minY = canvas.height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        const index = (y * canvas.width + x) * 4;
+        const r = data[index];
+        const g = data[index + 1];
+        const b = data[index + 2];
+        const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+
+        if (brightness < 210) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    if (maxX <= minX || maxY <= minY) {
+      return null;
+    }
+
+    const boxWidth = maxX - minX;
+    const boxHeight = maxY - minY;
+
+    if (boxWidth < canvas.width * 0.2 || boxHeight < canvas.height * 0.2) {
+      return null;
+    }
+
+    const marginX = Math.round(boxWidth * 0.08);
+    const marginY = Math.round(boxHeight * 0.08);
+    const left = Math.max(0, minX - marginX);
+    const top = Math.max(0, minY - marginY);
+    const right = Math.min(canvas.width, maxX + marginX);
+    const bottom = Math.min(canvas.height, maxY + marginY);
+
+    return {
+      x: (left / canvas.width) * 100,
+      y: (top / canvas.height) * 100,
+      width: ((right - left) / canvas.width) * 100,
+      height: ((bottom - top) / canvas.height) * 100,
+    } satisfies CropSelection;
+  };
+
+  const loadDraftFile = async (file?: File | null, source: "upload" | "camera" = "upload") => {
     if (!file || disabled) return;
 
     if (draftPreviewUrl) {
@@ -65,9 +132,24 @@ export default function FileDropzone({
     setDraftFile(file);
     setDraftSource(source);
     setDraftPreviewUrl(URL.createObjectURL(file));
+    setCropping(false);
+    setDetectingSelection(source === "camera");
+    setHasSuggestedSelection(false);
     setSelection(null);
     setDraftSelection(null);
     setPointerStart(null);
+
+    if (source === "camera") {
+      try {
+        const suggestedSelection = await suggestSelectionFromImage(file);
+        if (suggestedSelection) {
+          setSelection(suggestedSelection);
+          setHasSuggestedSelection(true);
+        }
+      } finally {
+        setDetectingSelection(false);
+      }
+    }
   };
 
   const getRelativePoint = (clientX: number, clientY: number) => {
@@ -77,12 +159,9 @@ export default function FileDropzone({
     const rect = image.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
 
-    const x = ((clientX - rect.left) / rect.width) * 100;
-    const y = ((clientY - rect.top) / rect.height) * 100;
-
     return {
-      x: Math.max(0, Math.min(100, x)),
-      y: Math.max(0, Math.min(100, y)),
+      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     };
   };
 
@@ -92,6 +171,7 @@ export default function FileDropzone({
     const point = getRelativePoint(event.clientX, event.clientY);
     if (!point) return;
 
+    setHasSuggestedSelection(false);
     setPointerStart(point);
     setDraftSelection({
       x: point.x,
@@ -218,7 +298,7 @@ export default function FileDropzone({
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        loadDraftFile(e.dataTransfer.files?.[0], "upload");
+        void loadDraftFile(e.dataTransfer.files?.[0], "upload");
       }}
     >
       <input
@@ -226,7 +306,7 @@ export default function FileDropzone({
         type="file"
         accept="image/*"
         hidden
-        onChange={(e) => loadDraftFile(e.target.files?.[0], "upload")}
+        onChange={(e) => void loadDraftFile(e.target.files?.[0], "upload")}
       />
       <input
         ref={cameraInputRef}
@@ -234,7 +314,7 @@ export default function FileDropzone({
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => loadDraftFile(e.target.files?.[0], "camera")}
+        onChange={(e) => void loadDraftFile(e.target.files?.[0], "camera")}
       />
 
       <div className="home-dropzone-content">
@@ -260,7 +340,7 @@ export default function FileDropzone({
           }}
         >
           클릭하거나 이미지를 끌어다 놓아 업로드해.
-          모바일에서는 버튼을 누르면 사진 보관함 대신 카메라 촬영으로 바로 들어갈 수 있어.
+          모바일에서는 버튼을 누르면 사진 업로드와 카메라 촬영을 각각 따로 쓸 수 있어.
         </div>
 
         <div className="home-dropzone-cta">
@@ -299,6 +379,14 @@ export default function FileDropzone({
           <div className="home-crop-guide">
             사진 위를 손가락이나 마우스로 직접 드래그해서 문제 영역을 잡아줘.
           </div>
+
+          {(detectingSelection || hasSuggestedSelection) && (
+            <div className="home-crop-hint">
+              {detectingSelection
+                ? "촬영본에서 문제 영역을 자동 추천하는 중이야."
+                : "촬영본이라 문제 영역을 먼저 추천해뒀어. 마음에 안 들면 바로 다시 드래그해줘."}
+            </div>
+          )}
 
           <div
             className="home-dropzone-preview home-dropzone-preview-crop"
@@ -357,7 +445,10 @@ export default function FileDropzone({
             <button
               type="button"
               className="suddak-btn suddak-btn-ghost"
-              onClick={() => setSelection(null)}
+              onClick={() => {
+                setHasSuggestedSelection(false);
+                setSelection(null);
+              }}
               disabled={cropping || !selection}
             >
               선택 초기화
