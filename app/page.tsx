@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import NotificationBell from "@/components/NotificationBell";
+import NotificationBellPopup from "@/components/NotificationBellPopup";
 
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme } from "@/lib/theme";
@@ -667,11 +668,11 @@ export default function HomePage() {
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
             </Link>
-<NotificationBell />
+
             <Link href="/history" className="suddak-btn suddak-btn-ghost">
               기록
             </Link>
-<NotificationBell />
+<NotificationBellPopup isDark={isDark} />
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
             </div>
@@ -1085,15 +1086,14 @@ export default function HomePage() {
               <Link href="/history" className="suddak-btn suddak-btn-ghost">
                 내 기록 보기
               </Link>
-<NotificationBell />
+
               <Link href="/community" className="suddak-btn suddak-btn-ghost">
                 커뮤니티 가기
               </Link>
-<NotificationBell />
+
               <Link href="/login" className="suddak-btn suddak-btn-ghost">
                 로그인
               </Link>
-<NotificationBell />
               <Link href="/signup" className="suddak-btn suddak-btn-primary">
                 회원가입
               </Link>

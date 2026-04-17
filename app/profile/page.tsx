@@ -5,7 +5,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme } from "@/lib/theme";
-import NotificationBell from "@/components/NotificationBell";
+
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
@@ -421,11 +421,11 @@ export default function MyProfilePage() {
             <Link href="/" className="suddak-btn suddak-btn-ghost">
               홈
             </Link>
-<NotificationBell />
+
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
             </Link>
-<NotificationBell />
+
             {profile?.id && (
               <Link href={`/profile/${profile.id}`} className="suddak-btn suddak-btn-ghost">
                 공개 프로필

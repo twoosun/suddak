@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import NotificationBell from "@/components/NotificationBell";
+
 
 export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);

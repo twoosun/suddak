@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import NotificationBell from "@/components/NotificationBell";
+
 
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme } from "@/lib/theme";
@@ -479,11 +479,11 @@ export default function CommunityDetailPage() {
             <Link href="/" className="suddak-btn suddak-btn-ghost">
               홈
             </Link>
-<NotificationBell />
+
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
             </Link>
-<NotificationBell />
+
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
             </div>
@@ -852,14 +852,14 @@ export default function CommunityDetailPage() {
               <Link href="/community" className="suddak-btn suddak-btn-ghost">
                 커뮤니티 목록
               </Link>
-<NotificationBell />
+
               <Link href={`/profile/${post.user_id}`} className="suddak-btn suddak-btn-ghost">
                 작성자 프로필
               </Link>
               <Link href="/community/write" className="suddak-btn suddak-btn-primary">
                 새 글 작성
               </Link>
-<NotificationBell />
+
             </div>
           </SectionCard>
         </div>
