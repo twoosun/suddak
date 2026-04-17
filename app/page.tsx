@@ -57,6 +57,8 @@ type SolveMeta = {
   subject: SubjectCategory;
   subjectLabel: string;
   subtopic: string;
+  finalAnswer?: string;
+  conciseSolution?: string;
   confidence: "high" | "medium" | "low";
   difficulty: DifficultyLevel;
   graphRequested: boolean;
@@ -228,6 +230,19 @@ function extractAnswerSection(markdown: string) {
     .trim();
 
   return { answer, body };
+}
+
+function extractSolveSections(markdown: string) {
+  const base = extractAnswerSection(markdown);
+  if (base.answer) return base;
+
+  const normalized = markdown.replace(/\r\n/g, "\n");
+  const answerMatch = normalized.match(/##\s*Answer\s*\n([\s\S]*?)(?=\n## |\n# |$)/i);
+
+  return {
+    answer: answerMatch?.[1]?.trim() ?? "",
+    body: normalized.replace(/##\s*Answer\s*\n[\s\S]*?(?=\n## |\n# |$)/i, "").trim(),
+  };
 }
 
 export default function HomePage() {
@@ -549,8 +564,11 @@ export default function HomePage() {
   }, [recognizedText, solveResult]);
 
   const parsedSolveResult = solveResult
-    ? extractAnswerSection(solveResult)
+    ? extractSolveSections(solveResult)
     : { answer: "", body: "" };
+  const answerText = solveMeta?.finalAnswer?.trim() || parsedSolveResult.answer;
+  const explanationText =
+    solveMeta?.conciseSolution?.trim() || parsedSolveResult.body || solveResult;
 
   const heroTitleStyle: React.CSSProperties = {
     fontSize: "clamp(2.1rem, 5vw, 4.2rem)",
@@ -918,13 +936,15 @@ export default function HomePage() {
                 )}
 
                 <div className="home-card-stack-tight">
-                  {parsedSolveResult.answer && (
+                  {answerText && (
                     <div
                       className="suddak-card-soft home-answer-card"
                       style={{
-                        padding: "16px",
+                        padding: "18px",
                         border: "1px solid var(--primary)",
-                        background: "color-mix(in srgb, var(--primary) 12%, var(--card))",
+                        background:
+                          "linear-gradient(135deg, color-mix(in srgb, var(--primary) 16%, var(--card)), var(--card))",
+                        boxShadow: "var(--shadow-soft)",
                       }}
                     >
                       <div
@@ -939,24 +959,18 @@ export default function HomePage() {
                       </div>
                       <div
                         style={{
-                          fontSize: "28px",
+                          fontSize: "clamp(1.8rem, 4vw, 2.5rem)",
                           fontWeight: 900,
                           lineHeight: 1.4,
                         }}
                       >
-                        <MarkdownMathBlock
-                          content={parsedSolveResult.answer}
-                          isDark={isDark}
-                        />
+                        <MarkdownMathBlock content={answerText} isDark={isDark} />
                       </div>
                     </div>
                   )}
 
                   <div className="suddak-card-soft" style={{ padding: "16px" }}>
-                    <MarkdownMathBlock
-                      content={parsedSolveResult.body || solveResult}
-                      isDark={isDark}
-                    />
+                    <MarkdownMathBlock content={explanationText} isDark={isDark} />
                   </div>
                 </div>
               </div>

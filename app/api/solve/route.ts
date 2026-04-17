@@ -73,6 +73,14 @@ type ParsedSolveResult = {
   graph_spec: GraphSpec | null;
 };
 
+type ParsedSolveResultInput = Partial<ParsedSolveResult> & {
+  subject?: string;
+  confidence?: string;
+  difficulty?: string;
+  strategy_primary?: string;
+  strategy_secondary?: string;
+};
+
 const SUBJECT_LABELS: Record<SubjectCategory, string> = {
   highschool_math_1st_year: "고1 수학",
   math1: "수학 I",
@@ -405,6 +413,237 @@ function buildSolveMarkdown(parsed: ParsedSolveResult) {
   return sections.join("\n\n");
 }
 
+function buildSolveMarkdownV2(parsed: ParsedSolveResult) {
+  const sections: string[] = [];
+
+  sections.push(`## Answer\n${parsed.final_answer || parsed.candidate_answer || "N/A"}`);
+  sections.push(
+    `## Subject\n${SUBJECT_LABELS[parsed.subject]}${parsed.subtopic ? ` / ${parsed.subtopic}` : ""}`
+  );
+  sections.push(`## Summary\n${parsed.concise_solution || "No summary available."}`);
+
+  if (parsed.key_observation?.trim()) {
+    sections.push(`## Key Idea\n${parsed.key_observation}`);
+  }
+
+  if (parsed.conditions?.length) {
+    sections.push(`## Conditions\n${parsed.conditions.map((v) => `- ${v}`).join("\n")}`);
+  }
+
+  if (parsed.key_equations?.length) {
+    sections.push(`## Equations\n${parsed.key_equations.map((v) => `- ${v}`).join("\n")}`);
+  }
+
+  if (parsed.verification?.trim()) {
+    sections.push(`## Check\n${parsed.verification}`);
+  }
+
+  if (parsed.caution?.trim()) {
+    sections.push(`## Note\n${parsed.caution}`);
+  }
+
+  if (parsed.graph_needed && parsed.graph_spec) {
+    const pointText =
+      parsed.graph_spec.points.length > 0
+        ? parsed.graph_spec.points
+            .map((p) => `- ${p.label || `(${p.x}, ${p.y})`} : (${p.x}, ${p.y})`)
+            .join("\n")
+        : "- none";
+
+    sections.push(
+      [
+        "## Graph",
+        `- type: ${parsed.graph_spec.graph_type}`,
+        `- equation: ${parsed.graph_spec.equation}`,
+        `- x range: ${parsed.graph_spec.x_min} ~ ${parsed.graph_spec.x_max}`,
+        `- y range: ${
+          parsed.graph_spec.y_min === null || parsed.graph_spec.y_max === null
+            ? "auto"
+            : `${parsed.graph_spec.y_min} ~ ${parsed.graph_spec.y_max}`
+        }`,
+        `- points:\n${pointText}`,
+        parsed.graph_spec.note ? `- note: ${parsed.graph_spec.note}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
+
+  return sections.join("\n\n");
+}
+
+function extractResponseText(response: any) {
+  const rawText = response?.output_text || "";
+  if (rawText) return String(rawText).trim();
+
+  const outputItems = (response?.output ?? []) as any[];
+
+  for (const item of outputItems) {
+    if (item?.type === "message" && Array.isArray(item?.content)) {
+      const textParts = item.content
+        .filter((part: any) => part?.type === "output_text" && typeof part?.text === "string")
+        .map((part: any) => part.text);
+
+      if (textParts.length > 0) {
+        return textParts.join("\n").trim();
+      }
+    }
+  }
+
+  return "";
+}
+
+function extractJsonCandidates(text: string) {
+  const cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```/g, "")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .trim();
+
+  const candidates = new Set<string>();
+
+  if (cleaned) {
+    candidates.add(cleaned);
+  }
+
+  const firstBraceIndex = cleaned.indexOf("{");
+  const lastBraceIndex = cleaned.lastIndexOf("}");
+
+  if (firstBraceIndex !== -1 && lastBraceIndex > firstBraceIndex) {
+    candidates.add(cleaned.slice(firstBraceIndex, lastBraceIndex + 1));
+  }
+
+  for (const value of Array.from(candidates)) {
+    candidates.add(value.replace(/,\s*([}\]])/g, "$1"));
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
+function parseLooseJsonObject(text: string) {
+  try {
+    return JSON.parse(text) as ParsedSolveResultInput;
+  } catch {
+    return null;
+  }
+}
+
+function coerceStringArray(value: unknown, limit = 4) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function pickEnumValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function pickAnswerFromRawText(text: string) {
+  if (!text) return "";
+
+  const patterns = [
+    /"final_answer"\s*:\s*"([^"]+)"/i,
+    /"candidate_answer"\s*:\s*"([^"]+)"/i,
+    /(?:final answer|answer)\s*[:\\-]\s*(.+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  const firstUsefulLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("{") && !line.startsWith("}") && !line.startsWith('"'));
+
+  return firstUsefulLine ?? "";
+}
+
+function normalizeParsedSolveResult(parsed: ParsedSolveResultInput | null, rawText: string): ParsedSolveResult {
+  const subject = pickEnumValue(
+    parsed?.subject,
+    [
+      "highschool_math_1st_year",
+      "math1",
+      "math2",
+      "calculus",
+      "probability_statistics",
+      "geometry",
+    ] as const,
+    "highschool_math_1st_year"
+  );
+
+  const candidateAnswer =
+    typeof parsed?.candidate_answer === "string" && parsed.candidate_answer.trim()
+      ? parsed.candidate_answer.trim()
+      : pickAnswerFromRawText(rawText);
+
+  const finalAnswer =
+    typeof parsed?.final_answer === "string" && parsed.final_answer.trim()
+      ? parsed.final_answer.trim()
+      : candidateAnswer;
+
+  return {
+    subject,
+    subtopic: typeof parsed?.subtopic === "string" ? parsed.subtopic.trim() : "",
+    confidence: pickEnumValue(parsed?.confidence, ["high", "medium", "low"] as const, "medium"),
+    difficulty: pickEnumValue(parsed?.difficulty, ["easy", "medium", "hard"] as const, "medium"),
+    strategy_primary: pickEnumValue(
+      parsed?.strategy_primary,
+      [
+        "algebraic",
+        "graphical",
+        "geometric",
+        "structural",
+        "sign_analysis",
+        "case_analysis",
+        "sequence_pattern",
+        "mixed",
+      ] as const,
+      "mixed"
+    ),
+    strategy_secondary: pickEnumValue(
+      parsed?.strategy_secondary,
+      [
+        "algebraic",
+        "graphical",
+        "geometric",
+        "structural",
+        "sign_analysis",
+        "case_analysis",
+        "sequence_pattern",
+        "mixed",
+      ] as const,
+      "mixed"
+    ),
+    strategy_reason: typeof parsed?.strategy_reason === "string" ? parsed.strategy_reason.trim() : "",
+    key_observation: typeof parsed?.key_observation === "string" ? parsed.key_observation.trim() : "",
+    conditions: coerceStringArray(parsed?.conditions, 4),
+    key_equations: coerceStringArray(parsed?.key_equations, 4),
+    candidate_answer: candidateAnswer,
+    validation_checks: coerceStringArray(parsed?.validation_checks, 3),
+    is_valid: typeof parsed?.is_valid === "boolean" ? parsed.is_valid : Boolean(finalAnswer),
+    final_answer: finalAnswer,
+    concise_solution:
+      typeof parsed?.concise_solution === "string" && parsed.concise_solution.trim()
+        ? parsed.concise_solution.trim()
+        : rawText
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(0, 3)
+            .join(" "),
+    verification: typeof parsed?.verification === "string" ? parsed.verification.trim() : "",
+    caution: typeof parsed?.caution === "string" ? parsed.caution.trim() : "",
+    graph_needed: parsed?.graph_needed === true,
+    graph_spec: parsed?.graph_spec ?? null,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getUserFromRequest(req);
@@ -543,7 +782,7 @@ export async function POST(req: Request) {
       }
 
       const solveModel = profile.is_admin ? "gpt-5.4-mini" : "gpt-4o-mini";
-      const solveMaxTokens = profile.is_admin ? 2600 : 1800;
+      const solveMaxTokens = profile.is_admin ? 1800 : 1200;
 
       const response = await client.responses.create({
         model: solveModel,
@@ -732,10 +971,22 @@ export async function POST(req: Request) {
           ? cleanedText.slice(firstBraceIndex, lastBraceIndex + 1)
           : cleanedText;
 
-      let parsed: ParsedSolveResult | null = null;
+      const jsonCandidates = [jsonCandidate, ...extractJsonCandidates(extractedText)].filter(Boolean);
+      const parsedInput =
+        jsonCandidates.map((candidate) => parseLooseJsonObject(candidate)).find(Boolean) ?? null;
+      const safeJsonCandidate = JSON.stringify(
+        parsedInput ?? normalizeParsedSolveResult(null, extractedText)
+      );
+
+      let parsed: ParsedSolveResult | null = parsedInput
+        ? normalizeParsedSolveResult(parsedInput, extractedText)
+        : null;
 
       try {
-        parsed = JSON.parse(jsonCandidate) as ParsedSolveResult;
+        parsed = normalizeParsedSolveResult(
+          JSON.parse(safeJsonCandidate) as ParsedSolveResultInput,
+          extractedText
+        );
       } catch (error) {
         console.error("[solve] parse error:", error);
         console.error("[solve] extractedText:", extractedText);
@@ -786,7 +1037,7 @@ export async function POST(req: Request) {
         graph_spec: normalizedGraphNeeded ? parsed.graph_spec : null,
       };
 
-      const result = buildSolveMarkdown(normalizedParsed);
+      const result = buildSolveMarkdownV2(normalizedParsed);
 
       await addUsageLog(user.id, "solve");
       await saveHistory({
@@ -803,6 +1054,8 @@ export async function POST(req: Request) {
           subject: normalizedParsed.subject,
           subjectLabel: SUBJECT_LABELS[normalizedParsed.subject],
           subtopic: normalizedParsed.subtopic,
+          finalAnswer: normalizedParsed.final_answer || normalizedParsed.candidate_answer,
+          conciseSolution: normalizedParsed.concise_solution,
           confidence: normalizedParsed.confidence,
           difficulty: normalizedParsed.difficulty,
           graphRequested,
