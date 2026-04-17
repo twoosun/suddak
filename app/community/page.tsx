@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
-import { getStoredTheme, initTheme } from "@/lib/theme";
+import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 
 import PageContainer from "@/components/common/PageContainer";
@@ -127,7 +127,7 @@ export default function CommunityPage() {
     <PageContainer topPadding={18} bottomPadding={48}>
       {/* # 6. 상단 헤더 */}
       <header
-        className="suddak-card"
+        className="suddak-card community-page-header"
         style={{
           position: "sticky",
           top: 14,
@@ -230,7 +230,7 @@ export default function CommunityPage() {
             </div>
             <MoreMenu
               isDark={isDark}
-              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
+              onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
               themeLabel={isDark ? "주간모드" : "야간모드"}
               redirectAfterLogout="/login"
             />

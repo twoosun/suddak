@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
-import { getStoredTheme, initTheme } from "@/lib/theme";
+import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
@@ -224,7 +224,7 @@ export default function CommunityWritePage() {
             </div>
             <MoreMenu
               isDark={isDark}
-              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
+              onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
               themeLabel={isDark ? "주간모드" : "야간모드"}
               redirectAfterLogout="/login"
             />

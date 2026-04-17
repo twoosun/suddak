@@ -35,6 +35,7 @@ function formatDate(value: string) {
 export default function NotificationBellPopup({ isDark }: Props) {
   const router = useRouter();
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -120,6 +121,19 @@ export default function NotificationBellPopup({ isDark }: Props) {
       subscription.unsubscribe();
       window.clearInterval(interval);
       document.removeEventListener("mousedown", handleOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setIsMobileViewport(window.innerWidth <= 768);
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+
+    return () => {
+      window.removeEventListener("resize", syncViewport);
     };
   }, []);
 
@@ -273,11 +287,12 @@ export default function NotificationBellPopup({ isDark }: Props) {
       {open && (
         <div
           style={{
-            position: "absolute",
-            top: "calc(100% + 10px)",
-            right: 0,
-            width: "min(360px, calc(100vw - 24px))",
-            maxWidth: "calc(100vw - 24px)",
+            position: isMobileViewport ? "fixed" : "absolute",
+            top: isMobileViewport ? "76px" : "calc(100% + 10px)",
+            right: isMobileViewport ? "12px" : 0,
+            left: isMobileViewport ? "12px" : "auto",
+            width: isMobileViewport ? "auto" : "min(360px, calc(100vw - 24px))",
+            maxWidth: isMobileViewport ? "none" : "calc(100vw - 24px)",
             backgroundColor: theme.menuBg,
             border: `1px solid ${theme.menuBorder}`,
             borderRadius: "18px",

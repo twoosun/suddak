@@ -8,7 +8,7 @@ import NotificationBell from "@/components/NotificationBell";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
 import { supabase } from "@/lib/supabase";
-import { getStoredTheme, initTheme } from "@/lib/theme";
+import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 import {
   DEFAULT_OCR_PREPROCESS_OPTIONS,
   type OcrPreprocessOptions,
@@ -626,11 +626,11 @@ export default function HomePage() {
           </button>
 
           <div className="home-header-actions">
-            <Link href="/community" className="suddak-btn suddak-btn-ghost">
+            <Link href="/community" className="suddak-btn suddak-btn-ghost home-header-link">
               커뮤니티
             </Link>
 
-            <Link href="/history" className="suddak-btn suddak-btn-ghost">
+            <Link href="/history" className="suddak-btn suddak-btn-ghost home-header-link">
               기록
             </Link>
 <NotificationBellPopup isDark={isDark} />
@@ -639,7 +639,7 @@ export default function HomePage() {
             </div>
             <MoreMenu
               isDark={isDark}
-              onToggleTheme={() => setIsDark(getStoredTheme() === "dark")}
+              onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
               themeLabel={isDark ? "주간모드" : "야간모드"}
               redirectAfterLogout="/login"
             />
