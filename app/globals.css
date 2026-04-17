@@ -857,6 +857,20 @@ a {
   text-align: center;
 }
 
+.home-dropzone-inline-badge {
+  display: inline-flex;
+  justify-self: center;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--soft));
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .home-dropzone-cta {
   display: flex;
   justify-content: center;
@@ -870,6 +884,41 @@ a {
   background: var(--card);
 }
 
+.home-crop-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.home-crop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.home-crop-control {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.home-crop-control input[type="range"] {
+  width: 100%;
+}
+
+.home-crop-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
 @media (max-width: 768px) {
   .home-dropzone {
     padding: 16px !important;
@@ -881,6 +930,11 @@ a {
 
   .home-dropzone-preview img {
     max-height: 300px !important;
+  }
+
+  .home-crop-grid,
+  .home-crop-actions {
+    grid-template-columns: 1fr;
   }
 }
 

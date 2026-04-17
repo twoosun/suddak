@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
     const { data: historyRow, error: historyError } = await supabaseAdmin
       .from("problem_history")
-      .select("id, user_id")
+      .select("id, user_id, recognized_text, solve_result")
       .eq("id", historyId)
       .maybeSingle();
 
@@ -73,9 +73,17 @@ export async function POST(req: Request) {
       user_id: user.id,
       history_id: historyId,
       feedback_type: feedbackType,
+      recognized_text: historyRow.recognized_text ?? null,
+      solve_result: historyRow.solve_result ?? null,
     });
 
     if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "피드백은 풀이당 한 번만 남길 수 있습니다." },
+          { status: 409 }
+        );
+      }
       throw error;
     }
 

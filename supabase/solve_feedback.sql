@@ -3,6 +3,8 @@ create table if not exists public.solve_feedback (
   user_id uuid not null references auth.users(id) on delete cascade,
   history_id bigint not null references public.problem_history(id) on delete cascade,
   feedback_type text not null,
+  recognized_text text null,
+  solve_result text null,
   created_at timestamptz not null default now(),
   constraint solve_feedback_feedback_type_check check (
     feedback_type in (
@@ -21,3 +23,6 @@ create index if not exists solve_feedback_history_id_idx
 
 create index if not exists solve_feedback_feedback_type_idx
   on public.solve_feedback(feedback_type);
+
+create unique index if not exists solve_feedback_user_history_unique_idx
+  on public.solve_feedback(user_id, history_id);

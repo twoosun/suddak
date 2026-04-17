@@ -614,6 +614,9 @@ export default function HomePage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409) {
+          setSelectedFeedback(feedbackType);
+        }
         setNoticeText(data?.error || "피드백 저장에 실패했어.");
         return;
       }
@@ -791,7 +794,7 @@ export default function HomePage() {
           {/* # 14-1. 업로드 영역 */}
           <SectionCard
             title="사진 업로드"
-            description="문제 사진을 넣으면 자동으로 이미지가 정리돼서 더 안정적으로 읽을 수 있어."
+            description="문제 사진을 올리거나 모바일에서 바로 촬영하면 자동으로 이미지가 정리돼서 더 안정적으로 읽을 수 있어."
           >
             <div className="home-card-stack">
               <FileDropzone
@@ -1068,7 +1071,9 @@ export default function HomePage() {
                             type="button"
                             className={`home-feedback-chip ${isSelected ? "home-feedback-chip-active" : ""}`}
                             onClick={() => handleSolveFeedback(option.type)}
-                            disabled={feedbackLoading || !solveMeta?.historyId}
+                            disabled={
+                              feedbackLoading || !solveMeta?.historyId || selectedFeedback !== null
+                            }
                           >
                             {option.label}
                           </button>
