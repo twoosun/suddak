@@ -665,9 +665,16 @@ export default function CommunityDetailPage() {
                                 fontWeight: 700,
                               }}
                             >
-                              <span style={{ color: "var(--primary)", fontWeight: 800 }}>
-                                {comment.author_name || "작성자"}
-                              </span>
+                              <Link
+  href={`/profile/${comment.user_id}`}
+  style={{
+    color: "var(--primary)",
+    fontWeight: 800,
+    textDecoration: "none",
+  }}
+>
+  {comment.author_name || "작성자"}
+</Link>
                               <span>·</span>
                               <span>{formatDateTime(comment.created_at)}</span>
                             </div>
@@ -780,9 +787,16 @@ export default function CommunityDetailPage() {
                                             fontWeight: 700,
                                           }}
                                         >
-                                          <span style={{ color: "var(--primary)", fontWeight: 800 }}>
-                                            {reply.author_name || "작성자"}
-                                          </span>
+                                          <Link
+  href={`/profile/${reply.user_id}`}
+  style={{
+    color: "var(--primary)",
+    fontWeight: 800,
+    textDecoration: "none",
+  }}
+>
+  {reply.author_name || "작성자"}
+</Link>
                                           <span>·</span>
                                           <span>{formatDateTime(reply.created_at)}</span>
                                         </div>

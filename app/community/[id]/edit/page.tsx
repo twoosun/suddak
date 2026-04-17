@@ -772,7 +772,16 @@ export default function CommunityDetailPage() {
                   }}
                 >
                   <div style={{ marginBottom: "8px", display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "12px", color: theme.subText }}>
-                    <span>{comment.author_name ?? "익명"}</span>
+                    <Link
+  href={`/profile/${comment.user_id}`}
+  style={{
+    color: theme.primary,
+    fontWeight: 800,
+    textDecoration: "none",
+  }}
+>
+  {comment.author_name ?? "익명"}
+</Link>
                     <span>•</span>
                     <span>{formatDateTime(comment.created_at)}</span>
                   </div>
@@ -890,7 +899,16 @@ export default function CommunityDetailPage() {
                           }}
                         >
                           <div style={{ marginBottom: "8px", display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "12px", color: theme.subText }}>
-                            <span>{reply.author_name ?? "익명"}</span>
+                            <Link
+  href={`/profile/${reply.user_id}`}
+  style={{
+    color: theme.primary,
+    fontWeight: 800,
+    textDecoration: "none",
+  }}
+>
+  {reply.author_name ?? "익명"}
+</Link>
                             <span>•</span>
                             <span>{formatDateTime(reply.created_at)}</span>
                           </div>

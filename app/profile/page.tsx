@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme } from "@/lib/theme";
@@ -16,7 +16,22 @@ type ProfileRow = {
   email: string | null;
   full_name: string | null;
   grade: string | null;
+  avatar_url: string | null;
+  bio: string;
+  guestbook_open: boolean;
+  created_at: string | null;
 };
+
+function formatDate(value: string | null) {
+  if (!value) return "정보 없음";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "정보 없음";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
 
 export default function MyProfilePage() {
   const router = useRouter();
@@ -27,6 +42,7 @@ export default function MyProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [nicknameChecking, setNicknameChecking] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [message, setMessage] = useState("");
   const [nicknameStatus, setNicknameStatus] = useState("");
@@ -34,6 +50,9 @@ export default function MyProfilePage() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [nickname, setNickname] = useState("");
   const [grade, setGrade] = useState("");
+  const [bio, setBio] = useState("");
+  const [guestbookOpen, setGuestbookOpen] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState("");
 
   useEffect(() => {
     initTheme();
@@ -53,26 +72,33 @@ export default function MyProfilePage() {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (!session?.user) {
+        if (!session?.access_token) {
           setMessage("로그인 후 이용할 수 있어.");
           setLoading(false);
           return;
         }
 
-        const { data, error } = await supabase
-          .from("user_profiles")
-          .select("id, email, full_name, grade")
-          .eq("id", session.user.id)
-          .maybeSingle();
+        const res = await fetch("/api/profile/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        });
 
-        if (error || !data) {
-          setMessage("프로필 정보를 불러오지 못했어.");
+        const data = await res.json();
+
+        if (!res.ok) {
+          setMessage(data?.error || "프로필 정보를 불러오지 못했어.");
           return;
         }
 
-        setProfile(data);
-        setNickname(data.full_name || "");
-        setGrade(data.grade || "");
+        const nextProfile = data.profile as ProfileRow;
+        setProfile(nextProfile);
+        setNickname(nextProfile.full_name || "");
+        setGrade(nextProfile.grade || "");
+        setAvatarUrl(nextProfile.avatar_url || "");
+        setBio(nextProfile.bio || "");
+        setGuestbookOpen(Boolean(nextProfile.guestbook_open));
       } catch (error) {
         console.error(error);
         setMessage("프로필 정보를 불러오지 못했어.");
@@ -122,6 +148,63 @@ export default function MyProfilePage() {
     }
   };
 
+  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      setMessage("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        setMessage("로그인 후 업로드할 수 있어.");
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        setMessage("이미지 파일만 업로드할 수 있어.");
+        return;
+      }
+
+      if (file.size > 3 * 1024 * 1024) {
+        setMessage("프로필 사진은 3MB 이하로 올려줘.");
+        return;
+      }
+
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      const path = `${session.user.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("profile-avatars")
+        .upload(path, file, {
+          upsert: false,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) {
+        console.error(uploadError);
+        setMessage("이미지 업로드에 실패했어.");
+        return;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("profile-avatars").getPublicUrl(path);
+
+      setAvatarUrl(publicUrl);
+      setMessage("프로필 사진 업로드 완료.");
+    } catch (error) {
+      console.error(error);
+      setMessage("이미지 업로드 중 오류가 발생했어.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -164,6 +247,9 @@ export default function MyProfilePage() {
         body: JSON.stringify({
           nickname: nickname.trim(),
           grade: grade.trim(),
+          avatar_url: avatarUrl,
+          bio: bio.trim(),
+          guestbook_open: guestbookOpen,
         }),
       });
 
@@ -174,13 +260,16 @@ export default function MyProfilePage() {
         return;
       }
 
-      setMessage("회원정보를 수정했어.");
+      setMessage("프로필을 수정했어.");
       setProfile((prev) =>
         prev
           ? {
               ...prev,
               full_name: nickname.trim(),
               grade: grade.trim(),
+              avatar_url: avatarUrl || null,
+              bio: bio.trim(),
+              guestbook_open: guestbookOpen,
             }
           : prev
       );
@@ -313,7 +402,7 @@ export default function MyProfilePage() {
                   marginTop: "4px",
                 }}
               >
-                Nickname Settings · 닉네임 관리
+                Profile Settings · 프로필 설정
               </div>
             </div>
           </Link>
@@ -355,8 +444,8 @@ export default function MyProfilePage() {
       {message && <div style={styles.message}>{message}</div>}
 
       <SectionCard
-        title="닉네임 관리"
-        description="가입할 때 쓴 닉네임이 커뮤니티와 프로필에 동일하게 표시돼. 여기서 바꾸면 전체에 반영돼."
+        title="프로필 관리"
+        description="가입 닉네임, 프로필 사진, 소개글, 방명록 허용 여부를 관리할 수 있어."
       >
         {loading ? (
           <div className="suddak-card-soft" style={{ padding: "18px" }}>
@@ -367,68 +456,166 @@ export default function MyProfilePage() {
             로그인 후 이용할 수 있어.
           </div>
         ) : (
-          <form onSubmit={handleSave} style={{ display: "grid", gap: "16px" }}>
-            <div>
-              <label style={styles.inputLabel}>닉네임</label>
-              <input
-                value={nickname}
-                onChange={(e) => {
-                  setNickname(e.target.value);
-                  setNicknameStatus("");
-                }}
-                onBlur={() => checkNickname(nickname)}
-                maxLength={20}
-                placeholder="닉네임"
-                style={styles.input}
-                autoComplete="nickname"
-              />
-              <div style={styles.hint}>
-                {nicknameChecking ? "닉네임 확인 중..." : nicknameStatus}
+          <form onSubmit={handleSave} style={{ display: "grid", gap: "18px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 150px) 1fr",
+                gap: "18px",
+                alignItems: "start",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    width: "120px",
+                    height: "120px",
+                    borderRadius: "24px",
+                    overflow: "hidden",
+                    border: "1px solid var(--border)",
+                    background: "var(--card-soft)",
+                  }}
+                >
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt="프로필 사진"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: "34px",
+                        fontWeight: 900,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      {(nickname || "수")[0]}
+                    </div>
+                  )}
+                </div>
+
+                <label
+                  className="suddak-btn suddak-btn-ghost"
+                  style={{ marginTop: "12px", display: "inline-flex", cursor: "pointer" }}
+                >
+                  {uploading ? "업로드 중..." : "사진 업로드"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "grid", gap: "14px" }}>
+                <div>
+                  <label style={styles.inputLabel}>닉네임</label>
+                  <input
+                    value={nickname}
+                    onChange={(e) => {
+                      setNickname(e.target.value);
+                      setNicknameStatus("");
+                    }}
+                    onBlur={() => checkNickname(nickname)}
+                    maxLength={20}
+                    placeholder="닉네임"
+                    style={styles.input}
+                    autoComplete="nickname"
+                  />
+                  <div style={styles.hint}>
+                    {nicknameChecking ? "닉네임 확인 중..." : nicknameStatus}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.inputLabel}>학년 정보</label>
+                  <input
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    placeholder="예: 고1, 고2, 고3"
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.inputLabel}>소개글</label>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    maxLength={300}
+                    placeholder="간단한 소개를 적어줘."
+                    style={{
+                      ...styles.input,
+                      minHeight: "110px",
+                      resize: "vertical",
+                    }}
+                  />
+                  <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--muted)" }}>
+                    {bio.length}/300
+                  </div>
+                </div>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={guestbookOpen}
+                    onChange={(e) => setGuestbookOpen(e.target.checked)}
+                  />
+                  방명록 허용
+                </label>
+
+                <div>
+                  <label style={styles.inputLabel}>이메일</label>
+                  <input
+                    value={profile.email || ""}
+                    disabled
+                    style={{
+                      ...styles.input,
+                      opacity: 0.72,
+                      cursor: "not-allowed",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.inputLabel}>가입 일자</label>
+                  <input
+                    value={formatDate(profile.created_at)}
+                    disabled
+                    style={{
+                      ...styles.input,
+                      opacity: 0.72,
+                      cursor: "not-allowed",
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            <div>
-              <label style={styles.inputLabel}>학년 정보</label>
-              <input
-                value={grade}
-                onChange={(e) => setGrade(e.target.value)}
-                placeholder="예: 고1, 고2, 고3"
-                style={styles.input}
-              />
-            </div>
-
-            <div>
-              <label style={styles.inputLabel}>이메일</label>
-              <input
-                value={profile.email || ""}
-                disabled
-                style={{
-                  ...styles.input,
-                  opacity: 0.72,
-                  cursor: "not-allowed",
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <button
                 type="submit"
                 className="suddak-btn suddak-btn-primary"
-                disabled={saving || nicknameChecking}
+                disabled={saving || nicknameChecking || uploading}
               >
                 {saving ? "저장 중..." : "저장"}
               </button>
 
-              <Link
-                href={`/profile/${profile.id}`}
-                className="suddak-btn suddak-btn-ghost"
-              >
+              <Link href={`/profile/${profile.id}`} className="suddak-btn suddak-btn-ghost">
                 공개 프로필 보기
               </Link>
             </div>

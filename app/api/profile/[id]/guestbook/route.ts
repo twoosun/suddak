@@ -27,18 +27,20 @@ function createUserClient(token: string) {
 }
 
 async function getUserMap(userIds: string[]) {
-  if (userIds.length === 0) return new Map<string, { name: string; avatar_url: string | null }>();
+  if (userIds.length === 0) {
+    return new Map<string, { name: string; avatar_url: string | null }>();
+  }
 
   const { data } = await admin
     .from("user_profiles")
-    .select("id, full_name, profile_name, avatar_url")
+    .select("id, full_name, avatar_url")
     .in("id", userIds);
 
   const map = new Map<string, { name: string; avatar_url: string | null }>();
 
   for (const row of data || []) {
     map.set(row.id, {
-      name: row.profile_name || row.full_name || "작성자",
+      name: row.full_name || "작성자",
       avatar_url: row.avatar_url || null,
     });
   }
@@ -51,10 +53,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
+    const resolvedParams = await Promise.resolve(
+      params as { id: string } | Promise<{ id: string }>
+    );
 
     const profileId = String(resolvedParams?.id || "").trim();
 
@@ -105,10 +106,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
+    const resolvedParams = await Promise.resolve(
+      params as { id: string } | Promise<{ id: string }>
+    );
 
     const profileId = String(resolvedParams?.id || "").trim();
 

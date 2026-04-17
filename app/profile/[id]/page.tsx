@@ -30,10 +30,10 @@ type PublicProfile = {
   id: string;
   full_name: string;
   grade: string;
-  profile_name: string;
   avatar_url: string | null;
   bio: string;
   guestbook_open: boolean;
+  joined_at: string | null;
   stats: {
     total: number;
     free: number;
@@ -332,7 +332,7 @@ export default function ProfilePage() {
       ) : (
         <>
           <SectionCard
-            title={profile.profile_name}
+            title={profile.full_name}
             description={profile.bio || "아직 소개글이 없어."}
             style={{ marginBottom: "18px" }}
           >
@@ -358,7 +358,7 @@ export default function ProfilePage() {
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url}
-                      alt={profile.profile_name}
+                      alt={profile.full_name}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   ) : (
@@ -373,7 +373,7 @@ export default function ProfilePage() {
                         color: "var(--muted)",
                       }}
                     >
-                      {profile.profile_name?.[0] || "수"}
+                      {profile.full_name?.[0] || "수"}
                     </div>
                   )}
                 </div>
@@ -399,6 +399,14 @@ export default function ProfilePage() {
                     {profile.stats.problem}
                   </div>
                 </div>
+
+
+<div className="suddak-card-soft" style={{ padding: "14px" }}>
+  <div style={{ fontSize: "12px", color: "var(--muted)" }}>가입일</div>
+  <div style={{ fontSize: "18px", fontWeight: 900, marginTop: "8px", lineHeight: 1.5 }}>
+    {formatDate(profile.joined_at)}
+  </div>
+</div>
 
                 <div className="suddak-card-soft" style={{ padding: "14px" }}>
                   <div style={{ fontSize: "12px", color: "var(--muted)" }}>자유글</div>

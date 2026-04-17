@@ -16,10 +16,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
+    const resolvedParams = await Promise.resolve(
+      params as { id: string } | Promise<{ id: string }>
+    );
 
     const profileId = String(resolvedParams?.id || "").trim();
 
@@ -29,7 +28,7 @@ export async function GET(
 
     const { data: profile, error: profileError } = await admin
       .from("user_profiles")
-      .select("id, full_name, grade, profile_name, avatar_url, bio, guestbook_open")
+      .select("id, full_name, grade, avatar_url, bio, guestbook_open")
       .eq("id", profileId)
       .maybeSingle();
 
@@ -40,6 +39,8 @@ export async function GET(
     if (!profile) {
       return NextResponse.json({ error: "프로필을 찾을 수 없어." }, { status: 404 });
     }
+
+    const { data: authUser } = await admin.auth.admin.getUserById(profileId);
 
     const { data: posts, error: postsError } = await admin
       .from("community_posts")
@@ -58,12 +59,12 @@ export async function GET(
     return NextResponse.json({
       profile: {
         id: profile.id,
-        full_name: profile.full_name,
-        grade: profile.grade,
-        profile_name: profile.profile_name || profile.full_name || "작성자",
+        full_name: profile.full_name || "작성자",
+        grade: profile.grade || "",
         avatar_url: profile.avatar_url || null,
         bio: profile.bio || "",
         guestbook_open: profile.guestbook_open ?? true,
+        joined_at: authUser?.user?.created_at ?? null,
         stats: {
           total: items.length,
           free: items.filter((post) => post.post_type === "free").length,
@@ -72,7 +73,7 @@ export async function GET(
       },
       posts: items.map((post) => ({
         ...post,
-        author_name: profile.profile_name || profile.full_name || "작성자",
+        author_name: profile.full_name || "작성자",
         author_avatar_url: profile.avatar_url || null,
       })),
     });
