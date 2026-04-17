@@ -874,6 +874,8 @@ a {
 .home-dropzone-cta {
   display: flex;
   justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .home-dropzone-preview {

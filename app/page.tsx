@@ -396,7 +396,7 @@ export default function HomePage() {
     setFeedbackLoading(false);
   };
 
-  const handleFileSelect = async (selected: File) => {
+  const handleFileSelect = async (selected: File, source: "upload" | "camera") => {
     resetOutputs();
 
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
@@ -406,13 +406,26 @@ export default function HomePage() {
     setOriginalPreviewUrl(URL.createObjectURL(selected));
     setProcessedPreviewUrl(null);
 
+    const nextAdjustOptions =
+      source === "camera"
+        ? {
+            ...DEFAULT_OCR_PREPROCESS_OPTIONS,
+            threshold: true,
+          }
+        : DEFAULT_OCR_PREPROCESS_OPTIONS;
+
+    setImageAdjustOptions(nextAdjustOptions);
+
     try {
       setPreprocessLoading(true);
       const { previewUrl } = await buildPreprocessedPreviewUrl(
         selected,
-        imageAdjustOptions
+        nextAdjustOptions
       );
       setProcessedPreviewUrl(previewUrl);
+      if (source === "camera") {
+        setNoticeText("카메라 촬영본이라 OCR용 강한 이진화를 자동 적용했어.");
+      }
     } catch {
       setNoticeText("이미지 준비 중 일부 보정 미리보기를 만들지 못했습니다.");
     } finally {

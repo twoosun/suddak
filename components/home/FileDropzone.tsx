@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 type Props = {
   previewUrl: string | null;
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File, source: "upload" | "camera") => void;
   disabled?: boolean;
 };
 
@@ -20,11 +20,13 @@ export default function FileDropzone({
   onFileSelect,
   disabled = false,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const draftImageRef = useRef<HTMLImageElement | null>(null);
 
   const [dragging, setDragging] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
+  const [draftSource, setDraftSource] = useState<"upload" | "camera">("upload");
   const [draftPreviewUrl, setDraftPreviewUrl] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
   const [selection, setSelection] = useState<CropSelection | null>(null);
@@ -45,6 +47,7 @@ export default function FileDropzone({
     }
 
     setDraftFile(null);
+    setDraftSource("upload");
     setDraftPreviewUrl(null);
     setCropping(false);
     setSelection(null);
@@ -52,7 +55,7 @@ export default function FileDropzone({
     setPointerStart(null);
   };
 
-  const loadDraftFile = (file?: File | null) => {
+  const loadDraftFile = (file?: File | null, source: "upload" | "camera" = "upload") => {
     if (!file || disabled) return;
 
     if (draftPreviewUrl) {
@@ -60,6 +63,7 @@ export default function FileDropzone({
     }
 
     setDraftFile(file);
+    setDraftSource(source);
     setDraftPreviewUrl(URL.createObjectURL(file));
     setSelection(null);
     setDraftSelection(null);
@@ -176,7 +180,7 @@ export default function FileDropzone({
 
   const handleUseOriginal = () => {
     if (!draftFile) return;
-    onFileSelect(draftFile);
+    onFileSelect(draftFile, draftSource);
     resetDraft();
   };
 
@@ -186,7 +190,7 @@ export default function FileDropzone({
     try {
       setCropping(true);
       const croppedFile = await createCroppedFile(draftFile);
-      onFileSelect(croppedFile);
+      onFileSelect(croppedFile, draftSource);
       resetDraft();
     } finally {
       setCropping(false);
@@ -204,7 +208,7 @@ export default function FileDropzone({
         cursor: disabled ? "not-allowed" : "pointer",
       }}
       onClick={() => {
-        if (!disabled && !draftFile) inputRef.current?.click();
+        if (!disabled && !draftFile) uploadInputRef.current?.click();
       }}
       onDragOver={(e) => {
         e.preventDefault();
@@ -214,16 +218,23 @@ export default function FileDropzone({
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        loadDraftFile(e.dataTransfer.files?.[0]);
+        loadDraftFile(e.dataTransfer.files?.[0], "upload");
       }}
     >
       <input
-        ref={inputRef}
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => loadDraftFile(e.target.files?.[0], "upload")}
+      />
+      <input
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => loadDraftFile(e.target.files?.[0])}
+        onChange={(e) => loadDraftFile(e.target.files?.[0], "camera")}
       />
 
       <div className="home-dropzone-content">
@@ -256,11 +267,29 @@ export default function FileDropzone({
           <button
             type="button"
             className="suddak-btn suddak-btn-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              uploadInputRef.current?.click();
+            }}
             style={{
               width: "min(100%, 320px)",
             }}
           >
-            사진 올리기 / 바로 촬영
+            사진 업로드
+          </button>
+
+          <button
+            type="button"
+            className="suddak-btn suddak-btn-ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              cameraInputRef.current?.click();
+            }}
+            style={{
+              width: "min(100%, 320px)",
+            }}
+          >
+            바로 촬영
           </button>
         </div>
       </div>
@@ -337,7 +366,7 @@ export default function FileDropzone({
             <button
               type="button"
               className="suddak-btn suddak-btn-ghost"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => uploadInputRef.current?.click()}
               disabled={cropping}
             >
               다른 사진 선택
