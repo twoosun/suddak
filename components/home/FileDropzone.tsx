@@ -8,21 +8,28 @@ type Props = {
   disabled?: boolean;
 };
 
-/* # 1. 업로드 드롭존 */
+type CropSelection = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export default function FileDropzone({
   previewUrl,
   onFileSelect,
   disabled = false,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const draftImageRef = useRef<HTMLImageElement | null>(null);
+
   const [dragging, setDragging] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [draftPreviewUrl, setDraftPreviewUrl] = useState<string | null>(null);
-  const [cropTop, setCropTop] = useState(0);
-  const [cropBottom, setCropBottom] = useState(0);
-  const [cropLeft, setCropLeft] = useState(0);
-  const [cropRight, setCropRight] = useState(0);
   const [cropping, setCropping] = useState(false);
+  const [selection, setSelection] = useState<CropSelection | null>(null);
+  const [draftSelection, setDraftSelection] = useState<CropSelection | null>(null);
+  const [pointerStart, setPointerStart] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -36,13 +43,13 @@ export default function FileDropzone({
     if (draftPreviewUrl) {
       URL.revokeObjectURL(draftPreviewUrl);
     }
+
     setDraftFile(null);
     setDraftPreviewUrl(null);
-    setCropTop(0);
-    setCropBottom(0);
-    setCropLeft(0);
-    setCropRight(0);
     setCropping(false);
+    setSelection(null);
+    setDraftSelection(null);
+    setPointerStart(null);
   };
 
   const loadDraftFile = (file?: File | null) => {
@@ -54,26 +61,82 @@ export default function FileDropzone({
 
     setDraftFile(file);
     setDraftPreviewUrl(URL.createObjectURL(file));
-    setCropTop(0);
-    setCropBottom(0);
-    setCropLeft(0);
-    setCropRight(0);
+    setSelection(null);
+    setDraftSelection(null);
+    setPointerStart(null);
+  };
+
+  const getRelativePoint = (clientX: number, clientY: number) => {
+    const image = draftImageRef.current;
+    if (!image) return null;
+
+    const rect = image.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+
+    return {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    };
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled || !draftFile) return;
+
+    const point = getRelativePoint(event.clientX, event.clientY);
+    if (!point) return;
+
+    setPointerStart(point);
+    setDraftSelection({
+      x: point.x,
+      y: point.y,
+      width: 0,
+      height: 0,
+    });
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerStart) return;
+
+    const point = getRelativePoint(event.clientX, event.clientY);
+    if (!point) return;
+
+    setDraftSelection({
+      x: Math.min(pointerStart.x, point.x),
+      y: Math.min(pointerStart.y, point.y),
+      width: Math.abs(point.x - pointerStart.x),
+      height: Math.abs(point.y - pointerStart.y),
+    });
+  };
+
+  const finalizeSelection = () => {
+    if (!draftSelection) {
+      setPointerStart(null);
+      return;
+    }
+
+    if (draftSelection.width < 2 || draftSelection.height < 2) {
+      setSelection(null);
+    } else {
+      setSelection(draftSelection);
+    }
+
+    setDraftSelection(null);
+    setPointerStart(null);
   };
 
   const createCroppedFile = async (file: File) => {
+    if (!selection) {
+      return file;
+    }
+
     const bitmap = await createImageBitmap(file);
-    const width = bitmap.width;
-    const height = bitmap.height;
-
-    const leftPx = Math.round((width * cropLeft) / 100);
-    const rightPx = Math.round((width * cropRight) / 100);
-    const topPx = Math.round((height * cropTop) / 100);
-    const bottomPx = Math.round((height * cropBottom) / 100);
-
-    const sourceX = Math.max(0, leftPx);
-    const sourceY = Math.max(0, topPx);
-    const sourceWidth = Math.max(40, width - leftPx - rightPx);
-    const sourceHeight = Math.max(40, height - topPx - bottomPx);
+    const sourceX = Math.max(0, Math.round((bitmap.width * selection.x) / 100));
+    const sourceY = Math.max(0, Math.round((bitmap.height * selection.y) / 100));
+    const sourceWidth = Math.max(40, Math.round((bitmap.width * selection.width) / 100));
+    const sourceHeight = Math.max(40, Math.round((bitmap.height * selection.height) / 100));
 
     const canvas = document.createElement("canvas");
     canvas.width = sourceWidth;
@@ -118,7 +181,7 @@ export default function FileDropzone({
   };
 
   const handleApplyCrop = async () => {
-    if (!draftFile || cropping) return;
+    if (!draftFile || cropping || !selection) return;
 
     try {
       setCropping(true);
@@ -129,6 +192,8 @@ export default function FileDropzone({
       setCropping(false);
     }
   };
+
+  const activeSelection = draftSelection ?? selection;
 
   return (
     <div
@@ -161,7 +226,6 @@ export default function FileDropzone({
         onChange={(e) => loadDraftFile(e.target.files?.[0])}
       />
 
-      {/* # 2. 안내 문구 */}
       <div className="home-dropzone-content">
         <div
           style={{
@@ -201,16 +265,25 @@ export default function FileDropzone({
         </div>
       </div>
 
-      {/* # 3. 미리보기 */}
       {draftPreviewUrl && draftFile ? (
-        <div
-          className="home-crop-panel"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="home-dropzone-preview">
+        <div className="home-crop-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="home-crop-guide">
+            사진 위를 손가락이나 마우스로 직접 드래그해서 문제 영역을 잡아줘.
+          </div>
+
+          <div
+            className="home-dropzone-preview home-dropzone-preview-crop"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={finalizeSelection}
+            onPointerCancel={finalizeSelection}
+            onPointerLeave={finalizeSelection}
+          >
             <img
+              ref={draftImageRef}
               src={draftPreviewUrl}
               alt="자르기 미리보기"
+              draggable={false}
               style={{
                 display: "block",
                 width: "100%",
@@ -219,52 +292,18 @@ export default function FileDropzone({
                 background: "var(--card)",
               }}
             />
-          </div>
 
-          <div className="home-crop-grid">
-            <label className="home-crop-control">
-              <span>위쪽 자르기 {cropTop}%</span>
-              <input
-                type="range"
-                min="0"
-                max="35"
-                value={cropTop}
-                onChange={(e) => setCropTop(Number(e.target.value))}
+            {activeSelection && (
+              <div
+                className="home-crop-selection"
+                style={{
+                  left: `${activeSelection.x}%`,
+                  top: `${activeSelection.y}%`,
+                  width: `${activeSelection.width}%`,
+                  height: `${activeSelection.height}%`,
+                }}
               />
-            </label>
-
-            <label className="home-crop-control">
-              <span>아래쪽 자르기 {cropBottom}%</span>
-              <input
-                type="range"
-                min="0"
-                max="35"
-                value={cropBottom}
-                onChange={(e) => setCropBottom(Number(e.target.value))}
-              />
-            </label>
-
-            <label className="home-crop-control">
-              <span>왼쪽 자르기 {cropLeft}%</span>
-              <input
-                type="range"
-                min="0"
-                max="35"
-                value={cropLeft}
-                onChange={(e) => setCropLeft(Number(e.target.value))}
-              />
-            </label>
-
-            <label className="home-crop-control">
-              <span>오른쪽 자르기 {cropRight}%</span>
-              <input
-                type="range"
-                min="0"
-                max="35"
-                value={cropRight}
-                onChange={(e) => setCropRight(Number(e.target.value))}
-              />
-            </label>
+            )}
           </div>
 
           <div className="home-crop-actions">
@@ -281,9 +320,18 @@ export default function FileDropzone({
               type="button"
               className="suddak-btn suddak-btn-primary"
               onClick={handleApplyCrop}
-              disabled={cropping}
+              disabled={cropping || !selection}
             >
               {cropping ? "자르는 중.." : "자르고 사용"}
+            </button>
+
+            <button
+              type="button"
+              className="suddak-btn suddak-btn-ghost"
+              onClick={() => setSelection(null)}
+              disabled={cropping || !selection}
+            >
+              선택 초기화
             </button>
 
             <button
