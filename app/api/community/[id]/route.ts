@@ -56,11 +56,10 @@ export async function GET(
   try {
     const supabase = createAdminClient();
 
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>?.then) === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
-
+   const resolvedParams =
+  typeof (params as Promise<{ id: string }>).then === "function"
+    ? await (params as Promise<{ id: string }>)
+    : (params as { id: string });
     const postId = String(resolvedParams?.id || "").trim();
 
     if (!postId) {
@@ -136,7 +135,7 @@ export async function PATCH(
     const supabase = createAdminClient();
 
     const resolvedParams =
-      typeof (params as Promise<{ id: string }>?.then) === "function"
+      typeof (params as Promise<{ id: string }>.then) === "function"
         ? await (params as Promise<{ id: string }>)
         : (params as { id: string });
 
@@ -269,7 +268,7 @@ export async function DELETE(
     const supabase = createAdminClient();
 
     const resolvedParams =
-      typeof (params as Promise<{ id: string }>?.then) === "function"
+      typeof (params as Promise<{ id: string }>.then) === "function"
         ? await (params as Promise<{ id: string }>)
         : (params as { id: string });
 
