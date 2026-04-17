@@ -3,6 +3,7 @@ import { createClient, User } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 function createAdminClient() {
   return createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -13,23 +14,29 @@ function createAdminClient() {
   });
 }
 
-type PostType = "free" | "problem";
+function createUserClient(token: string) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 
-/* # 1. 작성자명 */
 function getAuthorName(user: User | null | undefined) {
   if (!user) return "익명";
-
-  const meta = user.user_metadata ?? {};
   return (
-    meta.name ||
-    meta.full_name ||
-    meta.username ||
-    meta.nickname ||
-    user.email?.split("@")[0] ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email ||
     "익명"
   );
 }
-
 /* # 2. 요청 유저 */
 async function getUserFromRequest(req: NextRequest) {
   const supabase = createAdminClient();
