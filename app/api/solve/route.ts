@@ -333,14 +333,19 @@ async function saveHistory(params: {
 }) {
   const { userId, actionType, recognizedText, solveResult } = params;
 
-  const { error } = await supabaseAdmin.from("problem_history").insert({
-    user_id: userId,
-    action_type: actionType,
-    recognized_text: recognizedText ?? null,
-    solve_result: solveResult ?? null,
-  });
+  const { data, error } = await supabaseAdmin
+    .from("problem_history")
+    .insert({
+      user_id: userId,
+      action_type: actionType,
+      recognized_text: recognizedText ?? null,
+      solve_result: solveResult ?? null,
+    })
+    .select("id")
+    .single();
 
   if (error) throw error;
+  return data;
 }
 
 function buildSolveMarkdown(parsed: ParsedSolveResult) {
@@ -724,7 +729,7 @@ export async function POST(req: Request) {
         const result = (response as any).output_text || "응답이 비어 있습니다.";
 
         await addUsageLog(user.id, "read");
-        await saveHistory({
+        const historyRow = await saveHistory({
           userId: user.id,
           actionType: "read",
           recognizedText: result,
@@ -733,6 +738,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           result,
           meta: {
+            historyId: historyRow?.id ?? null,
             model: response.model,
             isNewAccount: isNewAccount(user.created_at),
             readToday: usedReadToday + 1,
@@ -1040,7 +1046,7 @@ export async function POST(req: Request) {
       const result = buildSolveMarkdownV2(normalizedParsed);
 
       await addUsageLog(user.id, "solve");
-      await saveHistory({
+      const historyRow = await saveHistory({
         userId: user.id,
         actionType: "solve",
         recognizedText: recognizedProblem,
@@ -1050,6 +1056,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         result,
         meta: {
+          historyId: historyRow?.id ?? null,
           model: response.model,
           subject: normalizedParsed.subject,
           subjectLabel: SUBJECT_LABELS[normalizedParsed.subject],

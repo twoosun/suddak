@@ -53,6 +53,7 @@ type GraphSpec = {
 };
 
 type SolveMeta = {
+  historyId?: number | null;
   model: string;
   subject: SubjectCategory;
   subjectLabel: string;
@@ -65,6 +66,23 @@ type SolveMeta = {
   graphNeeded: boolean;
   isAdminModel: boolean;
 };
+
+type SolveFeedbackType =
+  | "helpful"
+  | "needs_work"
+  | "answer_missing"
+  | "too_long"
+  | "parsing_error"
+  | "subtopic_wrong";
+
+const solveFeedbackOptions: Array<{ type: SolveFeedbackType; label: string }> = [
+  { type: "helpful", label: "도움됐어요" },
+  { type: "needs_work", label: "아쉬워요" },
+  { type: "answer_missing", label: "답이 안 보여요" },
+  { type: "too_long", label: "설명이 길어요" },
+  { type: "parsing_error", label: "파싱 오류" },
+  { type: "subtopic_wrong", label: "단원 분류 이상" },
+];
 
 const difficultyLabelMap: Record<DifficultyLevel, string> = {
   easy: "쉬움",
@@ -267,6 +285,8 @@ export default function HomePage() {
   const [solveResult, setSolveResult] = useState("");
   const [solveMeta, setSolveMeta] = useState<SolveMeta | null>(null);
   const [graphSpec, setGraphSpec] = useState<GraphSpec | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<SolveFeedbackType | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const [reading, setReading] = useState(false);
   const [solving, setSolving] = useState(false);
@@ -372,6 +392,8 @@ export default function HomePage() {
     setGraphSpec(null);
     setNoticeText("");
     setIsEditingRecognized(false);
+    setSelectedFeedback(null);
+    setFeedbackLoading(false);
   };
 
   const handleFileSelect = async (selected: File) => {
@@ -456,6 +478,7 @@ export default function HomePage() {
     setSolveResult("");
     setSolveMeta(null);
     setGraphSpec(null);
+    setSelectedFeedback(null);
 
     try {
       const {
@@ -509,6 +532,7 @@ export default function HomePage() {
     setSolveResult("");
     setSolveMeta(null);
     setGraphSpec(null);
+    setSelectedFeedback(null);
 
     try {
       const {
@@ -552,6 +576,54 @@ export default function HomePage() {
     } finally {
       setSolving(false);
       await loadUsage();
+    }
+  };
+
+  const handleSolveFeedback = async (feedbackType: SolveFeedbackType) => {
+    const historyId = solveMeta?.historyId;
+
+    if (!historyId || feedbackLoading) {
+      setNoticeText("피드백을 저장할 풀이 기록을 찾지 못했어.");
+      return;
+    }
+
+    try {
+      setFeedbackLoading(true);
+
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!currentSession?.access_token) {
+        setNoticeText("로그인 후 피드백을 남길 수 있어.");
+        return;
+      }
+
+      const res = await fetch("/api/solve-feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentSession.access_token}`,
+        },
+        body: JSON.stringify({
+          historyId,
+          feedbackType,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setNoticeText(data?.error || "피드백 저장에 실패했어.");
+        return;
+      }
+
+      setSelectedFeedback(feedbackType);
+      setNoticeText("피드백을 저장했어. 다음 풀이 개선에 반영할게.");
+    } catch {
+      setNoticeText("피드백 저장 중 오류가 발생했어.");
+    } finally {
+      setFeedbackLoading(false);
     }
   };
 
@@ -791,6 +863,7 @@ export default function HomePage() {
                     setSolveResult("");
                     setSolveMeta(null);
                     setGraphSpec(null);
+                    setSelectedFeedback(null);
                     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
                     if (processedPreviewUrl) URL.revokeObjectURL(processedPreviewUrl);
                     setOriginalPreviewUrl(null);
@@ -971,6 +1044,37 @@ export default function HomePage() {
 
                   <div className="suddak-card-soft" style={{ padding: "16px" }}>
                     <MarkdownMathBlock content={explanationText} isDark={isDark} />
+                  </div>
+
+                  <div className="suddak-card-soft" style={{ padding: "12px 14px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 900,
+                        color: "var(--muted)",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      이 풀이 어땠어?
+                    </div>
+
+                    <div className="home-feedback-row">
+                      {solveFeedbackOptions.map((option) => {
+                        const isSelected = selectedFeedback === option.type;
+
+                        return (
+                          <button
+                            key={option.type}
+                            type="button"
+                            className={`home-feedback-chip ${isSelected ? "home-feedback-chip-active" : ""}`}
+                            onClick={() => handleSolveFeedback(option.type)}
+                            disabled={feedbackLoading || !solveMeta?.historyId}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
