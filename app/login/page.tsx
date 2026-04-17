@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { supabase } from "@/lib/supabase";
+import { getSessionWithRecovery, supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,10 +12,8 @@ export default function LoginPage() {
   const [isDark, setIsDark] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [captchaToken, setCaptchaToken] = useState("");
   const [turnstileRenderKey, setTurnstileRenderKey] = useState(0);
-
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -51,17 +49,17 @@ export default function LoginPage() {
     setMessage("");
 
     if (!email.trim()) {
-      setMessage("이메일을 입력해줘.");
+      setMessage("이메일을 입력해 줘.");
       return;
     }
 
     if (!password.trim()) {
-      setMessage("비밀번호를 입력해줘.");
+      setMessage("비밀번호를 입력해 줘.");
       return;
     }
 
     if (!captchaToken) {
-      setMessage("CAPTCHA 확인을 먼저 완료해줘.");
+      setMessage("CAPTCHA 확인을 먼저 완료해 줘.");
       return;
     }
 
@@ -82,11 +80,17 @@ export default function LoginPage() {
         return;
       }
 
-      setMessage("로그인 성공! 잠시 후 이동할게.");
-      setTimeout(() => {
-        router.push("/");
-        router.refresh();
-      }, 500);
+      const recoveredSession = await getSessionWithRecovery();
+
+      if (!recoveredSession?.access_token) {
+        setMessage("로그인은 성공했지만 세션을 복구하지 못했어. 한 번만 다시 시도해 줘.");
+        resetTurnstile();
+        return;
+      }
+
+      setMessage("로그인 성공! 바로 홈으로 이동할게.");
+      router.replace("/");
+      router.refresh();
     } catch (error) {
       console.error(error);
       setMessage("로그인 중 오류가 발생했어.");
@@ -232,7 +236,10 @@ export default function LoginPage() {
         <div style={styles.top}>
           <div>
             <div style={styles.title}>로그인</div>
-            <div style={styles.desc}>수딱 계정으로 로그인해. CAPTCHA가 보이지 않으면 광고 차단기 또는 개인정보 보호 확장 프로그램을 잠시 끄고 다시 시도해 봐.</div>
+            <div style={styles.desc}>
+              수딱 계정으로 로그인해. CAPTCHA가 보이지 않으면 광고 차단기나 개인정보 보호
+              확장 프로그램을 잠시 끄고 다시 시도해 줘.
+            </div>
           </div>
 
           <button type="button" onClick={toggleTheme} style={styles.themeBtn}>
@@ -259,36 +266,30 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
 
-          <div style={styles.captchaWrap}>
-            {siteKey ? (
+          {siteKey ? (
+            <div style={styles.captchaWrap}>
               <Turnstile
                 key={turnstileRenderKey}
                 siteKey={siteKey}
-                options={{
-                  theme: isDark ? "dark" : "light",
-                  size: "normal",
-                }}
-                onSuccess={(token) => {
-                  setCaptchaToken(token);
-                  setMessage("");
-                }}
-                onExpire={() => {
-                  setCaptchaToken("");
-                  setMessage("CAPTCHA가 만료되었어. 다시 확인해줘.");
-                }}
+                onSuccess={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken("")}
                 onError={() => {
                   setCaptchaToken("");
-                  setMessage("CAPTCHA를 불러오지 못했어. 새로고침 후 다시 시도해줘.");
+                  setMessage("CAPTCHA 인증 중 오류가 발생했어. 다시 시도해 줘.");
+                }}
+                options={{
+                  theme: isDark ? "dark" : "light",
+                  language: "ko",
                 }}
               />
-            ) : (
-              <div style={styles.warning}>
-                TURNSTILE SITE KEY가 설정되지 않았어.
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={styles.warning}>
+              TURNSTILE 사이트 키가 설정되지 않았어. 환경 변수를 먼저 확인해 줘.
+            </div>
+          )}
 
-          <button type="submit" disabled={loading} style={styles.submit}>
+          <button type="submit" disabled={loading || !siteKey} style={styles.submit}>
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
@@ -296,7 +297,7 @@ export default function LoginPage() {
         <div style={styles.message}>{message}</div>
 
         <Link href="/signup" style={styles.bottomLink}>
-          계정이 없으면 회원가입
+          아직 계정이 없다면 회원가입으로 이동
         </Link>
       </div>
     </main>

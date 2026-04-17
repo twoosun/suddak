@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSessionWithRecovery, supabase } from "@/lib/supabase";
 
 export default function AuthButtons() {
   const [email, setEmail] = useState<string | null>(null);
@@ -12,9 +12,8 @@ export default function AuthButtons() {
     let mounted = true;
 
     const loadUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const session = await getSessionWithRecovery();
+      const user = session?.user ?? null;
 
       if (!mounted) return;
       setEmail(user?.email ?? null);

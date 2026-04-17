@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getSessionWithRecovery, supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 
 type Props = {
@@ -29,9 +29,7 @@ export default function MoreMenu({
     let mounted = true;
 
     const init = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSessionWithRecovery();
 
       if (mounted) setSession(session);
     };

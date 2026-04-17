@@ -51,9 +51,16 @@ export default function SimilarProblemClient({
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportMode, setExportMode] = useState<SimilarExportMode>("problem-only");
+  const [includeOriginalProblem, setIncludeOriginalProblem] = useState(false);
+  const [sheetSchool, setSheetSchool] = useState("");
+  const [sheetGrade, setSheetGrade] = useState("");
+  const [sheetStudentName, setSheetStudentName] = useState("");
+  const [sheetExamTitle, setSheetExamTitle] = useState("");
+  const [sheetExamDate, setSheetExamDate] = useState("");
   const [message, setMessage] = useState("");
   const [sourceItem, setSourceItem] = useState<SimilarSourceItem | null>(null);
   const [result, setResult] = useState<SimilarResult | null>(null);
+  const sourceProblemExportRef = useRef<HTMLDivElement | null>(null);
   const problemExportRef = useRef<HTMLDivElement | null>(null);
   const answerExportRef = useRef<HTMLDivElement | null>(null);
   const solutionExportRef = useRef<HTMLDivElement | null>(null);
@@ -198,15 +205,30 @@ export default function SimilarProblemClient({
     }
   };
 
+  const escapeExportText = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
   const buildExportBodyHtml = () => {
     if (!result || !problemExportRef.current) return null;
 
     const filenameBase = sanitizeExportFilename(result.title || "similar-problem-beta");
+    const originalProblemHtml = sourceProblemExportRef.current?.innerHTML ?? "";
     const problemHtml = problemExportRef.current.innerHTML;
     const answerHtml = answerExportRef.current?.innerHTML ?? "";
     const solutionHtml = solutionExportRef.current?.innerHTML ?? "";
     const noteHtml = noteExportRef.current?.innerHTML ?? "";
     const includeSolution = exportMode === "problem-with-solution";
+    const documentTitle = escapeExportText(sheetExamTitle.trim() || result.title);
+    const schoolValue = escapeExportText(sheetSchool.trim());
+    const gradeValue = escapeExportText(sheetGrade.trim());
+    const studentNameValue = escapeExportText(sheetStudentName.trim());
+    const examDateValue = escapeExportText(sheetExamDate.trim());
+    const typeValue = includeSolution ? "Problem + Solution" : "Problem Sheet";
 
     const bodyHtml = `
       <main class="paper">
@@ -214,7 +236,7 @@ export default function SimilarProblemClient({
           <div class="sheet-header-top">
             <div>
               <div class="sheet-brand">Suddak Similar Problem Beta</div>
-              <h1 class="sheet-title">${result.title}</h1>
+              <h1 class="sheet-title">${documentTitle}</h1>
               <p class="sheet-subtitle">
                 ${includeSolution ? "문제와 해설을 함께 포함한 출력본" : "문제만 포함한 출력본"}
               </p>
@@ -224,24 +246,35 @@ export default function SimilarProblemClient({
           <div class="sheet-meta-grid">
             <div class="sheet-meta-cell">
               <div class="meta-label">School</div>
-              <div class="meta-value"></div>
+              <div class="meta-value ${schoolValue ? "filled" : ""}">${schoolValue}</div>
             </div>
             <div class="sheet-meta-cell">
               <div class="meta-label">Grade</div>
-              <div class="meta-value"></div>
+              <div class="meta-value ${gradeValue ? "filled" : ""}">${gradeValue}</div>
             </div>
             <div class="sheet-meta-cell">
               <div class="meta-label">Name</div>
-              <div class="meta-value"></div>
+              <div class="meta-value ${studentNameValue ? "filled" : ""}">${studentNameValue}</div>
             </div>
             <div class="sheet-meta-cell">
-              <div class="meta-label">Type</div>
-              <div class="meta-value filled">${includeSolution ? "Problem + Solution" : "Problem Sheet"}</div>
+              <div class="meta-label">${examDateValue ? "Date" : "Type"}</div>
+              <div class="meta-value filled">${examDateValue || typeValue}</div>
             </div>
           </div>
         </header>
 
         <div class="exam-frame">
+          ${
+            includeOriginalProblem && originalProblemHtml
+              ? `
+          <section class="exam-block">
+            <div class="exam-label">원본 문제</div>
+            <div class="section-body" style="margin-top: 12px;">${originalProblemHtml}</div>
+          </section>
+          `
+              : ""
+          }
+
           <section class="exam-block problem">
             <div class="exam-label">유사문제</div>
             <div class="problem-number">
@@ -534,7 +567,9 @@ export default function SimilarProblemClient({
                       {sourceItem.actionType === "solve" ? "풀이 기록" : "문제 읽기 기록"}
                     </span>
                   </div>
-                  <MarkdownMathBlock content={sourceItem.recognizedText} isDark={isDark} />
+                  <div ref={sourceProblemExportRef}>
+                    <MarkdownMathBlock content={sourceItem.recognizedText} isDark={isDark} />
+                  </div>
                 </div>
 
                 {sourceItem.solveResult && (
@@ -702,6 +737,73 @@ export default function SimilarProblemClient({
                       </button>
                     </div>
                   </div>
+
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>
+                      커스텀 헤더
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: "10px",
+                      }}
+                    >
+                      <input
+                        className="suddak-input"
+                        placeholder="학교명"
+                        value={sheetSchool}
+                        onChange={(e) => setSheetSchool(e.target.value)}
+                        disabled={exporting}
+                      />
+                      <input
+                        className="suddak-input"
+                        placeholder="학년 또는 반"
+                        value={sheetGrade}
+                        onChange={(e) => setSheetGrade(e.target.value)}
+                        disabled={exporting}
+                      />
+                      <input
+                        className="suddak-input"
+                        placeholder="이름"
+                        value={sheetStudentName}
+                        onChange={(e) => setSheetStudentName(e.target.value)}
+                        disabled={exporting}
+                      />
+                      <input
+                        className="suddak-input"
+                        placeholder="시험명 또는 자료 제목"
+                        value={sheetExamTitle}
+                        onChange={(e) => setSheetExamTitle(e.target.value)}
+                        disabled={exporting}
+                      />
+                    </div>
+                    <input
+                      className="suddak-input"
+                      placeholder="날짜 또는 회차"
+                      value={sheetExamDate}
+                      onChange={(e) => setSheetExamDate(e.target.value)}
+                      disabled={exporting}
+                    />
+                  </div>
+
+                  <label
+                    className="suddak-card-soft"
+                    style={{
+                      padding: "12px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeOriginalProblem}
+                      onChange={(e) => setIncludeOriginalProblem(e.target.checked)}
+                      disabled={exporting || !sourceItem?.recognizedText}
+                    />
+                    <span style={{ fontWeight: 800 }}>원본문제도 함께 포함</span>
+                  </label>
 
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                     <button

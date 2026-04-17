@@ -7,7 +7,7 @@ import type { Session } from "@supabase/supabase-js";
 import NotificationBell from "@/components/NotificationBell";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
-import { supabase } from "@/lib/supabase";
+import { getSessionWithRecovery, supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 import {
   DEFAULT_OCR_PREPROCESS_OPTIONS,
@@ -307,9 +307,7 @@ export default function HomePage() {
     let isAlive = true;
 
     const initSession = async () => {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      const currentSession = await getSessionWithRecovery();
 
       if (isAlive) {
         setSession(currentSession);
@@ -341,9 +339,7 @@ export default function HomePage() {
 
   /* # 5. 사용량 불러오기 */
   const loadUsage = async () => {
-    const {
-      data: { session: currentSession },
-    } = await supabase.auth.getSession();
+    const currentSession = await getSessionWithRecovery();
 
     if (!currentSession?.access_token) {
       setUsageText("비로그인 상태 · 로그인 후 기록 및 풀이 저장 가능");
@@ -495,9 +491,7 @@ export default function HomePage() {
     setSelectedFeedback(null);
 
     try {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      const currentSession = await getSessionWithRecovery();
 
       if (!currentSession?.access_token) {
         setNoticeText("로그인 후 문제 인식 기능을 사용할 수 있어.");
@@ -549,9 +543,7 @@ export default function HomePage() {
     setSelectedFeedback(null);
 
     try {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      const currentSession = await getSessionWithRecovery();
 
       if (!currentSession?.access_token) {
         setNoticeText("로그인 후 풀이 기능을 사용할 수 있어.");
@@ -604,9 +596,7 @@ export default function HomePage() {
     try {
       setFeedbackLoading(true);
 
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      const currentSession = await getSessionWithRecovery();
 
       if (!currentSession?.access_token) {
         setNoticeText("로그인 후 피드백을 남길 수 있어.");
