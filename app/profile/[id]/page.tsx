@@ -643,7 +643,10 @@ export default function ProfilePage() {
                               인식된 문제
                             </div>
                             <div className="suddak-card" style={{ padding: "12px 14px" }}>
-                              <MarkdownMathBlock content={clampText(post.recognized_text, 260)} />
+                              <MarkdownMathBlock
+  content={clampText(post.recognized_text, 260)}
+  isDark={isDark}
+/>
                             </div>
                           </div>
                         )}
@@ -661,7 +664,10 @@ export default function ProfilePage() {
                               풀이 일부
                             </div>
                             <div className="suddak-card" style={{ padding: "12px 14px" }}>
-                              <MarkdownMathBlock content={clampText(post.solve_result, 260)} />
+                              <MarkdownMathBlock
+  content={clampText(post.solve_result, 260)}
+  isDark={isDark}
+/>
                             </div>
                           </div>
                         )}
