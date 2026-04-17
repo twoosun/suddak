@@ -176,65 +176,56 @@ export async function PATCH(
 
     const postId = resolvedParams.id?.trim();
 
-    const authResult = await getUserFromRequest(req);
-    if (!authResult.user) {
+    if (!postId) {
       return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
+        { error: "게시글 ID가 올바르지 않습니다." },
+        { status: 400 }
       );
     }
 
-    const user = authResult.user;
-    const isAdmin = await getIsAdmin(supabase, user.id);
-    const body = await req.json();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "").trim();
 
-    const { data: existingPost, error: existingError } = await supabase
+    if (!token) {
+      return NextResponse.json(
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
+      );
+    }
+
+    const userClient = createUserClient(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "사용자 인증에 실패했습니다." },
+        { status: 401 }
+      );
+    }
+
+    const { data: existingPost, error: existingPostError } = await supabase
       .from("community_posts")
-      .select("*")
+      .select("id, user_id")
       .eq("id", postId)
-      .single();
+      .maybeSingle();
 
-    if (existingError || !existingPost) {
+    if (existingPostError) {
+      console.error("[PATCH /api/community/[id]] existing post error:", existingPostError);
+      return NextResponse.json(
+        { error: "게시글 조회에 실패했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (!existingPost) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },
         { status: 404 }
       );
     }
-
-    const onlyNoticeToggle =
-      Object.keys(body).length > 0 &&
-      Object.keys(body).every((key) => ["is_notice"].includes(key));
-
-    if (onlyNoticeToggle) {
-      if (!isAdmin) {
-        return NextResponse.json(
-          { error: "관리자만 공지사항을 지정할 수 있습니다." },
-          { status: 403 }
-        );
-      }
-
-      const { data, error } = await supabase
-        .from("community_posts")
-        .update({ is_notice: Boolean(body.is_notice) })
-        .eq("id", postId)
-        .select("*")
-        .single();
-
-      if (error || !data) {
-        return NextResponse.json(
-          { error: "공지 상태 변경에 실패했습니다." },
-          { status: 500 }
-        );
-      }
-
-     return NextResponse.json({
-  post: {
-    ...data,
-    author_name:
-      profileRow?.profile_name || profileRow?.full_name || "익명",
-    author_avatar_url: profileRow?.avatar_url || null,
-  },
-});
 
     if (existingPost.user_id !== user.id) {
       return NextResponse.json(
@@ -243,128 +234,27 @@ export async function PATCH(
       );
     }
 
-    const updateData: Record<string, unknown> = {};
+    const body = await req.json();
 
-    if (body.post_type !== undefined) {
-      if (body.post_type !== "free" && body.post_type !== "problem") {
-        return NextResponse.json(
-          { error: "post_type은 free 또는 problem 이어야 합니다." },
-          { status: 400 }
-        );
-      }
-      updateData.post_type = body.post_type as PostType;
+    const title =
+      typeof body.title === "string" ? body.title.trim() : "";
+    const content =
+      typeof body.content === "string" ? body.content.trim() : "";
+    const isPublic =
+      typeof body.is_public === "boolean" ? body.is_public : true;
+
+    if (!title) {
+      return NextResponse.json(
+        { error: "제목을 입력해 주세요." },
+        { status: 400 }
+      );
     }
 
-    if (body.title !== undefined) {
-      const title = String(body.title ?? "").trim();
-      if (!title) {
-        return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
-      }
-      if (title.length > 200) {
-        return NextResponse.json(
-          { error: "제목은 200자 이하여야 합니다." },
-          { status: 400 }
-        );
-      }
-      updateData.title = title;
-    }
-
-    if (body.content !== undefined) {
-      const content = String(body.content ?? "").trim();
-      if (!content) {
-        return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
-      }
-      if (content.length > 10000) {
-        return NextResponse.json(
-          { error: "내용은 10000자 이하여야 합니다." },
-          { status: 400 }
-        );
-      }
-      updateData.content = content;
-    }
-
-    if (body.recognized_text !== undefined) {
-      updateData.recognized_text = body.recognized_text?.trim() || null;
-    }
-
-    if (body.solve_result !== undefined) {
-      updateData.solve_result = body.solve_result?.trim() || null;
-    }
-
-    if (body.image_url !== undefined) {
-      updateData.image_url = body.image_url?.trim() || null;
-    }
-
-    if (body.is_public !== undefined) {
-      updateData.is_public = Boolean(body.is_public);
-    }
-
-    if (body.history_id !== undefined) {
-      const rawHistoryId = body.history_id;
-      if (rawHistoryId === null || rawHistoryId === "") {
-        updateData.history_id = null;
-      } else {
-        const historyId = Number(rawHistoryId);
-        if (Number.isNaN(historyId)) {
-          return NextResponse.json(
-            { error: "history_id 형식이 올바르지 않습니다." },
-            { status: 400 }
-          );
-        }
-
-        const { data: historyRow, error: historyError } = await supabase
-          .from("problem_history")
-          .select("id, user_id")
-          .eq("id", historyId)
-          .single();
-
-        if (historyError || !historyRow) {
-          return NextResponse.json(
-            { error: "연결하려는 히스토리 기록을 찾을 수 없습니다." },
-            { status: 404 }
-          );
-        }
-
-        if (historyRow.user_id !== user.id) {
-          return NextResponse.json(
-            { error: "본인 히스토리만 연결할 수 있습니다." },
-            { status: 403 }
-          );
-        }
-
-        updateData.history_id = historyId;
-      }
-    }
-
-    const nextPostType = (updateData.post_type ?? existingPost.post_type) as PostType;
-    const nextRecognizedText =
-      updateData.recognized_text !== undefined
-        ? updateData.recognized_text
-        : existingPost.recognized_text;
-    const nextSolveResult =
-      updateData.solve_result !== undefined
-        ? updateData.solve_result
-        : existingPost.solve_result;
-    const nextImageUrl =
-      updateData.image_url !== undefined
-        ? updateData.image_url
-        : existingPost.image_url;
-    const nextHistoryId =
-      updateData.history_id !== undefined
-        ? updateData.history_id
-        : existingPost.history_id;
-
-    if (nextPostType === "problem") {
-      if (!nextRecognizedText && !nextSolveResult && !nextImageUrl && !nextHistoryId) {
-        return NextResponse.json(
-          {
-            error:
-              "문제 게시글은 recognized_text, solve_result, image_url, history_id 중 하나 이상이 필요합니다.",
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const updateData: Record<string, unknown> = {
+      title,
+      content,
+      is_public: isPublic,
+    };
 
     const { data, error } = await supabase
       .from("community_posts")
@@ -373,7 +263,7 @@ export async function PATCH(
       .select("*")
       .single();
 
-       if (error || !data) {
+    if (error || !data) {
       console.error("[PATCH /api/community/[id]] update error:", error);
       return NextResponse.json(
         { error: "게시글 수정에 실패했습니다." },
@@ -381,9 +271,20 @@ export async function PATCH(
       );
     }
 
+    const { data: profileRow } = await supabase
+      .from("user_profiles")
+      .select("full_name, profile_name, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
+
     return NextResponse.json({
       message: "게시글이 수정되었습니다.",
-      post: data,
+      post: {
+        ...data,
+        author_name:
+          profileRow?.profile_name || profileRow?.full_name || "익명",
+        author_avatar_url: profileRow?.avatar_url || null,
+      },
     });
   } catch (error) {
     console.error("[PATCH /api/community/[id]] unexpected error:", error);
@@ -393,7 +294,6 @@ export async function PATCH(
     );
   }
 }
-
 
 export async function DELETE(
   req: NextRequest,
