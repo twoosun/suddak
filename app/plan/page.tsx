@@ -137,10 +137,9 @@ export default function PlanPage() {
         <section className="suddak-card plan-hero">
           <div className="plan-hero-copy">
             <span className="plan-eyebrow">{heroEyebrow}</span>
-            <h1 className="plan-title">데스크탑과 모바일 모두 편한 플랜 화면</h1>
+            <h1 className="plan-title">수딱 PlanCheck</h1>
             <p className="plan-description">
-              현재 내 계정 상태를 빠르게 확인하고, 관리자 플랜의 혜택과 이용 안내를
-              한 화면에서 자연스럽게 볼 수 있도록 정리했습니다.
+              현재 내 계정 상태를 빠르게 확인해보세요.
             </p>
 
             <div
@@ -170,7 +169,7 @@ export default function PlanPage() {
           <aside className="plan-highlight-card">
             <div className="plan-highlight-label">빠른 안내</div>
             <div className="plan-highlight-value">
-              {isAdmin ? "관리자 기능 사용 가능" : "일반 플랜 사용 중"}
+              {isAdmin ? "관리자 Only" : "일반 플랜 사용 중"}
             </div>
             <p className="plan-highlight-text">
               {isAdmin
@@ -216,7 +215,7 @@ export default function PlanPage() {
 
           <SectionCard
             title="이용 안내"
-            description="신청 가능 여부와 문의 흐름을 따로 분리해 모바일에서도 정보가 겹치지 않게 했습니다."
+            description="아래 내용 참고해주세요."
           >
             <ol className="plan-flow-list">
               {planFlow.map((item) => (

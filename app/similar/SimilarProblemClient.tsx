@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  buildSimilarExportDocument,
+  sanitizeExportFilename,
+  type SimilarExportMode,
+} from "@/lib/similar-export";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 
 import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
@@ -44,9 +49,15 @@ export default function SimilarProblemClient({
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportMode, setExportMode] = useState<SimilarExportMode>("problem-only");
   const [message, setMessage] = useState("");
   const [sourceItem, setSourceItem] = useState<SimilarSourceItem | null>(null);
   const [result, setResult] = useState<SimilarResult | null>(null);
+  const problemExportRef = useRef<HTMLDivElement | null>(null);
+  const answerExportRef = useRef<HTMLDivElement | null>(null);
+  const solutionExportRef = useRef<HTMLDivElement | null>(null);
+  const noteExportRef = useRef<HTMLDivElement | null>(null);
 
   const sourceLabel = useMemo(() => {
     if (source === "history") return "풀이 기록에서 가져온 베타 진입";
@@ -184,6 +195,166 @@ export default function SimilarProblemClient({
       setMessage("유사문제 생성 중 오류가 발생했어.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const buildExportBodyHtml = () => {
+    if (!result || !problemExportRef.current) return null;
+
+    const filenameBase = sanitizeExportFilename(result.title || "similar-problem-beta");
+    const problemHtml = problemExportRef.current.innerHTML;
+    const answerHtml = answerExportRef.current?.innerHTML ?? "";
+    const solutionHtml = solutionExportRef.current?.innerHTML ?? "";
+    const noteHtml = noteExportRef.current?.innerHTML ?? "";
+    const includeSolution = exportMode === "problem-with-solution";
+
+    const bodyHtml = `
+      <main class="paper">
+        <header class="sheet-header">
+          <div class="sheet-header-top">
+            <div>
+              <div class="sheet-brand">Suddak Similar Problem Beta</div>
+              <h1 class="sheet-title">${result.title}</h1>
+              <p class="sheet-subtitle">
+                ${includeSolution ? "문제와 해설을 함께 포함한 출력본" : "문제만 포함한 출력본"}
+              </p>
+            </div>
+            <div class="sheet-badge">${includeSolution ? "문제 + 해설" : "문제만"}</div>
+          </div>
+          <div class="sheet-meta-grid">
+            <div class="sheet-meta-cell">
+              <div class="meta-label">School</div>
+              <div class="meta-value"></div>
+            </div>
+            <div class="sheet-meta-cell">
+              <div class="meta-label">Grade</div>
+              <div class="meta-value"></div>
+            </div>
+            <div class="sheet-meta-cell">
+              <div class="meta-label">Name</div>
+              <div class="meta-value"></div>
+            </div>
+            <div class="sheet-meta-cell">
+              <div class="meta-label">Type</div>
+              <div class="meta-value filled">${includeSolution ? "Problem + Solution" : "Problem Sheet"}</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="exam-frame">
+          <section class="exam-block problem">
+            <div class="exam-label">유사문제</div>
+            <div class="problem-number">
+              <div class="problem-number-main">
+                <span class="problem-index">1</span>
+                <span>다음을 해결하시오.</span>
+              </div>
+              <div class="problem-score">배점 4점</div>
+            </div>
+            <div class="problem-body">${problemHtml}</div>
+            ${
+              includeSolution
+                ? ""
+                : `
+            <div class="answer-lines">
+              <div class="answer-line"></div>
+              <div class="answer-line"></div>
+              <div class="answer-line"></div>
+              <div class="answer-line"></div>
+            </div>
+            `
+            }
+          </section>
+
+          ${
+            includeSolution
+              ? `
+          <section class="exam-block">
+            <h2 class="section-title">정답</h2>
+            <div class="section-body">${answerHtml}</div>
+          </section>
+
+          <section class="exam-block">
+            <h2 class="section-title">해설</h2>
+            <div class="section-body">${solutionHtml}</div>
+          </section>
+
+          <section class="exam-block">
+            <h2 class="section-title">변형 포인트</h2>
+            <div class="section-body">${noteHtml}</div>
+          </section>
+          `
+              : ""
+          }
+
+          <div class="beta-note">
+            ${result.warning}
+          </div>
+        </div>
+      </main>
+    `;
+
+    return {
+      filenameBase,
+      html: buildSimilarExportDocument({
+        title: result.title,
+        bodyHtml,
+      }),
+    };
+  };
+
+  const handleExportPdf = () => {
+    const exportDoc = buildExportBodyHtml();
+
+    if (!exportDoc) {
+      setMessage("먼저 유사문제를 생성한 뒤 출력해 줘.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=960,height=1200");
+
+    if (!printWindow) {
+      setMessage("브라우저가 새 창을 막고 있어. 팝업 허용 후 다시 시도해 줘.");
+      return;
+    }
+
+    setExporting(true);
+    printWindow.document.open();
+    printWindow.document.write(exportDoc.html);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+      setExporting(false);
+    };
+  };
+
+  const handleExportHwpCompatible = () => {
+    const exportDoc = buildExportBodyHtml();
+
+    if (!exportDoc) {
+      setMessage("먼저 유사문제를 생성한 뒤 문서로 내보내 줘.");
+      return;
+    }
+
+    setExporting(true);
+
+    try {
+      const blob = new Blob(["\ufeff", exportDoc.html], {
+        type: "application/msword;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${exportDoc.filenameBase}-${exportMode === "problem-only" ? "problem" : "full"}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setMessage("HWP 호환 문서(.doc)로 내보냈어. 한글에서 열어 편집하거나 다시 저장할 수 있어.");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -423,7 +594,9 @@ export default function SimilarProblemClient({
                   >
                     유사문제
                   </div>
-                  <MarkdownMathBlock content={result.problem} isDark={isDark} />
+                  <div ref={problemExportRef}>
+                    <MarkdownMathBlock content={result.problem} isDark={isDark} />
+                  </div>
                 </div>
 
                 <div className="suddak-card-soft" style={{ padding: "16px" }}>
@@ -449,7 +622,9 @@ export default function SimilarProblemClient({
                       >
                         정답
                       </div>
-                      <MarkdownMathBlock content={result.answer || "아직 없음"} isDark={isDark} />
+                      <div ref={answerExportRef}>
+                        <MarkdownMathBlock content={result.answer || "아직 없음"} isDark={isDark} />
+                      </div>
                     </div>
                     <div>
                       <div
@@ -462,7 +637,9 @@ export default function SimilarProblemClient({
                       >
                         풀이
                       </div>
-                      <MarkdownMathBlock content={result.solution || "아직 없음"} isDark={isDark} />
+                      <div ref={solutionExportRef}>
+                        <MarkdownMathBlock content={result.solution || "아직 없음"} isDark={isDark} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -478,7 +655,9 @@ export default function SimilarProblemClient({
                   >
                     변형 포인트
                   </div>
-                  <div style={{ lineHeight: 1.8 }}>{result.variationNote || "아직 없음"}</div>
+                  <div ref={noteExportRef} style={{ lineHeight: 1.8 }}>
+                    {result.variationNote || "아직 없음"}
+                  </div>
                 </div>
 
                 <div
@@ -491,6 +670,61 @@ export default function SimilarProblemClient({
                   }}
                 >
                   {result.warning}
+                </div>
+
+                <div className="suddak-card-soft" style={{ padding: "16px", display: "grid", gap: "14px" }}>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>
+                      출력 옵션
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className={`suddak-btn ${
+                          exportMode === "problem-only" ? "suddak-btn-primary" : "suddak-btn-ghost"
+                        }`}
+                        onClick={() => setExportMode("problem-only")}
+                        disabled={exporting}
+                      >
+                        문제만
+                      </button>
+                      <button
+                        type="button"
+                        className={`suddak-btn ${
+                          exportMode === "problem-with-solution"
+                            ? "suddak-btn-primary"
+                            : "suddak-btn-ghost"
+                        }`}
+                        onClick={() => setExportMode("problem-with-solution")}
+                        disabled={exporting}
+                      >
+                        문제 + 해설
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="suddak-btn suddak-btn-primary"
+                      onClick={handleExportPdf}
+                      disabled={exporting}
+                    >
+                      PDF로 출력
+                    </button>
+                    <button
+                      type="button"
+                      className="suddak-btn suddak-btn-ghost"
+                      onClick={handleExportHwpCompatible}
+                      disabled={exporting}
+                    >
+                      HWP 호환 문서
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: 1.7 }}>
+                    PDF는 인쇄 창을 통해 저장되고, HWP 호환 문서는 `.doc` 형식으로 내려받아 한글에서 열어 편집할 수 있어.
+                  </div>
                 </div>
               </div>
             ) : (
