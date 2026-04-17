@@ -213,6 +213,21 @@ function GraphPreview({
   );
 }
 
+function extractAnswerSection(markdown: string) {
+  if (!markdown) return { answer: "", body: "" };
+
+  const normalized = markdown.replace(/\r\n/g, "\n");
+  const answerMatch = normalized.match(/## 정답\s*\n([\s\S]*?)(?=\n## |\n# |$)/);
+
+  const answer = answerMatch?.[1]?.trim() ?? "";
+
+  const body = normalized
+    .replace(/## 정답\s*\n[\s\S]*?(?=\n## |\n# |$)/, "")
+    .trim();
+
+  return { answer, body };
+}
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -531,6 +546,10 @@ export default function HomePage() {
     });
   }, [recognizedText, solveResult]);
 
+  const parsedSolveResult = solveResult
+    ? extractAnswerSection(solveResult)
+    : { answer: "", body: "" };
+
   const heroTitleStyle: React.CSSProperties = {
     fontSize: "clamp(2.1rem, 5vw, 4.2rem)",
     fontWeight: 950,
@@ -750,55 +769,55 @@ export default function HomePage() {
                 disabled={reading || solving}
               />
 
-             <div
-  style={{
-    display: "flex",
-    justifyContent: "flex-end",
-  }}
->
-  <div style={{ position: "relative" }}>
-    <button
-      type="button"
-      onClick={() => setShowAdvancedAdjust((v) => !v)}
-      aria-label="이미지 세부 조정"
-      title="이미지 세부 조정"
-      style={{
-        width: "36px",
-        height: "36px",
-        borderRadius: "999px",
-        border: "1px solid var(--border)",
-        background: "var(--card)",
-        color: "var(--muted)",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        boxShadow: "var(--shadow-soft)",
-      }}
-    >
-      <Settings size={16} />
-    </button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedAdjust((v) => !v)}
+                    aria-label="이미지 세부 조정"
+                    title="이미지 세부 조정"
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "999px",
+                      border: "1px solid var(--border)",
+                      background: "var(--card)",
+                      color: "var(--muted)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      boxShadow: "var(--shadow-soft)",
+                    }}
+                  >
+                    <Settings size={16} />
+                  </button>
 
-    {showAdvancedAdjust && (
-      <div
-        className="suddak-card"
-        style={{
-          position: "absolute",
-          top: "44px",
-          right: 0,
-          zIndex: 10,
-          width: "min(320px, calc(100vw - 40px))",
-          padding: "12px",
-        }}
-      >
-        <OcrPreprocessPanel
-          value={imageAdjustOptions}
-          onChange={setImageAdjustOptions}
-        />
-      </div>
-    )}
-  </div>
-</div>
+                  {showAdvancedAdjust && (
+                    <div
+                      className="suddak-card"
+                      style={{
+                        position: "absolute",
+                        top: "44px",
+                        right: 0,
+                        zIndex: 10,
+                        width: "min(320px, calc(100vw - 40px))",
+                        padding: "12px",
+                      }}
+                    >
+                      <OcrPreprocessPanel
+                        value={imageAdjustOptions}
+                        onChange={setImageAdjustOptions}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div
                 style={{
@@ -981,8 +1000,47 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <div className="suddak-card-soft" style={{ padding: "16px" }}>
-                  <MarkdownMathBlock content={solveResult} isDark={isDark} />
+                <div style={{ display: "grid", gap: "12px" }}>
+                  {parsedSolveResult.answer && (
+                    <div
+                      className="suddak-card-soft"
+                      style={{
+                        padding: "16px",
+                        border: "1px solid var(--primary)",
+                        background: "color-mix(in srgb, var(--primary) 12%, var(--card))",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          color: "var(--muted)",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        답
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "28px",
+                          fontWeight: 900,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <MarkdownMathBlock
+                          content={parsedSolveResult.answer}
+                          isDark={isDark}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="suddak-card-soft" style={{ padding: "16px" }}>
+                    <MarkdownMathBlock
+                      content={parsedSolveResult.body || solveResult}
+                      isDark={isDark}
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
