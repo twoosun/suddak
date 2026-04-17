@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
@@ -23,9 +23,34 @@ type CommunityPost = {
   created_at: string;
   user_id: string;
   author_name?: string | null;
+  author_avatar_url?: string | null;
 };
 
-/* # 1. 날짜 포맷 */
+type PublicProfile = {
+  id: string;
+  full_name: string;
+  grade: string;
+  profile_name: string;
+  avatar_url: string | null;
+  bio: string;
+  guestbook_open: boolean;
+  stats: {
+    total: number;
+    free: number;
+    problem: number;
+  };
+};
+
+type GuestbookEntry = {
+  id: string;
+  profile_user_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author_name: string;
+  author_avatar_url: string | null;
+};
+
 function formatDate(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
@@ -38,7 +63,6 @@ function formatDate(value: string) {
   }).format(d);
 }
 
-/* # 2. 텍스트 줄이기 */
 function clampText(text: string, max = 180) {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (normalized.length <= max) return normalized;
@@ -49,27 +73,33 @@ export default function ProfilePage() {
   const params = useParams();
   const profileId = String(params?.id || "");
 
-  /* # 3. 상태값 */
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [message, setMessage] = useState("불러오는 중...");
-  const [loading, setLoading] = useState(true);
+  const [guestbooks, setGuestbooks] = useState<GuestbookEntry[]>([]);
 
-  /* # 4. 초기 마운트 */
+  const [loading, setLoading] = useState(true);
+  const [guestbookLoading, setGuestbookLoading] = useState(true);
+  const [message, setMessage] = useState("불러오는 중...");
+  const [guestbookMessage, setGuestbookMessage] = useState("");
+  const [guestbookInput, setGuestbookInput] = useState("");
+  const [submittingGuestbook, setSubmittingGuestbook] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+
   useEffect(() => {
     initTheme();
     setIsDark(getStoredTheme() === "dark");
     setMounted(true);
   }, []);
 
-  /* # 5. 작성글 로딩 */
   useEffect(() => {
     if (!mounted || !profileId) return;
 
-    const loadProfilePosts = async () => {
+    const init = async () => {
       setLoading(true);
+      setGuestbookLoading(true);
       setMessage("불러오는 중...");
 
       try {
@@ -77,65 +107,111 @@ export default function ProfilePage() {
           data: { session },
         } = await supabase.auth.getSession();
 
+        setMyUserId(session?.user?.id ?? null);
+
         const headers: HeadersInit = {};
         if (session?.access_token) {
           headers.Authorization = `Bearer ${session.access_token}`;
         }
 
-        const res = await fetch("/api/community", {
-          headers,
-        });
+        const [profileRes, guestbookRes] = await Promise.all([
+          fetch(`/api/profile/${profileId}`, {
+            headers,
+            cache: "no-store",
+          }),
+          fetch(`/api/profile/${profileId}/guestbook`, {
+            headers,
+            cache: "no-store",
+          }),
+        ]);
 
-        const data = await res.json();
+        const profileData = await profileRes.json();
+        const guestbookData = await guestbookRes.json();
 
-        if (!res.ok) {
+        if (!profileRes.ok) {
+          setProfile(null);
           setPosts([]);
-          setMessage(data?.error || "프로필 정보를 불러오지 못했습니다.");
-          return;
+          setMessage(profileData?.error || "프로필 정보를 불러오지 못했어.");
+        } else {
+          setProfile(profileData.profile);
+          setPosts(Array.isArray(profileData.posts) ? profileData.posts : []);
+          setMessage("");
         }
 
-       const items: CommunityPost[] = Array.isArray(data.posts) ? data.posts : [];
-const ownedPosts = items
-  .filter((item: CommunityPost) => String(item.user_id) === profileId)
-  .sort(
-    (a: CommunityPost, b: CommunityPost) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
-        setPosts(ownedPosts);
-        setMessage(ownedPosts.length ? "" : "아직 작성한 게시글이 없습니다.");
+        if (!guestbookRes.ok) {
+          setGuestbooks([]);
+          setGuestbookMessage(guestbookData?.error || "방명록을 불러오지 못했어.");
+        } else {
+          setGuestbooks(Array.isArray(guestbookData.entries) ? guestbookData.entries : []);
+          setGuestbookMessage(
+            guestbookData?.guestbook_open === false
+              ? "이 사용자는 방명록을 닫아두었어."
+              : ""
+          );
+        }
       } catch {
-        setPosts([]);
-        setMessage("프로필 정보를 불러오지 못했습니다.");
+        setMessage("프로필 정보를 불러오지 못했어.");
+        setGuestbookMessage("방명록을 불러오지 못했어.");
       } finally {
         setLoading(false);
+        setGuestbookLoading(false);
       }
     };
 
-    loadProfilePosts();
+    init();
   }, [mounted, profileId]);
 
-  /* # 6. 프로필 요약 */
-  const profileSummary = useMemo(() => {
-    const firstPost = posts[0];
+  const handleGuestbookSubmit = async () => {
+    if (!guestbookInput.trim()) {
+      setGuestbookMessage("방명록 내용을 입력해줘.");
+      return;
+    }
 
-    return {
-      displayName: firstPost?.author_name || "작성자",
-      total: posts.length,
-      free: posts.filter((post) => post.post_type === "free").length,
-      problem: posts.filter((post) => post.post_type === "problem").length,
-      intro:
-        posts.length > 0
-          ? "수딱 커뮤니티에서 활동 중인 사용자야. 작성한 게시글들을 아래에서 확인할 수 있어."
-          : "아직 공개된 활동 기록이 많지 않아.",
-    };
-  }, [posts]);
+    try {
+      setSubmittingGuestbook(true);
+      setGuestbookMessage("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setGuestbookMessage("로그인 후 방명록을 남길 수 있어.");
+        return;
+      }
+
+      const res = await fetch(`/api/profile/${profileId}/guestbook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          content: guestbookInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGuestbookMessage(data?.error || "방명록 작성에 실패했어.");
+        return;
+      }
+
+      setGuestbookInput("");
+      setGuestbooks((prev) => [data.entry, ...prev]);
+      setGuestbookMessage("방명록 작성 완료.");
+    } catch {
+      setGuestbookMessage("방명록 작성 중 오류가 발생했어.");
+    } finally {
+      setSubmittingGuestbook(false);
+    }
+  };
 
   if (!mounted) return null;
 
   return (
     <PageContainer topPadding={18} bottomPadding={48}>
-      {/* # 7. 상단 헤더 */}
       <header
         className="suddak-card"
         style={{
@@ -208,7 +284,7 @@ const ownedPosts = items
                   marginTop: "4px",
                 }}
               >
-                Community Profile · 작성글 모아보기
+                Community Profile · 공개 프로필
               </div>
             </div>
           </Link>
@@ -226,11 +302,11 @@ const ownedPosts = items
             <Link href="/" className="suddak-btn suddak-btn-ghost">
               홈
             </Link>
-            <Link href="/history" className="suddak-btn suddak-btn-ghost">
-              기록
-            </Link>
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
+            </Link>
+            <Link href="/profile" className="suddak-btn suddak-btn-ghost">
+              내 프로필
             </Link>
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
@@ -245,206 +321,359 @@ const ownedPosts = items
         </div>
       </header>
 
-      {/* # 8. 프로필 요약 카드 */}
-      <SectionCard
-        title={profileSummary.displayName}
-        description={profileSummary.intro}
-        style={{ marginBottom: "18px" }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: "12px",
-          }}
-        >
-          <div className="suddak-card-soft" style={{ padding: "14px" }}>
-            <div style={{ fontSize: "12px", color: "var(--muted)" }}>전체 게시글</div>
-            <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
-              {profileSummary.total}
-            </div>
-          </div>
-
-          <div className="suddak-card-soft" style={{ padding: "14px" }}>
-            <div style={{ fontSize: "12px", color: "var(--muted)" }}>문제글</div>
-            <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
-              {profileSummary.problem}
-            </div>
-          </div>
-
-          <div className="suddak-card-soft" style={{ padding: "14px" }}>
-            <div style={{ fontSize: "12px", color: "var(--muted)" }}>자유글</div>
-            <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
-              {profileSummary.free}
-            </div>
-          </div>
+      {loading ? (
+        <div className="suddak-card" style={{ padding: "18px" }}>
+          불러오는 중...
         </div>
-      </SectionCard>
-
-      {/* # 9. 작성글 목록 */}
-      <SectionCard
-        title="작성글"
-        description="이 사용자가 작성한 최근 게시글 목록이야."
-      >
-        {loading ? (
-          <div
-            className="suddak-card-soft"
-            style={{
-              padding: "18px",
-              color: "var(--muted)",
-            }}
+      ) : !profile ? (
+        <div className="suddak-card" style={{ padding: "18px" }}>
+          {message || "프로필을 불러오지 못했어."}
+        </div>
+      ) : (
+        <>
+          <SectionCard
+            title={profile.profile_name}
+            description={profile.bio || "아직 소개글이 없어."}
+            style={{ marginBottom: "18px" }}
           >
-            불러오는 중...
-          </div>
-        ) : posts.length === 0 ? (
-          <div
-            className="suddak-card-soft"
-            style={{
-              padding: "18px",
-              color: "var(--muted)",
-              lineHeight: 1.8,
-            }}
-          >
-            {message || "아직 작성한 게시글이 없습니다."}
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
-            {posts.map((post) => (
-              <article
-                key={post.id}
-                className="suddak-card-soft"
-                style={{
-                  padding: "16px",
-                  display: "grid",
-                  gap: "14px",
-                }}
-              >
-                {/* # 9-1. 상단 */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 160px) 1fr",
+                gap: "18px",
+                alignItems: "center",
+              }}
+            >
+              <div>
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    flexWrap: "wrap",
+                    width: "120px",
+                    height: "120px",
+                    borderRadius: "24px",
+                    overflow: "hidden",
+                    border: "1px solid var(--border)",
+                    background: "var(--card-soft)",
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
+                  {profile.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.profile_name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: "34px",
+                        fontWeight: 900,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      {profile.profile_name?.[0] || "수"}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                  gap: "12px",
+                }}
+              >
+                <div className="suddak-card-soft" style={{ padding: "14px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>전체 게시글</div>
+                  <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+                    {profile.stats.total}
+                  </div>
+                </div>
+
+                <div className="suddak-card-soft" style={{ padding: "14px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>문제글</div>
+                  <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+                    {profile.stats.problem}
+                  </div>
+                </div>
+
+                <div className="suddak-card-soft" style={{ padding: "14px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>자유글</div>
+                  <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+                    {profile.stats.free}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="방명록"
+            description="간단한 응원이나 한마디를 남길 수 있어."
+            style={{ marginBottom: "18px" }}
+          >
+            {profile.guestbook_open ? (
+              <>
+                {myUserId && myUserId !== profile.id && (
+                  <div style={{ display: "grid", gap: "10px", marginBottom: "18px" }}>
+                    <textarea
+                      value={guestbookInput}
+                      onChange={(e) => setGuestbookInput(e.target.value)}
+                      maxLength={300}
+                      placeholder="방명록을 남겨봐."
+                      className="suddak-input"
+                      style={{ width: "100%", minHeight: "100px", resize: "vertical" }}
+                    />
                     <div
                       style={{
                         display: "flex",
-                        gap: "8px",
-                        flexWrap: "wrap",
+                        justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: "8px",
+                        gap: "12px",
+                        flexWrap: "wrap",
                       }}
                     >
-                      <span className="suddak-badge">
-                        {post.post_type === "problem" ? "문제글" : "자유글"}
-                      </span>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        {guestbookInput.length}/300
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGuestbookSubmit}
+                        disabled={submittingGuestbook}
+                        className="suddak-btn suddak-btn-primary"
+                      >
+                        {submittingGuestbook ? "작성 중..." : "방명록 남기기"}
+                      </button>
                     </div>
+                  </div>
+                )}
 
-                    <Link
-                      href={`/community/${post.id}`}
-                      style={{
-                        fontSize: "20px",
-                        fontWeight: 950,
-                        letterSpacing: "-0.03em",
-                        lineHeight: 1.35,
-                        display: "block",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {post.title}
-                    </Link>
+                {guestbookMessage && (
+                  <div
+                    className="suddak-card-soft"
+                    style={{ padding: "14px", marginBottom: "14px" }}
+                  >
+                    {guestbookMessage}
+                  </div>
+                )}
 
+                {guestbookLoading ? (
+                  <div className="suddak-card-soft" style={{ padding: "18px" }}>
+                    방명록 불러오는 중...
+                  </div>
+                ) : guestbooks.length === 0 ? (
+                  <div className="suddak-card-soft" style={{ padding: "18px" }}>
+                    아직 방명록이 없어.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {guestbooks.map((entry) => (
+                      <div key={entry.id} className="suddak-card-soft" style={{ padding: "14px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            marginBottom: "10px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              borderRadius: "999px",
+                              overflow: "hidden",
+                              border: "1px solid var(--border)",
+                              background: "var(--card)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {entry.author_avatar_url ? (
+                              <img
+                                src={entry.author_avatar_url}
+                                alt={entry.author_name}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  fontSize: "14px",
+                                  fontWeight: 900,
+                                  color: "var(--muted)",
+                                }}
+                              >
+                                {entry.author_name?.[0] || "수"}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 800 }}>{entry.author_name}</div>
+                            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                              {formatDate(entry.created_at)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
+                          {entry.content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="suddak-card-soft" style={{ padding: "18px" }}>
+                이 사용자는 방명록을 닫아두었어.
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="작성글" description="이 사용자가 작성한 최근 게시글이야.">
+            {posts.length === 0 ? (
+              <div className="suddak-card-soft" style={{ padding: "18px" }}>
+                아직 작성한 게시글이 없어.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "16px" }}>
+                {posts.map((post) => (
+                  <article
+                    key={post.id}
+                    className="suddak-card-soft"
+                    style={{
+                      padding: "16px",
+                      display: "grid",
+                      gap: "14px",
+                    }}
+                  >
                     <div
                       style={{
-                        marginTop: "8px",
-                        fontSize: "13px",
-                        color: "var(--muted)",
-                        fontWeight: 700,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        alignItems: "center",
                       }}
                     >
-                      {formatDate(post.created_at)}
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: 900,
+                            background:
+                              post.post_type === "problem"
+                                ? "rgba(37, 99, 235, 0.12)"
+                                : "rgba(16, 185, 129, 0.12)",
+                            color:
+                              post.post_type === "problem"
+                                ? "rgb(37, 99, 235)"
+                                : "rgb(5, 150, 105)",
+                          }}
+                        >
+                          {post.post_type === "problem" ? "문제글" : "자유글"}
+                        </span>
+
+                        <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                          {formatDate(post.created_at)}
+                        </span>
+                      </div>
+
+                      <Link href={`/community/${post.id}`} className="suddak-btn suddak-btn-ghost">
+                        게시글 보기
+                      </Link>
                     </div>
-                  </div>
 
-                  <Link
-                    href={`/community/${post.id}`}
-                    className="suddak-btn suddak-btn-ghost"
-                  >
-                    게시글 보기
-                  </Link>
-                </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "1.08rem",
+                          fontWeight: 900,
+                          lineHeight: 1.5,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        {post.title}
+                      </div>
 
-                {/* # 9-2. 본문 */}
-                {post.content && (
-                  <div
-                    className="suddak-card"
-                    style={{
-                      padding: "14px",
-                      fontSize: "15px",
-                      lineHeight: 1.75,
-                    }}
-                  >
-                    {clampText(post.content, 220)}
-                  </div>
-                )}
-
-                {/* # 9-3. 문제글 미리보기 */}
-                {post.post_type === "problem" && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                      gap: "12px",
-                    }}
-                  >
-                    {post.recognized_text && (
-                      <div className="suddak-card" style={{ padding: "14px" }}>
+                      {post.content && (
                         <div
                           style={{
-                            fontSize: "13px",
-                            fontWeight: 900,
-                            color: "var(--muted)",
-                            marginBottom: "8px",
+                            lineHeight: 1.8,
+                            color: "var(--muted-foreground)",
                           }}
                         >
-                          인식된 문제
+                          {clampText(post.content)}
                         </div>
-                        <MarkdownMathBlock
-                          content={clampText(post.recognized_text, 180)}
-                          isDark={isDark}
-                        />
-                      </div>
-                    )}
+                      )}
+                    </div>
 
-                    {post.solve_result && (
-                      <div className="suddak-card" style={{ padding: "14px" }}>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 900,
-                            color: "var(--muted)",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          풀이 결과
-                        </div>
-                        <MarkdownMathBlock
-                          content={clampText(post.solve_result, 180)}
-                          isDark={isDark}
-                        />
+                    {post.post_type === "problem" && (
+                      <div style={{ display: "grid", gap: "12px" }}>
+                        {post.recognized_text && (
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 900,
+                                color: "var(--primary)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              인식된 문제
+                            </div>
+                            <div className="suddak-card" style={{ padding: "12px 14px" }}>
+                              <MarkdownMathBlock content={clampText(post.recognized_text, 260)} />
+                            </div>
+                          </div>
+                        )}
+
+                        {post.solve_result && (
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 900,
+                                color: "var(--primary)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              풀이 일부
+                            </div>
+                            <div className="suddak-card" style={{ padding: "12px 14px" }}>
+                              <MarkdownMathBlock content={clampText(post.solve_result, 260)} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-      </SectionCard>
+                  </article>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </>
+      )}
     </PageContainer>
   );
 }

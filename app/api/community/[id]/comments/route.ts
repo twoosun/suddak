@@ -54,26 +54,38 @@ async function enrichCommentsWithAuthors(
   comments: any[]
 ) {
   const uniqueUserIds = [...new Set(comments.map((comment) => comment.user_id).filter(Boolean))];
-  const userMap = new Map<string, string>();
 
-  await Promise.all(
-    uniqueUserIds.map(async (userId) => {
-      try {
-        const { data } = await supabase.auth.admin.getUserById(userId);
-        userMap.set(userId, getAuthorName(data.user));
-      } catch {
-        userMap.set(userId, "익명");
-      }
-    })
-  );
+  if (uniqueUserIds.length === 0) {
+    return comments.map((comment) => ({
+      ...comment,
+      author_name: "익명",
+      author_avatar_url: null,
+    }));
+  }
+
+  const { data: profiles } = await supabase
+    .from("user_profiles")
+    .select("id, full_name, profile_name, avatar_url")
+    .in("id", uniqueUserIds);
+
+  const profileMap = new Map<
+    string,
+    { name: string; avatar_url: string | null }
+  >();
+
+  for (const profile of profiles || []) {
+    profileMap.set(profile.id, {
+      name: profile.profile_name || profile.full_name || "익명",
+      avatar_url: profile.avatar_url || null,
+    });
+  }
 
   return comments.map((comment) => ({
     ...comment,
-    author_name: userMap.get(comment.user_id) ?? "익명",
-    author_avatar_url: null,
+    author_name: profileMap.get(comment.user_id)?.name ?? "익명",
+    author_avatar_url: profileMap.get(comment.user_id)?.avatar_url ?? null,
   }));
 }
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
@@ -273,16 +285,24 @@ export async function POST(
       );
     }
 
-    const { data: userData } = await supabase.auth.admin.getUserById(user.id);
+   const { data: profileRow } = await supabase
+  .from("user_profiles")
+  .select("full_name, profile_name, avatar_url")
+  .eq("id", user.id)
+  .maybeSingle();
 
-    return NextResponse.json({
-      message: parentCommentId ? "대댓글이 작성되었습니다." : "댓글이 작성되었습니다.",
-      comment: {
-        ...data,
-        author_name: getAuthorName(userData.user),
-        author_avatar_url: null,
-      },
-    });
+return NextResponse.json(
+  {
+    message: "댓글이 등록되었습니다.",
+    comment: {
+      ...data,
+      author_name:
+        profileRow?.profile_name || profileRow?.full_name || "익명",
+      author_avatar_url: profileRow?.avatar_url || null,
+    },
+  },
+  { status: 201 }
+);
   } catch (error) {
     console.error("[POST /api/community/[id]/comments] unexpected error:", error);
     return NextResponse.json(

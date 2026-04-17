@@ -20,19 +20,7 @@ function parseBoolean(value: string | null, defaultValue: boolean) {
   return value === "true";
 }
 
-function getAuthorName(user: User | null | undefined) {
-  if (!user) return "익명";
 
-  const meta = user.user_metadata ?? {};
-  return (
-    meta.name ||
-    meta.full_name ||
-    meta.username ||
-    meta.nickname ||
-    user.email?.split("@")[0] ||
-    "익명"
-  );
-}
 
 async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId: string) {
   const { data } = await supabase
@@ -50,26 +38,37 @@ async function enrichPostsWithAuthors(
 ) {
   const uniqueUserIds = [...new Set(posts.map((post) => post.user_id).filter(Boolean))];
 
-  const userMap = new Map<string, string>();
+  if (uniqueUserIds.length === 0) {
+    return posts.map((post) => ({
+      ...post,
+      author_name: "익명",
+      author_avatar_url: null,
+    }));
+  }
 
-  await Promise.all(
-    uniqueUserIds.map(async (userId) => {
-      try {
-        const { data } = await supabase.auth.admin.getUserById(userId);
-        userMap.set(userId, getAuthorName(data.user));
-      } catch {
-        userMap.set(userId, "익명");
-      }
-    })
-  );
+  const { data: profiles } = await supabase
+    .from("user_profiles")
+    .select("id, full_name, profile_name, avatar_url")
+    .in("id", uniqueUserIds);
+
+  const profileMap = new Map<
+    string,
+    { name: string; avatar_url: string | null }
+  >();
+
+  for (const profile of profiles || []) {
+    profileMap.set(profile.id, {
+      name: profile.profile_name || profile.full_name || "익명",
+      avatar_url: profile.avatar_url || null,
+    });
+  }
 
   return posts.map((post) => ({
     ...post,
-    author_name: userMap.get(post.user_id) ?? "익명",
-    author_avatar_url: null,
+    author_name: profileMap.get(post.user_id)?.name ?? "익명",
+    author_avatar_url: profileMap.get(post.user_id)?.avatar_url ?? null,
   }));
 }
-
 export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
@@ -273,14 +272,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      message: "게시글이 작성되었습니다.",
-      post: {
-        ...data,
-        author_name: getAuthorName(user),
-        author_avatar_url: null,
-      },
-    });
+   const { data: profileRow } = await supabase
+  .from("user_profiles")
+  .select("full_name, profile_name, avatar_url")
+  .eq("id", user.id)
+  .maybeSingle();
+
+return NextResponse.json(
+  {
+    message: "게시글이 등록되었습니다.",
+    post: {
+      ...data,
+      author_name:
+        profileRow?.profile_name || profileRow?.full_name || "익명",
+      author_avatar_url: profileRow?.avatar_url || null,
+    },
+  },
+  { status: 201 }
+);
   } catch (error) {
     console.error("[POST /api/community] unexpected error:", error);
     return NextResponse.json(

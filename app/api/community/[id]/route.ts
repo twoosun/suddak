@@ -113,7 +113,11 @@ export async function GET(
       );
     }
 
-    const { data: userData } = await supabase.auth.admin.getUserById(data.user_id);
+    const { data: profileRow } = await supabase
+  .from("user_profiles")
+  .select("full_name, profile_name, avatar_url")
+  .eq("id", data.user_id)
+  .maybeSingle();
 
     let viewerIsAdmin = false;
     let viewerLiked = false;
@@ -225,8 +229,12 @@ export async function PATCH(
 
       return NextResponse.json({
         message: data.is_notice ? "공지사항으로 지정되었습니다." : "공지사항이 해제되었습니다.",
-        post: data,
-      });
+        post: {
+  ...data,
+  author_name:
+    profileRow?.profile_name || profileRow?.full_name || "익명",
+  author_avatar_url: profileRow?.avatar_url || null,
+},);
     }
 
     if (existingPost.user_id !== user.id) {

@@ -199,12 +199,8 @@ export default function MoreMenu({
             href="/history"
             style={itemStyle}
             onClick={() => setOpen(false)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = theme.itemHover)
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
           >
             기록 보기
           </Link>
@@ -213,14 +209,20 @@ export default function MoreMenu({
             href="/plan"
             style={itemStyle}
             onClick={() => setOpen(false)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = theme.itemHover)
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
           >
             플랜 설정
+          </Link>
+
+          <Link
+            href={session ? "/profile" : "/login"}
+            style={itemStyle}
+            onClick={() => setOpen(false)}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+          >
+            프로필
           </Link>
 
           <button
@@ -230,12 +232,8 @@ export default function MoreMenu({
               setOpen(false);
             }}
             style={itemStyle}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = theme.itemHover)
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
           >
             {themeLabel}
           </button>
@@ -254,12 +252,8 @@ export default function MoreMenu({
                 href="/login"
                 style={itemStyle}
                 onClick={() => setOpen(false)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = theme.itemHover)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "transparent")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 로그인
               </Link>
@@ -268,12 +262,8 @@ export default function MoreMenu({
                 href="/signup"
                 style={itemStyle}
                 onClick={() => setOpen(false)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = theme.itemHover)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "transparent")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 회원가입
               </Link>
@@ -287,12 +277,8 @@ export default function MoreMenu({
                 ...itemStyle,
                 color: theme.danger,
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = theme.itemHover)
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = "transparent")
-              }
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = theme.itemHover)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               {loadingLogout ? "로그아웃 중..." : "로그아웃"}
             </button>
