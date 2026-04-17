@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import NotificationBell from "@/components/NotificationBell";
 
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme } from "@/lib/theme";
@@ -302,12 +303,15 @@ export default function ProfilePage() {
             <Link href="/" className="suddak-btn suddak-btn-ghost">
               홈
             </Link>
+<NotificationBell />
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
               커뮤니티
             </Link>
+<NotificationBell />
             <Link href="/profile" className="suddak-btn suddak-btn-ghost">
               내 프로필
             </Link>
+<NotificationBell />
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
             </div>

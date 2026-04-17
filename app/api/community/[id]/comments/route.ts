@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import { createNotification } from "@/lib/server/notifications";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 function createAdminClient() {
   return createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -13,40 +15,18 @@ function createAdminClient() {
   });
 }
 
-function getAuthorName(user: User | null | undefined) {
-  if (!user) return "익명";
-
-  const meta = user.user_metadata ?? {};
-  return (
-    meta.name ||
-    meta.full_name ||
-    meta.username ||
-    meta.nickname ||
-    user.email?.split("@")[0] ||
-    "익명"
-  );
-}
-
-async function getUserFromRequest(req: NextRequest) {
-  const supabase = createAdminClient();
-  const authHeader = req.headers.get("authorization");
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    return { user: null, error: "인증 정보가 없습니다.", status: 401 };
-  }
-
-  const token = authHeader.replace("Bearer ", "").trim();
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    return { user: null, error: "유효하지 않은 사용자입니다.", status: 401 };
-  }
-
-  return { user, error: null, status: 200 };
+function createUserClient(token: string) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
 async function enrichCommentsWithAuthors(
@@ -65,33 +45,40 @@ async function enrichCommentsWithAuthors(
 
   const { data: profiles } = await supabase
     .from("user_profiles")
-    .select("id, full_name")
+    .select("id, full_name, avatar_url")
     .in("id", uniqueUserIds);
 
-  const profileMap = new Map<string, string>();
+  const profileMap = new Map<
+    string,
+    { name: string; avatar_url: string | null }
+  >();
 
   for (const profile of profiles || []) {
-    profileMap.set(profile.id, profile.full_name || "익명");
+    profileMap.set(profile.id, {
+      name: profile.full_name || "익명",
+      avatar_url: profile.avatar_url || null,
+    });
   }
 
   return comments.map((comment) => ({
     ...comment,
-    author_name: profileMap.get(comment.user_id) ?? "익명",
-    author_avatar_url: null,
+    author_name: profileMap.get(comment.user_id)?.name ?? "익명",
+    author_avatar_url: profileMap.get(comment.user_id)?.avatar_url ?? null,
   }));
-}export async function GET(
+}
+
+export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const supabase = createAdminClient();
 
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
+    const resolvedParams = await Promise.resolve(
+      params as { id: string } | Promise<{ id: string }>
+    );
 
-    const postId = resolvedParams.id?.trim();
+    const postId = String(resolvedParams?.id || "").trim();
 
     if (!postId) {
       return NextResponse.json(
@@ -100,51 +87,25 @@ async function enrichCommentsWithAuthors(
       );
     }
 
-    const { data: post, error: postError } = await supabase
-      .from("community_posts")
-      .select("id, is_public")
-      .eq("id", postId)
-      .maybeSingle();
-
-    if (postError) {
-      console.error("[GET /api/community/[id]/comments] post error:", postError);
-      return NextResponse.json(
-        { error: "게시글 정보를 불러오지 못했습니다." },
-        { status: 500 }
-      );
-    }
-
-    if (!post) {
-      return NextResponse.json(
-        { error: "게시글을 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    if (!post.is_public) {
-      return NextResponse.json(
-        { error: "비공개 게시글의 댓글은 볼 수 없습니다." },
-        { status: 403 }
-      );
-    }
-
-    const { data, error } = await supabase
+    const { data: comments, error } = await supabase
       .from("community_comments")
       .select("*")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("[GET /api/community/[id]/comments] comment error:", error);
+      console.error("[GET /api/community/[id]/comments] fetch error:", error);
       return NextResponse.json(
         { error: "댓글을 불러오지 못했습니다." },
         { status: 500 }
       );
     }
 
-    const comments = await enrichCommentsWithAuthors(supabase, data ?? []);
+    const enriched = await enrichCommentsWithAuthors(supabase, comments || []);
 
-    return NextResponse.json({ comments });
+    return NextResponse.json({
+      comments: enriched,
+    });
   } catch (error) {
     console.error("[GET /api/community/[id]/comments] unexpected error:", error);
     return NextResponse.json(
@@ -161,12 +122,11 @@ export async function POST(
   try {
     const supabase = createAdminClient();
 
-    const resolvedParams =
-      typeof (params as Promise<{ id: string }>).then === "function"
-        ? await (params as Promise<{ id: string }>)
-        : (params as { id: string });
+    const resolvedParams = await Promise.resolve(
+      params as { id: string } | Promise<{ id: string }>
+    );
 
-    const postId = resolvedParams.id?.trim();
+    const postId = String(resolvedParams?.id || "").trim();
 
     if (!postId) {
       return NextResponse.json(
@@ -175,126 +135,170 @@ export async function POST(
       );
     }
 
-    const authResult = await getUserFromRequest(req);
-    if (!authResult.user) {
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "").trim();
+
+    if (!token) {
       return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
+        { error: "로그인이 필요합니다." },
+        { status: 401 }
       );
     }
 
-    const user = authResult.user;
+    const userClient = createUserClient(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "사용자 인증에 실패했습니다." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
-    const content = String(body.content ?? "").trim();
-    const parentCommentId = body.parent_comment_id ? String(body.parent_comment_id) : null;
+
+    const content =
+      typeof body.content === "string" ? body.content.trim() : "";
+    const parentId =
+      typeof body.parent_id === "number" || typeof body.parent_id === "string"
+        ? String(body.parent_id).trim()
+        : null;
 
     if (!content) {
       return NextResponse.json(
-        { error: "댓글 내용을 입력해주세요." },
+        { error: "댓글 내용을 입력해 주세요." },
         { status: 400 }
       );
     }
 
-    if (content.length > 2000) {
+    if (content.length > 1000) {
       return NextResponse.json(
-        { error: "댓글은 2000자 이하여야 합니다." },
+        { error: "댓글은 1000자 이하여야 합니다." },
         { status: 400 }
       );
     }
 
-    const { data: post, error: postError } = await supabase
+    const { data: postRow, error: postError } = await supabase
       .from("community_posts")
-      .select("id, is_public")
+      .select("id, user_id, title")
       .eq("id", postId)
       .maybeSingle();
 
     if (postError) {
-      console.error("[POST /api/community/[id]/comments] post error:", postError);
+      console.error("[POST /api/community/[id]/comments] post fetch error:", postError);
       return NextResponse.json(
-        { error: "게시글 정보를 불러오지 못했습니다." },
+        { error: "게시글을 확인할 수 없습니다." },
         { status: 500 }
       );
     }
 
-    if (!post) {
+    if (!postRow) {
       return NextResponse.json(
         { error: "게시글을 찾을 수 없습니다." },
         { status: 404 }
       );
     }
 
-    if (!post.is_public) {
-      return NextResponse.json(
-        { error: "비공개 게시글에는 댓글을 작성할 수 없습니다." },
-        { status: 403 }
-      );
-    }
-
-    if (parentCommentId) {
-      const { data: parentComment, error: parentError } = await supabase
+    if (parentId) {
+      const { data: parentExists, error: parentCheckError } = await supabase
         .from("community_comments")
-        .select("id, post_id, parent_comment_id")
-        .eq("id", parentCommentId)
+        .select("id, post_id")
+        .eq("id", parentId)
         .maybeSingle();
 
-      if (parentError) {
+      if (parentCheckError) {
+        console.error("[POST /api/community/[id]/comments] parent check error:", parentCheckError);
         return NextResponse.json(
-          { error: "부모 댓글을 확인하지 못했습니다." },
+          { error: "부모 댓글을 확인할 수 없습니다." },
           { status: 500 }
         );
       }
 
-      if (!parentComment || parentComment.post_id !== postId) {
+      if (!parentExists || String(parentExists.post_id) !== postId) {
         return NextResponse.json(
-          { error: "올바른 부모 댓글이 아닙니다." },
-          { status: 400 }
-        );
-      }
-
-      if (parentComment.parent_comment_id) {
-        return NextResponse.json(
-          { error: "대댓글에는 다시 대댓글을 달 수 없습니다." },
+          { error: "올바르지 않은 부모 댓글입니다." },
           { status: 400 }
         );
       }
     }
 
+    const insertPayload: Record<string, unknown> = {
+      post_id: postId,
+      user_id: user.id,
+      content,
+      parent_id: parentId,
+    };
+
     const { data, error } = await supabase
       .from("community_comments")
-      .insert({
-        post_id: postId,
-        user_id: user.id,
-        content,
-        parent_comment_id: parentCommentId,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error("[POST /api/community/[id]/comments] insert error:", error);
       return NextResponse.json(
-        { error: "댓글 작성에 실패했습니다." },
+        { error: "댓글 등록에 실패했습니다." },
         { status: 500 }
       );
     }
 
-  const { data: profileRow } = await supabase
-  .from("user_profiles")
-  .select("full_name")
-  .eq("id", user.id)
-  .maybeSingle();
+    const { data: actorProfile } = await supabase
+      .from("user_profiles")
+      .select("full_name, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
 
-return NextResponse.json(
-  {
-    message: "댓글이 등록되었습니다.",
-    comment: {
-      ...data,
-      author_name: profileRow?.full_name || "익명",
-      author_avatar_url: null,
-    },
-  },
-  { status: 201 }
-);
+    const actorName = actorProfile?.full_name || "누군가";
+
+    if (postRow.user_id && postRow.user_id !== user.id) {
+      await createNotification({
+        userId: postRow.user_id,
+        actorUserId: user.id,
+        type: "comment_on_post",
+        title: "내 게시글에 새 댓글",
+        body: `${actorName}님이 댓글을 남겼어.`,
+        targetUrl: `/community/${postId}`,
+      });
+    }
+
+    if (parentId) {
+      const { data: parentComment } = await supabase
+        .from("community_comments")
+        .select("id, user_id")
+        .eq("id", parentId)
+        .maybeSingle();
+
+      if (
+        parentComment?.user_id &&
+        parentComment.user_id !== user.id &&
+        parentComment.user_id !== postRow.user_id
+      ) {
+        await createNotification({
+          userId: parentComment.user_id,
+          actorUserId: user.id,
+          type: "reply_to_comment",
+          title: "내 댓글에 답글",
+          body: `${actorName}님이 답글을 남겼어.`,
+          targetUrl: `/community/${postId}`,
+        });
+      }
+    }
+
+    return NextResponse.json(
+      {
+        message: "댓글이 등록되었습니다.",
+        comment: {
+          ...data,
+          author_name: actorProfile?.full_name || "익명",
+          author_avatar_url: actorProfile?.avatar_url || null,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("[POST /api/community/[id]/comments] unexpected error:", error);
     return NextResponse.json(

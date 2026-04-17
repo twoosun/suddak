@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createNotification } from "@/lib/server/notifications";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -177,6 +178,16 @@ export async function POST(
     }
 
     const userMap = await getUserMap([user.id]);
+    const actorName = userMap.get(user.id)?.name || "누군가";
+
+    await createNotification({
+      userId: profileId,
+      actorUserId: user.id,
+      type: "guestbook_on_profile",
+      title: "내 프로필에 방명록",
+      body: `${actorName}님이 방명록을 남겼어.`,
+      targetUrl: `/profile/${profileId}`,
+    });
 
     return NextResponse.json({
       ok: true,
