@@ -392,7 +392,7 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+
 
 export async function DELETE(
   req: NextRequest,
