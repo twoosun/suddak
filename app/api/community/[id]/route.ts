@@ -227,15 +227,14 @@ export async function PATCH(
         );
       }
 
-      return NextResponse.json({
-        message: data.is_notice ? "공지사항으로 지정되었습니다." : "공지사항이 해제되었습니다.",
-        post: {
-  ...data,
-  author_name:
-    profileRow?.profile_name || profileRow?.full_name || "익명",
-  author_avatar_url: profileRow?.avatar_url || null,
-},);
-    }
+     return NextResponse.json({
+  post: {
+    ...data,
+    author_name:
+      profileRow?.profile_name || profileRow?.full_name || "익명",
+    author_avatar_url: profileRow?.avatar_url || null,
+  },
+});
 
     if (existingPost.user_id !== user.id) {
       return NextResponse.json(
