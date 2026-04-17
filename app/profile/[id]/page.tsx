@@ -51,18 +51,18 @@ type GuestbookEntry = {
   author_avatar_url: string | null;
 };
 
-function formatDate(value: string) {
+function formatDate(value: string | null) {
+  if (!value) return "정보 없음";
+
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  if (Number.isNaN(d.getTime())) return "정보 없음";
+
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   }).format(d);
 }
-
 function clampText(text: string, max = 180) {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (normalized.length <= max) return normalized;
