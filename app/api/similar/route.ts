@@ -180,19 +180,6 @@ async function requestSimilarDraft(prompt: string, recognizedText: string, solve
   return extractResponseText(response);
 }
 
-function parseJsonText<T>(rawText: string) {
-  const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  return JSON.parse(cleaned) as T;
-}
-
-function parseSimilarDraft(rawText: string) {
-  return parseJsonText<SimilarDraft>(rawText);
-}
-
-function parseSimilarReviewResult(rawText: string) {
-  return parseJsonText<SimilarReviewResult>(rawText);
-}
-
 function extractResponseText(response: OpenAI.Responses.Response) {
   const rawText = response.output_text?.trim() || "";
   if (rawText) return rawText;
@@ -216,6 +203,54 @@ function extractResponseText(response: OpenAI.Responses.Response) {
   }
 
   return "";
+}
+
+function extractJsonCandidates(text: string) {
+  const cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```/g, "")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .trim();
+
+  const candidates = new Set<string>();
+
+  if (cleaned) {
+    candidates.add(cleaned);
+  }
+
+  const firstBraceIndex = cleaned.indexOf("{");
+  const lastBraceIndex = cleaned.lastIndexOf("}");
+
+  if (firstBraceIndex !== -1 && lastBraceIndex > firstBraceIndex) {
+    candidates.add(cleaned.slice(firstBraceIndex, lastBraceIndex + 1));
+  }
+
+  for (const value of Array.from(candidates)) {
+    candidates.add(value.replace(/,\s*([}\]])/g, "$1"));
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
+function parseJsonText<T>(rawText: string) {
+  const candidates = extractJsonCandidates(rawText);
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as T;
+    } catch {}
+  }
+
+  throw new Error("JSON parse failed");
+}
+
+function parseSimilarDraft(rawText: string) {
+  return parseJsonText<SimilarDraft>(rawText);
+}
+
+function parseSimilarReviewResult(rawText: string) {
+  return parseJsonText<SimilarReviewResult>(rawText);
 }
 
 function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
@@ -259,7 +294,15 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
     throw new Error("유사문제 생성 결과가 비어 있습니다.");
   }
 
-  let candidate = parseSimilarDraft(draftText);
+  let candidate: SimilarDraft;
+
+  try {
+    candidate = parseSimilarDraft(draftText);
+  } catch (error) {
+    console.error("[api/similar] draft parse error:", error);
+    console.error("[api/similar] draft raw:", draftText);
+    throw new Error("1차 생성 결과를 JSON으로 정리하지 못했습니다.");
+  }
 
   const reviewText = await requestSimilarDraft(
     buildReviewPrompt(JSON.stringify(candidate, null, 2)),
@@ -283,7 +326,13 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
         );
 
         if (repairedText) {
-          candidate = parseSimilarDraft(repairedText);
+          try {
+            candidate = parseSimilarDraft(repairedText);
+          } catch (error) {
+            console.error("[api/similar] repair parse error:", error);
+            console.error("[api/similar] repair raw:", repairedText);
+            throw new Error("수정 결과를 JSON으로 정리하지 못했습니다.");
+          }
         }
       }
     } catch (error) {
@@ -295,7 +344,7 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
   const finalIssues = validateSimilarDraft(candidate);
   if (finalIssues.length > 0) {
     console.error("[api/similar] final validation issues:", finalIssues);
-    throw new Error("유사문제 검증에 실패했습니다.");
+    throw new Error(`검증에 실패했습니다. (${finalIssues.join(", ")})`);
   }
 
   return candidate;
@@ -382,7 +431,15 @@ export async function POST(req: NextRequest) {
       parsed = await generateValidatedSimilarProblem(recognizedText, solveResult);
     } catch (error) {
       console.error("[api/similar][POST] generation error:", error);
-      return NextResponse.json({ error: "유사문제 결과를 정리하지 못했습니다." }, { status: 502 });
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error && error.message
+              ? error.message
+              : "유사문제 결과를 정리하지 못했습니다.",
+        },
+        { status: 502 },
+      );
     }
 
     return NextResponse.json({
