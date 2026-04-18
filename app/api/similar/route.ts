@@ -270,26 +270,36 @@ function parseSimilarSolutionResult(rawText: string) {
 }
 
 function repairCommonLatexCorruption(content: string) {
-  return content
+  const commandRepairs: Array<[RegExp, string]> = [
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*rac)(?=\s*\{)/g, "$1\\frac"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*frac)(?=\s*\{)/g, "$1\\frac"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*sqrt)(?=\s*\{)/g, "$1\\sqrt"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*left)(?=\b)/g, "$1\\left"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*right)(?=\b)/g, "$1\\right"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*cdot)(?=\b)/g, "$1\\cdot"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*times)(?=\b)/g, "$1\\times"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*pm)(?=\b)/g, "$1\\pm"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*mp)(?=\b)/g, "$1\\mp"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*leq)(?=\b)/g, "$1\\leq"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*geq)(?=\b)/g, "$1\\geq"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*neq)(?=\b)/g, "$1\\neq"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*sin)(?=\b)/g, "$1\\sin"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*cos)(?=\b)/g, "$1\\cos"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*tan)(?=\b)/g, "$1\\tan"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*log)(?=\b)/g, "$1\\log"],
+    [/(^|[^\\a-zA-Z])(\\?[?�]?\s*ln)(?=\b)/g, "$1\\ln"],
+  ];
+
+  let repaired = content
     .replace(/\r\n/g, "\n")
-    .replace(/[\uFFFD?](?=rac\b)/g, "\\f")
-    .replace(/[\uFFFD?](?=sqrt\b)/g, "\\")
-    .replace(/[\uFFFD?](?=left\b)/g, "\\")
-    .replace(/[\uFFFD?](?=right\b)/g, "\\")
-    .replace(/[\uFFFD?](?=cdot\b)/g, "\\")
-    .replace(/[\uFFFD?](?=times\b)/g, "\\")
-    .replace(/[\uFFFD?](?=pm\b)/g, "\\")
-    .replace(/[\uFFFD?](?=mp\b)/g, "\\")
-    .replace(/[\uFFFD?](?=leq\b)/g, "\\")
-    .replace(/[\uFFFD?](?=geq\b)/g, "\\")
-    .replace(/[\uFFFD?](?=neq\b)/g, "\\")
-    .replace(/[\uFFFD?](?=sin\b)/g, "\\")
-    .replace(/[\uFFFD?](?=cos\b)/g, "\\")
-    .replace(/[\uFFFD?](?=tan\b)/g, "\\")
-    .replace(/[\uFFFD?](?=log\b)/g, "\\")
-    .replace(/[\uFFFD?](?=ln\b)/g, "\\")
-    .replace(/(^|[^\\])frac(?=\s*\{)/g, "$1\\frac")
-    .replace(/(^|[^\\])sqrt(?=\s*\{)/g, "$1\\sqrt");
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/�/g, "?");
+
+  for (const [pattern, replacement] of commandRepairs) {
+    repaired = repaired.replace(pattern, replacement);
+  }
+
+  return repaired;
 }
 
 function sanitizeSimilarOutline(draft: SimilarOutline): SimilarOutline {
