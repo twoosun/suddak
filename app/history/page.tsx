@@ -103,13 +103,15 @@ function LayoutStyleSelector({
           className={`suddak-btn ${value === "suneung" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
           onClick={() => onChange("suneung")}
         >
-          ?섎뒫??        </button>
+          수능형
+        </button>
         <button
           type="button"
           className={`suddak-btn ${value === "naesin" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
           onClick={() => onChange("naesin")}
         >
-          ?댁떊??        </button>
+          내신형
+        </button>
       </div>
     </div>
   );
@@ -120,7 +122,7 @@ export default function HistoryPage() {
   const [isDark, setIsDark] = useState(false);
   const [serverItems, setServerItems] = useState<ServerHistoryItem[]>([]);
   const [similarItems, setSimilarItems] = useState<StoredSimilarHistoryItem[]>([]);
-  const [message, setMessage] = useState("遺덈윭?ㅻ뒗 以?..");
+  const [message, setMessage] = useState("불러오는 중...");
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
 
@@ -176,7 +178,7 @@ export default function HistoryPage() {
 
     const load = async () => {
       setLoading(true);
-      setMessage("遺덈윭?ㅻ뒗 以?..");
+      setMessage("불러오는 중...");
 
       try {
         const {
@@ -185,7 +187,7 @@ export default function HistoryPage() {
 
         if (!session?.access_token) {
           setServerItems([]);
-          setMessage("濡쒓렇?몄씠 ?꾩슂?⑸땲??");
+          setMessage("로그인이 필요합니다.");
           return;
         }
 
@@ -198,7 +200,7 @@ export default function HistoryPage() {
 
         if (!res.ok) {
           setServerItems([]);
-          setMessage(data?.error || "?덉뒪?좊━瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
+          setMessage(data?.error || "히스토리를 불러오지 못했습니다.");
           return;
         }
 
@@ -206,7 +208,7 @@ export default function HistoryPage() {
         setMessage("");
       } catch {
         setServerItems([]);
-        setMessage("?덉뒪?좊━瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??");
+        setMessage("히스토리를 불러오지 못했습니다.");
       } finally {
         setLoading(false);
       }
@@ -223,7 +225,7 @@ export default function HistoryPage() {
         kind: "history",
         createdAt: item.created_at,
         historyCode: resolveHistoryCode(item),
-        label: item.action_type === "solve" ? "???湲곕줉" : "臾몄젣 ?몄떇",
+        label: item.action_type === "solve" ? "풀이 기록" : "문제 인식",
         problemText: item.recognized_text?.trim() || "",
         solveResult: item.solve_result,
         source: item,
@@ -234,7 +236,7 @@ export default function HistoryPage() {
       kind: "similar",
       createdAt: item.createdAt,
       historyCode: resolveHistoryCode(item),
-      label: "?좎궗臾몄젣",
+      label: "유사문제",
       problemText: item.problem,
       solveResult: item.solution,
       source: item,
@@ -277,7 +279,7 @@ export default function HistoryPage() {
           ? toWorksheetProblem(item.source)
           : {
               id: item.key,
-              title: item.source.action_type === "solve" ? "??댁뿉 ?ъ슜???먮낯 臾몄젣" : "?몄떇???먮낯 臾몄젣",
+              title: item.source.action_type === "solve" ? "풀이에 사용된 원본 문제" : "인식된 원본 문제",
               problem: item.problemText,
               historyCode: item.historyCode,
               sourceLabel: item.label,
@@ -319,15 +321,15 @@ export default function HistoryPage() {
 
   const handlePrint = async () => {
     if (!printRootRef.current || worksheetProblems.length === 0) {
-      setMessage("癒쇱? 異쒕젰??臾몄젣瑜??섎굹 ?댁긽 ?좏깮??二쇱꽭??");
+      setMessage("먼저 출력할 문제를 하나 이상 선택해 주세요.");
       return;
     }
 
     try {
       setPrinting(true);
-      await printElementInNewWindow(printRootRef.current, "?섑븰 臾몄젣吏 ?몄뇙");
+      await printElementInNewWindow(printRootRef.current, "수학 문제지 인쇄");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "?몄뇙 李쎌쓣 ?댁? 紐삵뻽?듬땲??");
+      setMessage(error instanceof Error ? error.message : "인쇄 창을 열지 못했습니다.");
     } finally {
       setPrinting(false);
     }
@@ -371,7 +373,7 @@ export default function HistoryPage() {
                 flexShrink: 0,
               }}
             >
-              <Image src="/logo.png" alt="?섎떏 濡쒓퀬" fill sizes="48px" style={{ objectFit: "cover" }} />
+              <Image src="/logo.png" alt="수딱 로고" fill sizes="48px" style={{ objectFit: "cover" }} />
             </div>
             <div>
               <div
@@ -382,10 +384,11 @@ export default function HistoryPage() {
                   lineHeight: 0.95,
                 }}
               >
-                ?덉뒪?좊━
+                히스토리
               </div>
               <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--primary)", marginTop: "4px" }}>
-                ?몄떇 湲곕줉怨??좎궗臾몄젣瑜??④퍡 愿由?              </div>
+                인식 기록과 유사문제를 한 번에 관리
+              </div>
             </div>
           </Link>
 
@@ -400,9 +403,10 @@ export default function HistoryPage() {
             }}
           >
             <Link href="/" className="suddak-btn suddak-btn-ghost">
-              ??            </Link>
+              홈
+            </Link>
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
-              而ㅻ??덊떚
+              커뮤니티
             </Link>
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
@@ -426,11 +430,11 @@ export default function HistoryPage() {
         }}
       >
         <div className="suddak-card" style={{ padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--muted)" }}>?꾩껜</div>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>전체</div>
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.total}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--muted)" }}>?몄떇</div>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>인식</div>
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.read}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
@@ -438,7 +442,7 @@ export default function HistoryPage() {
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.solve}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--muted)" }}>?좎궗臾몄젣</div>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>유사문제</div>
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.similar}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
@@ -457,10 +461,10 @@ export default function HistoryPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
             <button type="button" className="suddak-btn suddak-btn-ghost" onClick={handleSelectFiltered}>
-              ?꾩옱 紐⑸줉 ?꾩껜 ?좏깮
+              현재 목록 전체 선택
             </button>
             <button type="button" className="suddak-btn suddak-btn-ghost" onClick={handleClearSelection}>
-              ?좏깮 ?댁젣
+              선택 해제
             </button>
             <button
               type="button"
@@ -473,7 +477,7 @@ export default function HistoryPage() {
           </div>
 
           <div className="suddak-card-soft" style={{ padding: "12px 14px", color: "var(--muted)", lineHeight: 1.7 }}>
-            釉뚮씪?곗? ?몄뇙 李쎌뿉???ㅼ젣 ?꾨┛?몄? PDF ??μ쓣 紐⑤몢 ?????덉뒿?덈떎. ?좏깮???붿옄?몄? ?몄뇙 ??洹몃?濡?諛섏쁺?⑸땲??
+            브라우저 인쇄 창에서 실제 프린트와 PDF 저장을 모두 할 수 있습니다. 선택한 레이아웃이 인쇄에 그대로 반영됩니다.
           </div>
         </div>
       </SectionCard>
@@ -493,10 +497,10 @@ export default function HistoryPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px" }}>
             <select className="suddak-select" value={filterType} onChange={(e) => setFilterType(e.target.value as FilterType)}>
-              <option value="all">?꾩껜</option>
-              <option value="read">臾몄젣 ?몄떇</option>
-              <option value="solve">???湲곕줉</option>
-              <option value="similar">?좎궗臾몄젣</option>
+              <option value="all">전체</option>
+              <option value="read">문제 인식</option>
+              <option value="solve">풀이 기록</option>
+              <option value="similar">유사문제</option>
             </select>
 
             <label
@@ -504,7 +508,7 @@ export default function HistoryPage() {
               style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: "8px", fontWeight: 700 }}
             >
               <input type="checkbox" checked={showBookmarksOnly} onChange={(e) => setShowBookmarksOnly(e.target.checked)} />
-              遺곷쭏?щ쭔 蹂닿린
+              북마크만 보기
             </label>
 
             <label
@@ -512,7 +516,7 @@ export default function HistoryPage() {
               style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: "8px", fontWeight: 700 }}
             >
               <input type="checkbox" checked={showReviewOnly} onChange={(e) => setShowReviewOnly(e.target.checked)} />
-              蹂듭뒿留?蹂닿린
+              복습만 보기
             </label>
           </div>
         </div>
@@ -521,11 +525,11 @@ export default function HistoryPage() {
       <SectionCard title="기록 목록" description="체크박스로 여러 문제를 골라 출력 목록에 바로 담을 수 있습니다.">
         {loading ? (
           <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)" }}>
-            遺덈윭?ㅻ뒗 以?..
+            불러오는 중...
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)", lineHeight: 1.8 }}>
-            {message || "議곌굔??留욌뒗 湲곕줉???놁뒿?덈떎."}
+            {message || "조건에 맞는 기록이 없습니다."}
           </div>
         ) : (
           <div style={{ display: "grid", gap: "16px" }}>
@@ -547,7 +551,7 @@ export default function HistoryPage() {
                   >
                     <label style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
                       <input type="checkbox" checked={selected} onChange={() => toggleSelection(item.key)} />
-                      ?좏깮
+                      선택
                     </label>
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
@@ -555,7 +559,7 @@ export default function HistoryPage() {
                       {item.kind === "similar" ? <span className="suddak-badge">local history</span> : null}
                       <span className="suddak-badge">{item.historyCode}</span>
                       {bookmarked ? <span className="suddak-badge">북마크</span> : null}
-                      {reviewed ? <span className="suddak-badge">蹂듭뒿</span> : null}
+                      {reviewed ? <span className="suddak-badge">복습</span> : null}
                     </div>
 
                     <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 700 }}>{formatDate(item.createdAt)}</div>
@@ -563,7 +567,7 @@ export default function HistoryPage() {
 
                   <div className="suddak-card" style={{ padding: "14px" }}>
                     <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                      {item.kind === "similar" ? "?좎궗臾몄젣" : "?몄떇??臾몄젣"}
+                      {item.kind === "similar" ? "유사문제" : "인식된 문제"}
                     </div>
                     <div style={{ marginBottom: "10px", fontSize: "13px", fontWeight: 900, color: "var(--primary)" }}>{item.historyCode}</div>
                     <MarkdownMathBlock content={item.problemText} isDark={isDark} />
@@ -572,7 +576,7 @@ export default function HistoryPage() {
                   {item.kind === "history" && item.solveResult ? (
                     <div className="suddak-card" style={{ padding: "14px" }}>
                       <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                        ???寃곌낵
+                        풀이 결과
                       </div>
                       <MarkdownMathBlock content={item.solveResult} isDark={isDark} />
                     </div>
@@ -581,7 +585,8 @@ export default function HistoryPage() {
                   {item.kind === "similar" ? (
                     <div className="suddak-card" style={{ padding: "14px" }}>
                       <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                        ?앹꽦 ???                      </div>
+                        생성 풀이
+                      </div>
                       <MarkdownMathBlock content={item.solveResult} isDark={isDark} />
                     </div>
                   ) : null}
@@ -600,7 +605,7 @@ export default function HistoryPage() {
                       className={`suddak-btn ${reviewed ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
                       onClick={() => toggleReview(item.key)}
                     >
-                      {reviewed ? "蹂듭뒿 ?댁젣" : "蹂듭뒿"}
+                      {reviewed ? "복습 해제" : "복습"}
                     </button>
 
                     {item.kind === "history" ? (
@@ -612,16 +617,16 @@ export default function HistoryPage() {
                           })}
                           className="suddak-btn suddak-btn-ghost"
                         >
-                          ?좎궗臾몄젣 ?앹꽦
+                          유사문제 생성
                         </Link>
 
                         <Link href={buildShareUrlFromHistory(item.source)} className="suddak-btn suddak-btn-ghost">
-                          而ㅻ??덊떚 怨듭쑀
+                          커뮤니티 공유
                         </Link>
                       </>
                     ) : (
                       <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => toggleSelection(item.key)}>
-                        {selected ? "?좏깮 ?댁젣" : "異쒕젰 紐⑸줉??異붽?"}
+                        {selected ? "선택 해제" : "출력 목록에 추가"}
                       </button>
                     )}
                   </div>
@@ -635,8 +640,8 @@ export default function HistoryPage() {
       {worksheetProblems.length > 0 ? (
         <div ref={printRootRef} className="worksheet-print-stage" aria-hidden="true">
           <WorksheetDocument
-            title={layoutStyle === "suneung" ? "?섎뒫??臾몄젣吏" : "?댁떊??臾몄젣吏"}
-            subtitle={`?좏깮??${worksheetProblems.length}媛?臾몄젣瑜???踰덉뿉 異쒕젰?⑸땲??`}
+            title={layoutStyle === "suneung" ? "수능형 문제지" : "내신형 문제지"}
+            subtitle={`선택한 ${worksheetProblems.length}개 문제를 한 번에 출력합니다.`}
             problems={worksheetProblems}
             layoutStyle={layoutStyle}
           />

@@ -257,6 +257,22 @@ a {
   line-height: 1.8;
 }
 
+.suddak-markdown .katex {
+  font-size: 1.02em;
+}
+
+.suddak-markdown .katex-display {
+  margin: 0.9em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.16em 0 0.28em;
+}
+
+.suddak-markdown .katex-display > .katex {
+  display: inline-block;
+  max-width: 100%;
+}
+
 .suddak-markdown pre {
   overflow-x: auto;
   padding: 12px;
@@ -701,11 +717,11 @@ a {
 }
 
 .worksheet-problem-markdown .katex {
-  font-size: 0.9em;
+  font-size: 0.98em;
 }
 
 .worksheet-choice-content .katex {
-  font-size: 0.85em;
+  font-size: 0.9em;
 }
 
 .worksheet-problem-markdown .katex-display,
@@ -722,8 +738,6 @@ a {
   display: inline-block;
   max-width: 100%;
   white-space: nowrap;
-  transform: scale(0.96);
-  transform-origin: center top;
 }
 
 .worksheet-problem-markdown .katex-html,
@@ -732,8 +746,8 @@ a {
   white-space: nowrap;
 }
 
-.worksheet-problem-markdown-naesin .katex-display > .katex {
-  transform: scale(0.88);
+.worksheet-problem-markdown-naesin .katex {
+  font-size: 0.88em;
 }
 
 /* # 11. plan page */
