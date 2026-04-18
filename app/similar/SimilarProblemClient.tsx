@@ -46,6 +46,19 @@ type ExportPageImage = {
   dataUrl: string;
 };
 
+type GenerationProgress = {
+  value: number;
+  label: string;
+  detail: string;
+};
+
+const GENERATION_PROGRESS_STEPS: GenerationProgress[] = [
+  { value: 8, label: "요청 준비", detail: "원본 문제와 참고 풀이를 정리하고 있습니다." },
+  { value: 28, label: "초안 생성", detail: "변형 조건을 반영해 새 문항 초안을 만드는 중입니다." },
+  { value: 56, label: "내부 검수", detail: "문제, 정답, 풀이, 선지 구성이 서로 맞는지 확인하고 있습니다." },
+  { value: 82, label: "최종 보정", detail: "표현과 포맷을 다듬고 export 가능한 형태로 정리하고 있습니다." },
+];
+
 async function captureExportPages(root: HTMLDivElement) {
   const { waitForExportReady } = await import("@/lib/similar-export");
   await waitForExportReady(root);
@@ -235,7 +248,9 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   const [message, setMessage] = useState("");
   const [sourceItem, setSourceItem] = useState<SimilarSourceItem | null>(null);
   const [result, setResult] = useState<SimilarResult | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const exportRootRef = useRef<HTMLDivElement | null>(null);
+  const generationTimerRef = useRef<number[]>([]);
 
   const sourceLabel = useMemo(() => {
     if (source === "history") return "히스토리에서 가져온 문제를 바탕으로 생성합니다.";
@@ -289,6 +304,14 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     setMounted(true);
   }, []);
 
+  useEffect(
+    () => () => {
+      generationTimerRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      generationTimerRef.current = [];
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!mounted) return;
 
@@ -296,6 +319,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
       setLoading(true);
       setMessage("");
       setResult(null);
+      setGenerationProgress(null);
 
       try {
         const {
@@ -356,6 +380,34 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     void load();
   }, [historyId, mounted]);
 
+  const clearGenerationProgressTimers = () => {
+    generationTimerRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    generationTimerRef.current = [];
+  };
+
+  const startGenerationProgress = () => {
+    clearGenerationProgressTimers();
+    setGenerationProgress(GENERATION_PROGRESS_STEPS[0]);
+
+    generationTimerRef.current = GENERATION_PROGRESS_STEPS.slice(1).map((step, index) =>
+      window.setTimeout(() => {
+        setGenerationProgress((current) => {
+          if (!current || current.value >= step.value) return current;
+          return step;
+        });
+      }, (index + 1) * 2200),
+    );
+  };
+
+  const finishGenerationProgress = (success: boolean) => {
+    clearGenerationProgressTimers();
+    setGenerationProgress(
+      success
+        ? { value: 100, label: "생성 완료", detail: "유사문제를 저장했고 export 준비도 끝났습니다." }
+        : null,
+    );
+  };
+
   const handleGenerate = async () => {
     if (!isLoggedIn) {
       setMessage("로그인이 필요합니다.");
@@ -375,12 +427,15 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     try {
       setGenerating(true);
       setMessage("");
+      setResult(null);
+      startGenerationProgress();
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
+        finishGenerationProgress(false);
         setMessage("세션을 다시 확인해 주세요.");
         return;
       }
@@ -396,6 +451,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
       const data = await res.json();
 
       if (!res.ok) {
+        finishGenerationProgress(false);
         setMessage(data?.error || "유사문제 생성에 실패했습니다.");
         return;
       }
@@ -413,7 +469,9 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
       }
 
       setMessage("유사문제를 생성했고 히스토리에도 저장했습니다. 아래에서 디자인을 고른 뒤 바로 export할 수 있습니다.");
+      finishGenerationProgress(true);
     } catch {
+      finishGenerationProgress(false);
       setMessage("유사문제를 생성하는 중 오류가 발생했습니다.");
     } finally {
       setGenerating(false);
@@ -626,6 +684,36 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
               </Link>
             </div>
           </div>
+            {generationProgress ? (
+              <div className="suddak-card-soft" style={{ padding: "14px", display: "grid", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>생성 진행률</div>
+                  <div style={{ fontSize: "13px", fontWeight: 900 }}>{generationProgress.value}%</div>
+                </div>
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: "10px",
+                    borderRadius: "999px",
+                    background: "color-mix(in srgb, var(--primary) 12%, var(--soft))",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${generationProgress.value}%`,
+                      height: "100%",
+                      borderRadius: "999px",
+                      background:
+                        "linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 55%, white))",
+                      transition: "width 600ms ease",
+                    }}
+                  />
+                </div>
+                <div style={{ fontWeight: 800 }}>{generationProgress.label}</div>
+                <div style={{ color: "var(--muted)", lineHeight: 1.7 }}>{generationProgress.detail}</div>
+              </div>
+            ) : null}
         </section>
 
         {message ? (

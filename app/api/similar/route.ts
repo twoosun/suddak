@@ -23,7 +23,15 @@ type SimilarDraft = {
   } | null;
 };
 
-const DEFAULT_WARNING = "베타 생성 결과입니다. 수치와 조건을 한 번 더 확인해 주세요.";
+type SimilarReviewResult = {
+  isValid?: boolean;
+  issues?: string[];
+  candidate?: SimilarDraft | null;
+};
+
+const DEFAULT_WARNING = "베타 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
+const SIMILAR_MODEL = "gpt-4o-mini";
+const SIMILAR_MAX_OUTPUT_TOKENS = 2000;
 
 async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -66,15 +74,15 @@ async function getHistoryItem(historyId: number, userId: string) {
 
 function buildGenerationPrompt() {
   return [
-    "너는 한국 고등학교 수학 문제를 바탕으로 유사문제를 만드는 엄격한 출제 검토자다.",
-    "출력은 반드시 JSON 객체 하나만 반환하라.",
-    "원문과 같은 핵심 개념, 학년군, 난이도를 유지하되 숫자, 조건, 보기 구성은 자연스럽게 변형하라.",
-    "문제 본문과 보기, 정답, 풀이가 서로 논리적으로 완전히 일치해야 한다.",
-    "수식은 반드시 LaTeX 표기로 작성하고, inline 수식은 $...$, 블록 수식은 $$...$$ 를 사용하라.",
-    "절대로 \\(...\\), \\[...\\] 형태를 쓰지 마라.",
-    "객관식이면 보기는 한 줄에 하나씩 `1.`, `2.`, `3.`, `4.`, `5.` 형식으로 작성하라.",
-    "풀이에는 핵심 계산 과정을 충분히 적고, 변형 포인트에는 무엇을 어떻게 바꿨는지 구체적으로 적어라.",
-    "meta에는 과목명(subjectLabel), 세부 주제(subtopic), 난이도(difficulty, difficultyLabel)를 넣어라.",
+    "너는 수능/내신 스타일 고등 수학 유사문제를 만드는 출제 검토자다.",
+    "반드시 JSON 객체 하나만 반환하라.",
+    "원본과 같은 개념, 학년군, 난이도를 유지하되 숫자와 조건, 보기 구성을 자연스럽게 변형하라.",
+    "문제 본문, 보기, 정답, 풀이가 서로 논리적으로 완전히 일치해야 한다.",
+    "풀이에는 핵심 관찰과 계산 과정을 충분히 적고, variationNote에는 무엇을 어떻게 바꿨는지 구체적으로 적어라.",
+    "수식은 반드시 LaTeX로 작성하고 inline 수식은 $...$, 블록 수식은 $$...$$ 만 사용하라.",
+    "\\(...\\), \\[...\\], \\begin, \\end 는 쓰지 마라.",
+    "객관식이면 보기를 줄바꿈하여 `1.`, `2.`, `3.`, `4.`, `5.` 형식으로 작성하라.",
+    "meta에는 subjectLabel, subtopic, difficulty, difficultyLabel을 채워라.",
     "",
     "반환 형식:",
     "{",
@@ -82,7 +90,7 @@ function buildGenerationPrompt() {
     '  "problem": "문제 본문",',
     '  "answer": "정답",',
     '  "solution": "풀이",',
-    '  "variationNote": "변형 포인트",',
+    '  "variationNote": "변형 사항",',
     '  "warning": "검토 안내 문구",',
     '  "meta": {',
     '    "subjectLabel": "과목",',
@@ -96,25 +104,61 @@ function buildGenerationPrompt() {
 
 function buildReviewPrompt(candidate: string) {
   return [
-    "아래 JSON 초안을 검토해 오류를 고쳐라.",
+    "아래 JSON 초안을 내부 검수하고 필요하면 바로 수정하라.",
     "반드시 JSON 객체 하나만 반환하라.",
-    "검토 기준:",
-    "1. 문제 본문, 보기, 정답, 풀이가 서로 모순 없이 맞아야 한다.",
-    "2. 보기 개수와 정답이 실제 내용과 맞아야 한다.",
-    "3. 수식은 모두 $...$ 또는 $$...$$ 로만 표기해야 한다.",
-    "4. 한국어 표현과 문항 형식이 자연스러워야 한다.",
-    "5. meta 정보는 비워 두지 말고 문제와 일치하게 유지하라.",
+    "반환 형식:",
+    "{",
+    '  "isValid": true,',
+    '  "issues": ["issue"],',
+    '  "candidate": {',
+    '    "title": "유사문제 제목",',
+    '    "problem": "문제 본문",',
+    '    "answer": "정답",',
+    '    "solution": "풀이",',
+    '    "variationNote": "변형 사항",',
+    '    "warning": "검토 안내 문구",',
+    '    "meta": {',
+    '      "subjectLabel": "과목",',
+    '      "subtopic": "주제",',
+    '      "difficulty": "easy | medium | hard",',
+    '      "difficultyLabel": "쉬움 | 보통 | 어려움"',
+    "    }",
+    "  }",
+    "}",
     "",
-    "[검토 대상 JSON]",
+    "검수 기준:",
+    "1. 문제, 정답, 풀이가 서로 모순 없이 맞아야 한다.",
+    "2. 객관식 보기 구성이 정답과 일치해야 한다.",
+    "3. 수식 표기는 $...$, $$...$$ 만 사용해야 한다.",
+    "4. 고등 수학 문항 톤으로 자연스러워야 한다.",
+    "5. variationNote는 실제 변형 포인트를 구체적으로 설명해야 한다.",
+    "6. meta 정보는 문제와 맞아야 한다.",
+    "",
+    "[검수 대상 JSON]",
+    candidate,
+  ].join("\n");
+}
+
+function buildRepairPrompt(candidate: string, issues: string[]) {
+  return [
+    "아래 JSON의 오류를 고쳐라.",
+    "반드시 수정된 JSON 객체 하나만 반환하라.",
+    "문제, 정답, 풀이의 일관성을 최우선으로 맞춰라.",
+    "warning은 비우지 마라.",
+    "variationNote에는 어떤 요소를 바꿨는지 구체적으로 적어라.",
+    "",
+    "[발견된 문제]",
+    issues.length > 0 ? issues.map((issue, index) => `${index + 1}. ${issue}`).join("\n") : "- 없음",
+    "",
+    "[현재 JSON]",
     candidate,
   ].join("\n");
 }
 
 async function requestSimilarDraft(prompt: string, recognizedText: string, solveResult: string) {
   const response = await client.responses.create({
-    model: "gpt-5.4",
-    reasoning: { effort: "high" },
-    max_output_tokens: 2400,
+    model: SIMILAR_MODEL,
+    max_output_tokens: SIMILAR_MAX_OUTPUT_TOKENS,
     store: false,
     input: [
       {
@@ -136,8 +180,17 @@ async function requestSimilarDraft(prompt: string, recognizedText: string, solve
   return extractResponseText(response);
 }
 
+function parseJsonText<T>(rawText: string) {
+  const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  return JSON.parse(cleaned) as T;
+}
+
 function parseSimilarDraft(rawText: string) {
-  return JSON.parse(rawText) as SimilarDraft;
+  return parseJsonText<SimilarDraft>(rawText);
+}
+
+function parseSimilarReviewResult(rawText: string) {
+  return parseJsonText<SimilarReviewResult>(rawText);
 }
 
 function extractResponseText(response: OpenAI.Responses.Response) {
@@ -179,6 +232,73 @@ function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
     difficulty,
     difficultyLabel,
   };
+}
+
+function validateSimilarDraft(draft: SimilarDraft) {
+  const issues: string[] = [];
+  const mergedText = [draft.problem, draft.answer, draft.solution].join("\n");
+
+  if (!draft.title?.trim()) issues.push("title is empty");
+  if ((draft.problem?.trim().length || 0) < 12) issues.push("problem is too short");
+  if (!draft.answer?.trim()) issues.push("answer is empty");
+  if (!draft.solution?.trim()) issues.push("solution is empty");
+  if (!draft.variationNote?.trim()) issues.push("variationNote is empty");
+  if (!draft.warning?.trim()) issues.push("warning is empty");
+  if (!draft.meta?.subjectLabel?.trim()) issues.push("meta.subjectLabel is empty");
+  if (!draft.meta?.difficultyLabel?.trim()) issues.push("meta.difficultyLabel is empty");
+  if (/[\\]\(|[\\]\)|[\\]\[|[\\]\]|\\begin|\\end/.test(mergedText)) {
+    issues.push("latex delimiters must use $...$ or $$...$$ only");
+  }
+
+  return issues;
+}
+
+async function generateValidatedSimilarProblem(recognizedText: string, solveResult: string) {
+  const draftText = await requestSimilarDraft(buildGenerationPrompt(), recognizedText, solveResult);
+  if (!draftText) {
+    throw new Error("유사문제 생성 결과가 비어 있습니다.");
+  }
+
+  let candidate = parseSimilarDraft(draftText);
+
+  const reviewText = await requestSimilarDraft(
+    buildReviewPrompt(JSON.stringify(candidate, null, 2)),
+    recognizedText,
+    solveResult,
+  );
+
+  if (reviewText) {
+    try {
+      const review = parseSimilarReviewResult(reviewText);
+      if (review.candidate) {
+        candidate = review.candidate;
+      }
+
+      const mergedIssues = [...(review.issues ?? []), ...validateSimilarDraft(candidate)];
+      if (review.isValid === false || mergedIssues.length > 0) {
+        const repairedText = await requestSimilarDraft(
+          buildRepairPrompt(JSON.stringify(candidate, null, 2), mergedIssues),
+          recognizedText,
+          solveResult,
+        );
+
+        if (repairedText) {
+          candidate = parseSimilarDraft(repairedText);
+        }
+      }
+    } catch (error) {
+      console.error("[api/similar] review parse error:", error);
+      console.error("[api/similar] review raw:", reviewText);
+    }
+  }
+
+  const finalIssues = validateSimilarDraft(candidate);
+  if (finalIssues.length > 0) {
+    console.error("[api/similar] final validation issues:", finalIssues);
+    throw new Error("유사문제 검증에 실패했습니다.");
+  }
+
+  return candidate;
 }
 
 export async function GET(req: NextRequest) {
@@ -256,22 +376,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const draftText = await requestSimilarDraft(buildGenerationPrompt(), recognizedText, solveResult);
-
-    if (!draftText) {
-      return NextResponse.json({ error: "유사문제 생성 결과가 비어 있습니다." }, { status: 502 });
-    }
-
-    const reviewedText = await requestSimilarDraft(buildReviewPrompt(draftText), recognizedText, solveResult);
-    const rawText = reviewedText || draftText;
-
     let parsed: SimilarDraft;
 
     try {
-      parsed = parseSimilarDraft(rawText);
+      parsed = await generateValidatedSimilarProblem(recognizedText, solveResult);
     } catch (error) {
-      console.error("[api/similar][POST] parse error:", error);
-      console.error("[api/similar][POST] rawText:", rawText);
+      console.error("[api/similar][POST] generation error:", error);
       return NextResponse.json({ error: "유사문제 결과를 정리하지 못했습니다." }, { status: 502 });
     }
 
