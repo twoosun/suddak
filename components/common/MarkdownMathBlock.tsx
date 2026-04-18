@@ -8,6 +8,7 @@ type Props = {
   content: string;
   isDark: boolean;
   className?: string;
+  variant?: "default" | "plain";
 };
 
 /* # 1. 공통 마크다운 수식 렌더 */
@@ -15,12 +16,13 @@ export default function MarkdownMathBlock({
   content,
   isDark,
   className = "",
+  variant = "default",
 }: Props) {
   return (
     <div
       className={[
         "suddak-markdown",
-        "prose prose-sm max-w-none",
+        variant === "default" ? "prose prose-sm max-w-none" : "",
         isDark ? "prose-invert" : "",
         className,
       ]
