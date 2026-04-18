@@ -1,16 +1,50 @@
 import { waitForExportReady } from "@/lib/similar-export";
 
+function serializeHeadStyles() {
+  return Array.from(document.head.querySelectorAll("style, link[rel='stylesheet']"))
+    .map((node) => {
+      if (node.tagName.toLowerCase() !== "link") {
+        return node.outerHTML;
+      }
+
+      return `<link rel="stylesheet" href="${(node as HTMLLinkElement).href}" />`;
+    })
+    .join("\n");
+}
+
+async function waitForPrintWindowReady(printWindow: Window) {
+  try {
+    if ("fonts" in printWindow.document && "ready" in printWindow.document.fonts) {
+      await printWindow.document.fonts.ready;
+    }
+  } catch {}
+
+  await Promise.all(
+    Array.from(printWindow.document.images).map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        }),
+    ),
+  );
+
+  await new Promise<void>((resolve) => printWindow.requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => printWindow.requestAnimationFrame(() => resolve()));
+}
+
 export async function printElementInNewWindow(root: HTMLDivElement, title: string) {
   await waitForExportReady(root);
 
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1100,height=900");
+  const printWindow = window.open("", "_blank", "width=1100,height=900");
   if (!printWindow) {
     throw new Error("인쇄 창을 열 수 없습니다. 팝업 차단을 확인해 주세요.");
   }
-
-  const styleNodes = Array.from(document.head.querySelectorAll("style, link[rel='stylesheet']"))
-    .map((node) => node.outerHTML)
-    .join("\n");
 
   printWindow.document.open();
   printWindow.document.write(`<!doctype html>
@@ -19,7 +53,7 @@ export async function printElementInNewWindow(root: HTMLDivElement, title: strin
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
-    ${styleNodes}
+    ${serializeHeadStyles()}
     <style>
       body {
         margin: 0;
@@ -52,10 +86,12 @@ export async function printElementInNewWindow(root: HTMLDivElement, title: strin
   printWindow.document.close();
 
   await new Promise<void>((resolve) => {
-    const finalize = () => resolve();
-    printWindow.addEventListener("load", () => finalize(), { once: true });
-    window.setTimeout(() => finalize(), 1200);
+    const finish = () => resolve();
+    printWindow.addEventListener("load", finish, { once: true });
+    window.setTimeout(finish, 1500);
   });
+
+  await waitForPrintWindowReady(printWindow);
 
   printWindow.focus();
   printWindow.print();

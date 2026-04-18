@@ -246,7 +246,7 @@ function buildStyles() {
     }
 
     .worksheet-paper-suneung {
-      padding: 42px 50px 54px;
+      padding: 36px 44px 48px;
     }
 
     .worksheet-suneung-frame {
@@ -292,12 +292,12 @@ function buildStyles() {
 
     .worksheet-problem-head-suneung {
       margin-left: 62px;
-      padding-top: 76px;
+      padding-top: 68px;
     }
 
     .worksheet-problem-number {
       color: #21a446;
-      font-size: 44px;
+      font-size: 38px;
       font-weight: 700;
       line-height: 1;
     }
@@ -309,13 +309,13 @@ function buildStyles() {
     }
 
     .worksheet-problem-title {
-      margin: 18px 0 0 62px;
-      font-size: 23px;
+      margin: 14px 0 0 62px;
+      font-size: 20px;
       font-weight: 700;
     }
 
     .worksheet-paper-naesin {
-      padding: 20px 16px 18px;
+      padding: 16px 14px 14px;
     }
 
     .worksheet-naesin-header {
@@ -323,7 +323,7 @@ function buildStyles() {
       grid-template-columns: 160px 1fr 160px;
       align-items: center;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .worksheet-ribbon {
@@ -379,15 +379,11 @@ function buildStyles() {
     }
 
     .worksheet-naesin-grid::after {
-      left: 0;
-      right: 0;
-      top: 50%;
-      height: 1px;
-      transform: translateY(-0.5px);
+      display: none;
     }
 
     .worksheet-naesin-cell {
-      padding: 18px 18px 16px;
+      padding: 14px 14px 12px;
       overflow: hidden;
     }
 
@@ -415,10 +411,10 @@ function buildStyles() {
     }
 
     .worksheet-naesin-title {
-      margin-bottom: 10px;
-      font-size: 18px;
+      margin-bottom: 8px;
+      font-size: 16px;
       font-weight: 700;
-      line-height: 1.4;
+      line-height: 1.3;
     }
 
     .worksheet-paper-solution {
@@ -491,16 +487,16 @@ function buildStyles() {
     }
 
     .worksheet-problem-markdown-suneung {
-      margin: 28px 56px 0 62px;
-      font-size: 20px;
-      line-height: 2;
-      min-height: 740px;
+      margin: 18px 44px 0 62px;
+      font-size: 17px;
+      line-height: 1.62;
+      min-height: 810px;
     }
 
     .worksheet-problem-markdown-naesin {
-      font-size: 17px;
-      line-height: 1.75;
-      max-height: 410px;
+      font-size: 14px;
+      line-height: 1.5;
+      max-height: 448px;
       overflow: hidden;
     }
 
@@ -508,7 +504,7 @@ function buildStyles() {
     .worksheet-problem-markdown ol,
     .worksheet-problem-markdown ul,
     .worksheet-display-math {
-      margin: 0 0 12px;
+      margin: 0 0 8px;
     }
 
     .worksheet-problem-markdown ol,
@@ -517,16 +513,16 @@ function buildStyles() {
     }
 
     .worksheet-problem-markdown li {
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .worksheet-problem-markdown .katex {
-      font-size: 1.05em;
+      font-size: 0.96em;
     }
 
     .worksheet-problem-markdown .katex-display,
     .worksheet-display-math .katex-display {
-      margin: 0.6em 0;
+      margin: 0.35em 0;
       overflow: visible;
       text-align: center;
     }

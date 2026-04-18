@@ -140,18 +140,77 @@ async function buildPdfBuffer(browser: Browser, payload: SimilarExportPayload) {
   const page = await renderExportPage(browser, payload);
 
   try {
-    return Buffer.from(
-      await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "0mm",
-          right: "0mm",
-          bottom: "0mm",
-          left: "0mm",
-        },
-      }),
+    const sectionHandles = await page.$$("[data-export-sheet='true']");
+    const screenshots = await Promise.all(
+      sectionHandles.map((handle) => handle.screenshot({ type: "png" })),
     );
+
+    const pdfPage = await browser.newPage();
+
+    try {
+      const screenshotMarkup = screenshots
+        .map((screenshot) => {
+          const dataUrl = `data:image/png;base64,${Buffer.from(screenshot).toString("base64")}`;
+          return `<section class="pdf-sheet"><img src="${dataUrl}" alt="" /></section>`;
+        })
+        .join("");
+
+      await pdfPage.setContent(
+        `<!doctype html>
+        <html lang="ko">
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              @page {
+                size: A4;
+                margin: 0;
+              }
+
+              html, body {
+                margin: 0;
+                padding: 0;
+                background: #fff;
+              }
+
+              .pdf-sheet {
+                width: 794px;
+                height: 1123px;
+                page-break-after: always;
+                break-after: page;
+              }
+
+              .pdf-sheet:last-child {
+                page-break-after: auto;
+                break-after: auto;
+              }
+
+              .pdf-sheet img {
+                display: block;
+                width: 794px;
+                height: 1123px;
+              }
+            </style>
+          </head>
+          <body>${screenshotMarkup}</body>
+        </html>`,
+        { waitUntil: "load" },
+      );
+
+      return Buffer.from(
+        await pdfPage.pdf({
+          format: "A4",
+          printBackground: true,
+          margin: {
+            top: "0mm",
+            right: "0mm",
+            bottom: "0mm",
+            left: "0mm",
+          },
+        }),
+      );
+    } finally {
+      await pdfPage.close();
+    }
   } finally {
     await page.close();
   }
