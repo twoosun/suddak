@@ -13,6 +13,8 @@
     "@sparticuz/chromium": "^147.0.1",
     "@supabase/supabase-js": "^2.103.0",
     "docx": "^9.6.1",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "katex": "^0.16.45",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",

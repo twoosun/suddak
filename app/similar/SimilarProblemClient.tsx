@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
 import MoreMenu from "@/components/MoreMenu";
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
+import SimilarExportDocument from "@/components/similar/SimilarExportDocument";
 import ThemeToggleButton from "@/components/common/ThemeToggleButton";
 import {
+  dataUrlToUint8Array,
   buildExportFilename,
   downloadBlob,
   parseContentDispositionFilename,
+  waitForExportReady,
   type SimilarExportFormat,
   type SimilarExportMode,
   type SimilarExportPayload,
@@ -45,6 +48,98 @@ type ExportFeedback = {
   tone: "info" | "success" | "error";
   text: string;
 };
+
+type ExportPageImage = {
+  dataUrl: string;
+};
+
+async function captureExportPages(root: HTMLDivElement) {
+  await waitForExportReady(root);
+
+  const { toCanvas } = await import("html-to-image");
+  const sheetNodes = Array.from(root.querySelectorAll<HTMLElement>("[data-export-sheet='true']"));
+  const pageImages: ExportPageImage[] = [];
+
+  for (const sheetNode of sheetNodes) {
+    const canvas = await toCanvas(sheetNode, {
+      backgroundColor: "#fffdfa",
+      cacheBust: true,
+      pixelRatio: 2,
+    });
+    const pageImagesForSheet = [canvas.toDataURL("image/png")];
+    for (const dataUrl of pageImagesForSheet) {
+      pageImages.push({ dataUrl });
+    }
+  }
+
+  return pageImages;
+}
+
+async function exportPdfInBrowser(root: HTMLDivElement, payload: SimilarExportPayload) {
+  const [{ jsPDF }, pageImages] = await Promise.all([import("jspdf"), captureExportPages(root)]);
+  const pdf = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+    compress: true,
+  });
+
+  pageImages.forEach((pageImage, index) => {
+    if (index > 0) {
+      pdf.addPage("a4", "portrait");
+    }
+
+    pdf.addImage(pageImage.dataUrl, "PNG", 0, 0, 210, 297, undefined, "FAST");
+  });
+
+  downloadBlob(
+    pdf.output("blob"),
+    buildExportFilename(payload.meta.examTitle || payload.title, payload.mode, "pdf"),
+  );
+}
+
+async function exportDocxInBrowser(root: HTMLDivElement, payload: SimilarExportPayload) {
+  const pageImages = await captureExportPages(root);
+  const { AlignmentType, Document, ImageRun, Packer, Paragraph } = await import("docx");
+  const document = new Document({
+    sections: pageImages.map((pageImage) => ({
+      properties: {
+        page: {
+          margin: {
+            top: 360,
+            right: 360,
+            bottom: 360,
+            left: 360,
+          },
+          size: {
+            width: 11906,
+            height: 16838,
+          },
+        },
+      },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              data: dataUrlToUint8Array(pageImage.dataUrl),
+              type: "png",
+              transformation: {
+                width: 718,
+                height: 1016,
+              },
+            }),
+          ],
+        }),
+      ],
+    })),
+  });
+
+  downloadBlob(
+    await Packer.toBlob(document),
+    buildExportFilename(payload.meta.examTitle || payload.title, payload.mode, "docx"),
+  );
+}
 
 async function requestExportFile(
   accessToken: string,
@@ -111,6 +206,7 @@ export default function SimilarProblemClient({
   const [message, setMessage] = useState("");
   const [sourceItem, setSourceItem] = useState<SimilarSourceItem | null>(null);
   const [result, setResult] = useState<SimilarResult | null>(null);
+  const exportRootRef = useRef<HTMLDivElement | null>(null);
 
   const sourceLabel = useMemo(() => {
     if (source === "history") return "히스토리에서 가져온 문제를 바탕으로 생성합니다.";
@@ -337,11 +433,51 @@ export default function SimilarProblemClient({
           : error instanceof Error
             ? error.message
             : "export 중 오류가 발생했습니다.";
-      setMessage(errorMessage);
-      setExportFeedback({
-        tone: "error",
-        text: errorMessage,
-      });
+
+      const canFallback = Boolean(exportRootRef.current);
+      if (canFallback) {
+        try {
+          setExportFeedback({
+            tone: "info",
+            text:
+              format === "pdf"
+                ? "서버 export가 실패해 브라우저 fallback 방식으로 PDF를 다시 생성합니다."
+                : "서버 export가 실패해 브라우저 fallback 방식으로 DOCX를 다시 생성합니다.",
+          });
+
+          if (format === "pdf") {
+            await exportPdfInBrowser(exportRootRef.current!, exportPayload);
+          } else {
+            await exportDocxInBrowser(exportRootRef.current!, exportPayload);
+          }
+
+          const fallbackSuccessText =
+            format === "pdf"
+              ? "서버 export는 실패했지만 브라우저 fallback으로 PDF 다운로드를 시작했습니다."
+              : "서버 export는 실패했지만 브라우저 fallback으로 DOCX 다운로드를 시작했습니다.";
+          setMessage(fallbackSuccessText);
+          setExportFeedback({
+            tone: "success",
+            text: fallbackSuccessText,
+          });
+        } catch (fallbackError) {
+          const fallbackErrorMessage =
+            fallbackError instanceof Error
+              ? `서버 export 실패 후 브라우저 fallback도 실패했습니다: ${fallbackError.message}`
+              : `서버 export 실패 후 브라우저 fallback도 실패했습니다. 원인: ${errorMessage}`;
+          setMessage(fallbackErrorMessage);
+          setExportFeedback({
+            tone: "error",
+            text: fallbackErrorMessage,
+          });
+        }
+      } else {
+        setMessage(errorMessage);
+        setExportFeedback({
+          tone: "error",
+          text: errorMessage,
+        });
+      }
     } finally {
       setExporting(false);
       setExportTarget(null);
@@ -809,6 +945,12 @@ export default function SimilarProblemClient({
           </SectionCard>
         </div>
       </div>
+
+      {exportPayload && (
+        <div ref={exportRootRef} className="similar-export-stage" aria-hidden="true">
+          <SimilarExportDocument payload={exportPayload} />
+        </div>
+      )}
     </PageContainer>
   );
 }

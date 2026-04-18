@@ -55,6 +55,43 @@ export function downloadBlob(blob: Blob, filename: string) {
   }, 1000);
 }
 
+export async function waitForExportReady(root: HTMLElement) {
+  if ("fonts" in document && "ready" in document.fonts) {
+    await document.fonts.ready;
+  }
+
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        }),
+    ),
+  );
+
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+export function dataUrlToUint8Array(dataUrl: string) {
+  const [, base64 = ""] = dataUrl.split(",");
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
 export function parseContentDispositionFilename(value: string | null) {
   if (!value) return null;
 
