@@ -133,11 +133,36 @@ async function requestSimilarDraft(prompt: string, recognizedText: string, solve
     ],
   });
 
-  return response.output_text?.trim() || "";
+  return extractResponseText(response);
 }
 
 function parseSimilarDraft(rawText: string) {
   return JSON.parse(rawText) as SimilarDraft;
+}
+
+function extractResponseText(response: OpenAI.Responses.Response) {
+  const rawText = response.output_text?.trim() || "";
+  if (rawText) return rawText;
+
+  for (const item of response.output ?? []) {
+    if (item.type !== "message" || !Array.isArray(item.content)) continue;
+
+    const textParts = item.content
+      .filter(
+        (
+          part,
+        ): part is Extract<(typeof item.content)[number], { type: "output_text"; text: string }> =>
+          part.type === "output_text" && typeof part.text === "string",
+      )
+      .map((part) => part.text.trim())
+      .filter(Boolean);
+
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+  }
+
+  return "";
 }
 
 function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
