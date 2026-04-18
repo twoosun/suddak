@@ -4,6 +4,8 @@ export type SimilarExportFormat = "pdf" | "docx";
 
 export type SimilarExportSolutionStyle = "typeset" | "handwritten-future";
 
+export type SimilarExportLayout = "suneung" | "naesin";
+
 export type SimilarExportMeta = {
   school: string;
   grade: string;
@@ -23,6 +25,7 @@ export type SimilarExportPayload = {
   variationNote: string;
   includeOriginalProblem: boolean;
   mode: SimilarExportMode;
+  layoutStyle: SimilarExportLayout;
   meta: SimilarExportMeta;
   solutionStyle: SimilarExportSolutionStyle;
 };

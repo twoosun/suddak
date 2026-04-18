@@ -58,7 +58,7 @@ function renderListBlock(lines: string[], ordered: boolean) {
 
 function renderMarkdownLikeHtml(content: string) {
   const normalized = content.replace(/\r\n/g, "\n").trim();
-  if (!normalized) return `<p>내용이 없습니다.</p>`;
+  if (!normalized) return "<p>내용이 없습니다.</p>";
 
   const blocks = normalized.split(/\n{2,}/);
 
@@ -69,7 +69,7 @@ function renderMarkdownLikeHtml(content: string) {
 
       if (trimmedBlock.startsWith("$$") && trimmedBlock.endsWith("$$")) {
         const expression = trimmedBlock.slice(2, -2).trim();
-        return `<div class="similar-export-display-math">${renderMathExpression(expression, true)}</div>`;
+        return `<div class="worksheet-display-math">${renderMathExpression(expression, true)}</div>`;
       }
 
       const lines = trimmedBlock.split("\n");
@@ -88,26 +88,7 @@ function renderMarkdownLikeHtml(content: string) {
     .join("");
 }
 
-function renderMetaField(label: string, value: string) {
-  return `
-    <div class="similar-export-meta-field">
-      <div class="similar-export-meta-label">${escapeHtml(label)}</div>
-      <div class="similar-export-meta-line">${escapeHtml(value)}</div>
-    </div>
-  `;
-}
-
-function renderSection(label: string, title: string, content: string, compact = false) {
-  return `
-    <section class="similar-export-section ${compact ? "similar-export-section-compact" : ""}">
-      <div class="similar-export-section-label">${escapeHtml(label)}</div>
-      <h2 class="similar-export-section-title">${escapeHtml(title)}</h2>
-      <div class="similar-export-markdown">${renderMarkdownLikeHtml(content)}</div>
-    </section>
-  `;
-}
-
-function buildExportStyles() {
+function buildStyles() {
   return `
     @page {
       size: A4;
@@ -122,109 +103,78 @@ function buildExportStyles() {
     body {
       margin: 0;
       padding: 0;
-      background: #efe7da;
-      color: #111827;
+      background: #d8d6d1;
+      color: #111;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     body {
       font-family:
-        "Times New Roman",
+        "KoPub Batang",
+        "KoPubWorld Batang",
         "Noto Serif KR",
         "Nanum Myeongjo",
+        "Batang",
         serif;
     }
 
-    .similar-export-shell {
+    .worksheet-shell {
       display: grid;
       gap: 24px;
-      padding: 0;
     }
 
-    .similar-export-sheet {
+    .worksheet-sheet {
       width: 794px;
-      height: 1123px;
-      overflow: hidden;
+      min-height: 1123px;
       page-break-after: always;
       break-after: page;
     }
 
-    .similar-export-sheet:last-child {
+    .worksheet-sheet:last-child {
       page-break-after: auto;
       break-after: auto;
     }
 
-    .similar-export-paper {
+    .worksheet-paper {
+      position: relative;
       width: 794px;
       min-height: 1123px;
-      padding: 48px 44px;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 249, 243, 0.98)),
-        #fffdfa;
-      border: 1px solid #d6cec1;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+      overflow: hidden;
+      background: #fff;
     }
 
-    .similar-export-header {
-      position: relative;
-      padding: 24px 24px 22px;
-      border: 1px solid #212a39;
+    .worksheet-paper-cover {
+      padding: 56px 48px;
+      background: linear-gradient(180deg, #fefefe 0%, #fbfbf7 100%);
     }
 
-    .similar-export-header::before,
-    .similar-export-header::after {
-      content: "";
-      position: absolute;
-      width: 28px;
-      height: 28px;
-      border-top: 1px solid #212a39;
+    .worksheet-header {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      min-height: 220px;
+      border-top: 1px solid #d7d7d7;
     }
 
-    .similar-export-header::before {
-      top: -1px;
-      left: -1px;
-      border-left: 1px solid #212a39;
-    }
-
-    .similar-export-header::after {
-      top: -1px;
-      right: -1px;
-      border-right: 1px solid #212a39;
-    }
-
-    .similar-export-kicker {
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      color: #50627f;
-      font-weight: 700;
-      font-family:
-        "Malgun Gothic",
-        "Apple SD Gothic Neo",
-        "Noto Sans KR",
-        sans-serif;
-    }
-
-    .similar-export-heading-row {
+    .worksheet-header-band {
+      background: linear-gradient(180deg, #d7f4cf 0%, #eef9e8 100%);
+      border-right: 1px solid #d9d9d9;
       display: flex;
       align-items: flex-start;
-      justify-content: space-between;
-      gap: 24px;
-      margin-top: 12px;
+      padding: 18px 10px;
     }
 
-    .similar-export-title {
-      margin: 0;
-      font-size: 32px;
-      line-height: 1.15;
-      letter-spacing: -0.03em;
-    }
-
-    .similar-export-subtitle {
-      margin: 10px 0 0;
-      color: #5a6578;
-      font-size: 13px;
-      line-height: 1.6;
+    .worksheet-header-band-label,
+    .worksheet-header-badge,
+    .worksheet-header-subtitle,
+    .worksheet-meta-item,
+    .worksheet-problem-meta,
+    .worksheet-naesin-source,
+    .worksheet-solution-label,
+    .worksheet-solution-index,
+    .worksheet-solution-block-label,
+    .worksheet-solution-note,
+    .worksheet-solution-warning {
       font-family:
         "Malgun Gothic",
         "Apple SD Gothic Neo",
@@ -232,243 +182,502 @@ function buildExportStyles() {
         sans-serif;
     }
 
-    .similar-export-badge {
-      flex-shrink: 0;
-      padding: 8px 14px;
-      border: 1px solid #7f8aa1;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-family:
-        "Malgun Gothic",
-        "Apple SD Gothic Neo",
-        "Noto Sans KR",
-        sans-serif;
+    .worksheet-header-band-label {
+      color: #1a9f48;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
     }
 
-    .similar-export-meta-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px 18px;
-      margin-top: 22px;
+    .worksheet-header-main {
+      padding: 18px 24px 0;
     }
 
-    .similar-export-meta-label,
-    .similar-export-section-label,
-    .similar-export-question-label,
-    .similar-export-score,
-    .similar-export-note,
-    .similar-export-warning {
-      font-family:
-        "Malgun Gothic",
-        "Apple SD Gothic Neo",
-        "Noto Sans KR",
-        sans-serif;
-    }
-
-    .similar-export-meta-label {
-      margin-bottom: 8px;
-      color: #5a6578;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-    }
-
-    .similar-export-meta-line {
-      min-height: 24px;
-      border-bottom: 1px solid #aeb8c7;
-      font-size: 16px;
-    }
-
-    .similar-export-note,
-    .similar-export-warning {
-      margin-top: 18px;
-      padding: 14px 16px;
-      border: 1px solid #d8d1c5;
-      background: rgba(255, 255, 255, 0.72);
-      color: #596270;
-      font-size: 12px;
-      line-height: 1.8;
-    }
-
-    .similar-export-section,
-    .similar-export-problem-card {
-      margin-top: 22px;
-      padding: 24px 24px 26px;
-      border: 1px solid #d6cec1;
-      background: rgba(255, 255, 255, 0.9);
-    }
-
-    .similar-export-section-compact {
-      padding-top: 20px;
-      padding-bottom: 22px;
-    }
-
-    .similar-export-section-label {
-      display: inline-block;
-      padding: 5px 10px;
-      border: 1px solid #9eb0c9;
-      background: #f2f6fb;
-      color: #41536e;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .similar-export-section-title {
-      margin: 16px 0 14px;
-      font-size: 26px;
-      line-height: 1.2;
-    }
-
-    .similar-export-problem-topline {
+    .worksheet-header-title-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
     }
 
-    .similar-export-score {
-      padding: 6px 12px;
-      border: 1px solid #d0d8e2;
-      color: #435168;
+    .worksheet-header-title {
+      margin: 0;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .worksheet-header-badge {
+      border: 1px solid #6fcf7e;
+      color: #1d9b47;
+      background: #f5fff5;
+      border-radius: 999px;
+      padding: 7px 12px;
       font-size: 12px;
-    }
-
-    .similar-export-question-heading {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-      margin-top: 20px;
-    }
-
-    .similar-export-question-number {
-      display: inline-flex;
-      width: 32px;
-      height: 32px;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid #212a39;
-      font-size: 18px;
       font-weight: 700;
     }
 
-    .similar-export-question-label {
-      color: #667489;
+    .worksheet-header-subtitle {
+      margin: 14px 0 0;
+      color: #5f665f;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .worksheet-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 18px;
+      margin-top: 24px;
+    }
+
+    .worksheet-meta-item {
+      display: grid;
+      gap: 6px;
       font-size: 12px;
-      letter-spacing: 0.1em;
+      color: #555;
+    }
+
+    .worksheet-meta-line {
+      min-height: 22px;
+      border-bottom: 1px solid #bfc5bf;
+      color: #111;
+      font-size: 15px;
+    }
+
+    .worksheet-paper-suneung {
+      padding: 42px 50px 54px;
+    }
+
+    .worksheet-suneung-frame {
+      position: absolute;
+      top: 120px;
+      bottom: 42px;
+      left: 88px;
+      width: 1px;
+      background: #dfdfdf;
+    }
+
+    .worksheet-suneung-topline {
+      position: absolute;
+      top: 66px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #dfdfdf;
+    }
+
+    .worksheet-suneung-sidebar {
+      position: absolute;
+      left: 32px;
+      bottom: 110px;
+      color: #38a156;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-family:
+        "Malgun Gothic",
+        "Apple SD Gothic Neo",
+        "Noto Sans KR",
+        sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+    }
+
+    .worksheet-problem-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .worksheet-problem-head-suneung {
+      margin-left: 62px;
+      padding-top: 76px;
+    }
+
+    .worksheet-problem-number {
+      color: #21a446;
+      font-size: 44px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .worksheet-problem-meta {
+      padding-top: 14px;
+      color: #7c7c7c;
+      font-size: 12px;
+    }
+
+    .worksheet-problem-title {
+      margin: 18px 0 0 62px;
+      font-size: 23px;
+      font-weight: 700;
+    }
+
+    .worksheet-paper-naesin {
+      padding: 20px 16px 18px;
+    }
+
+    .worksheet-naesin-header {
+      display: grid;
+      grid-template-columns: 160px 1fr 160px;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .worksheet-ribbon {
+      padding: 15px 22px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      border: 4px solid #24326d;
+      clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 24px) 100%, 0 100%, 0 24px);
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.24);
+      font-family:
+        "Georgia",
+        "Times New Roman",
+        serif;
+    }
+
+    .worksheet-ribbon-blue {
+      background: linear-gradient(180deg, #9ec3ec 0%, #7ba7d8 100%);
+    }
+
+    .worksheet-ribbon-green {
+      background: linear-gradient(180deg, #c8e29a 0%, #a2cc64 100%);
+    }
+
+    .worksheet-naesin-line {
+      height: 3px;
+      background: #2a468e;
+    }
+
+    .worksheet-naesin-grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      min-height: 1020px;
+      border: 1px solid #d3d3d3;
+    }
+
+    .worksheet-naesin-grid::before,
+    .worksheet-naesin-grid::after {
+      content: "";
+      position: absolute;
+      background: #b9b9b9;
+      pointer-events: none;
+    }
+
+    .worksheet-naesin-grid::before {
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 1px;
+      transform: translateX(-0.5px);
+    }
+
+    .worksheet-naesin-grid::after {
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      transform: translateY(-0.5px);
+    }
+
+    .worksheet-naesin-cell {
+      padding: 18px 18px 16px;
+      overflow: hidden;
+    }
+
+    .worksheet-naesin-cell-empty {
+      background: linear-gradient(180deg, rgba(248, 248, 248, 0.7), rgba(255, 255, 255, 0.9));
+    }
+
+    .worksheet-naesin-cell-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .worksheet-naesin-chip {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .worksheet-naesin-source {
+      color: #3e9a34;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .worksheet-naesin-title {
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .worksheet-paper-solution {
+      padding: 40px 44px;
+      background: linear-gradient(180deg, #fffefa 0%, #faf7ef 100%);
+    }
+
+    .worksheet-solution-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .worksheet-solution-label {
+      color: #1c8c43;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
     }
 
-    .similar-export-question-title {
-      margin: 8px 0 0;
+    .worksheet-solution-index {
+      color: #666;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .worksheet-solution-title {
+      margin: 0 0 22px;
       font-size: 28px;
-      line-height: 1.25;
+      line-height: 1.3;
     }
 
-    .similar-export-problem-body {
-      margin-top: 18px;
+    .worksheet-solution-block {
+      margin-top: 16px;
+      border: 1px solid #d8d0bf;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 18px 20px;
     }
 
-    .similar-export-answer-lines {
-      display: grid;
-      gap: 18px;
-      margin-top: 36px;
+    .worksheet-solution-block-label {
+      margin-bottom: 10px;
+      color: #666;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
-    .similar-export-answer-line {
-      height: 26px;
-      border-bottom: 1px solid #c9c1b4;
+    .worksheet-solution-note,
+    .worksheet-solution-warning {
+      font-size: 14px;
+      line-height: 1.8;
     }
 
-    .similar-export-markdown {
-      color: #121826;
-      font-size: 19px;
-      line-height: 1.9;
+    .worksheet-solution-warning {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border: 1px solid #dfd8c8;
+      background: rgba(255, 255, 255, 0.8);
+      color: #666;
+    }
+
+    .worksheet-problem-markdown {
+      color: #111;
       word-break: keep-all;
       overflow-wrap: break-word;
     }
 
-    .similar-export-markdown p,
-    .similar-export-markdown ol,
-    .similar-export-markdown ul,
-    .similar-export-markdown blockquote,
-    .similar-export-display-math {
-      margin: 0 0 14px;
+    .worksheet-problem-markdown-suneung {
+      margin: 28px 56px 0 62px;
+      font-size: 20px;
+      line-height: 2;
+      min-height: 740px;
     }
 
-    .similar-export-markdown ol,
-    .similar-export-markdown ul {
+    .worksheet-problem-markdown-naesin {
+      font-size: 17px;
+      line-height: 1.75;
+      max-height: 410px;
+      overflow: hidden;
+    }
+
+    .worksheet-problem-markdown p,
+    .worksheet-problem-markdown ol,
+    .worksheet-problem-markdown ul,
+    .worksheet-display-math {
+      margin: 0 0 12px;
+    }
+
+    .worksheet-problem-markdown ol,
+    .worksheet-problem-markdown ul {
       padding-left: 28px;
     }
 
-    .similar-export-markdown li {
-      margin-bottom: 8px;
+    .worksheet-problem-markdown li {
+      margin-bottom: 6px;
     }
 
-    .similar-export-markdown .katex {
+    .worksheet-problem-markdown .katex {
       font-size: 1.05em;
     }
 
-    .similar-export-markdown .katex-display,
-    .similar-export-display-math .katex-display {
-      margin: 0.7em 0;
+    .worksheet-problem-markdown .katex-display,
+    .worksheet-display-math .katex-display {
+      margin: 0.6em 0;
       overflow: visible;
       text-align: center;
     }
 
-    .similar-export-markdown .katex-display > .katex,
-    .similar-export-display-math .katex-display > .katex {
-      white-space: nowrap;
+    .worksheet-problem-markdown .katex-display > .katex,
+    .worksheet-display-math .katex-display > .katex {
       max-width: 100%;
+      white-space: nowrap;
     }
 
-    .similar-export-markdown .katex-html,
-    .similar-export-display-math .katex-html {
+    .worksheet-problem-markdown .katex-html,
+    .worksheet-display-math .katex-html {
       white-space: nowrap;
     }
   `;
 }
 
+function renderMetaRow(label: string, value: string) {
+  return `
+    <div class="worksheet-meta-item">
+      <span>${escapeHtml(label)}</span>
+      <span class="worksheet-meta-line">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+function renderHeader(payload: SimilarExportPayload, title: string) {
+  const subtitle =
+    payload.layoutStyle === "suneung"
+      ? "한 페이지에 한 문제를 배치해 풀이 공간을 넉넉하게 확보한 수능형"
+      : "한 페이지당 네 문제를 2x2로 배치한 내신형";
+
+  return `
+    <article class="worksheet-sheet" data-export-sheet="true">
+      <div class="worksheet-paper worksheet-paper-cover">
+        <header class="worksheet-header">
+          <div class="worksheet-header-band">
+            <div class="worksheet-header-band-label">${payload.layoutStyle === "suneung" ? "LECTURE 01" : "MOCK TEST"}</div>
+          </div>
+          <div class="worksheet-header-main">
+            <div class="worksheet-header-title-row">
+              <h1 class="worksheet-header-title">${escapeHtml(title)}</h1>
+              <span class="worksheet-header-badge">${payload.layoutStyle === "suneung" ? "수능형" : "내신형"}</span>
+            </div>
+            <p class="worksheet-header-subtitle">${subtitle}</p>
+            <div class="worksheet-meta-grid">
+              ${renderMetaRow("학교", payload.meta.school)}
+              ${renderMetaRow("학년", payload.meta.grade)}
+              ${renderMetaRow("이름", payload.meta.studentName)}
+              ${renderMetaRow("시험명", payload.meta.examTitle)}
+              ${renderMetaRow("날짜", payload.meta.examDate)}
+              ${renderMetaRow("회차", payload.meta.round)}
+            </div>
+          </div>
+        </header>
+      </div>
+    </article>
+  `;
+}
+
+function renderSuneungPage(title: string, problem: string, sourceLabel: string) {
+  return `
+    <article class="worksheet-sheet" data-export-sheet="true">
+      <div class="worksheet-paper worksheet-paper-suneung">
+        <div class="worksheet-suneung-frame"></div>
+        <div class="worksheet-suneung-topline"></div>
+        <div class="worksheet-suneung-sidebar"><span>SUDAK AI WORKSHEET</span></div>
+        <div class="worksheet-problem-head worksheet-problem-head-suneung">
+          <div class="worksheet-problem-number">01</div>
+          <div class="worksheet-problem-meta"><span>${escapeHtml(sourceLabel)}</span></div>
+        </div>
+        <div class="worksheet-problem-title">${escapeHtml(title)}</div>
+        <div class="worksheet-problem-markdown worksheet-problem-markdown-suneung">${renderMarkdownLikeHtml(problem)}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderNaesinPage(title: string, problem: string, sourceLabel: string) {
+  return `
+    <article class="worksheet-sheet" data-export-sheet="true">
+      <div class="worksheet-paper worksheet-paper-naesin">
+        <div class="worksheet-naesin-header">
+          <div class="worksheet-ribbon worksheet-ribbon-blue">Original</div>
+          <div class="worksheet-naesin-line"></div>
+          <div class="worksheet-ribbon worksheet-ribbon-green">Imitation</div>
+        </div>
+        <div class="worksheet-naesin-grid">
+          <section class="worksheet-naesin-cell">
+            <div class="worksheet-naesin-cell-head">
+              <span class="worksheet-naesin-chip">1</span>
+              <span class="worksheet-naesin-source">${escapeHtml(sourceLabel)}</span>
+            </div>
+            <div class="worksheet-naesin-title">${escapeHtml(title)}</div>
+            <div class="worksheet-problem-markdown worksheet-problem-markdown-naesin">${renderMarkdownLikeHtml(problem)}</div>
+          </section>
+          <section class="worksheet-naesin-cell worksheet-naesin-cell-empty"><div class="worksheet-naesin-empty"></div></section>
+          <section class="worksheet-naesin-cell worksheet-naesin-cell-empty"><div class="worksheet-naesin-empty"></div></section>
+          <section class="worksheet-naesin-cell worksheet-naesin-cell-empty"><div class="worksheet-naesin-empty"></div></section>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSolutionPage(payload: SimilarExportPayload) {
+  if (payload.mode !== "problem-with-solution") return "";
+
+  return `
+    <article class="worksheet-sheet" data-export-sheet="true">
+      <div class="worksheet-paper worksheet-paper-solution">
+        <div class="worksheet-solution-top">
+          <span class="worksheet-solution-label">Solution</span>
+          <span class="worksheet-solution-index">문항 1</span>
+        </div>
+        <h2 class="worksheet-solution-title">${escapeHtml(payload.title)}</h2>
+        <div class="worksheet-solution-block">
+          <div class="worksheet-solution-block-label">정답</div>
+          <div class="worksheet-problem-markdown">${renderMarkdownLikeHtml(payload.answer || "정답 정보가 없습니다.")}</div>
+        </div>
+        <div class="worksheet-solution-block">
+          <div class="worksheet-solution-block-label">풀이</div>
+          <div class="worksheet-problem-markdown">${renderMarkdownLikeHtml(payload.solution || "풀이 정보가 없습니다.")}</div>
+        </div>
+        <div class="worksheet-solution-block">
+          <div class="worksheet-solution-block-label">변형 포인트</div>
+          <div class="worksheet-solution-note">${escapeHtml(payload.variationNote || "변형 메모가 없습니다.")}</div>
+        </div>
+        <div class="worksheet-solution-warning">${escapeHtml(payload.warning || "")}</div>
+      </div>
+    </article>
+  `;
+}
+
 export function buildSimilarExportHtml(payload: SimilarExportPayload) {
-  const includeSolution = payload.mode === "problem-with-solution";
-  const sourceProblem = payload.includeOriginalProblem ? payload.sourceProblem?.trim() ?? "" : "";
-  const sheetTitle = payload.meta.examTitle.trim() || payload.title;
+  const title = payload.meta.examTitle.trim() || payload.title;
+  const sourceProblem = payload.sourceProblem?.trim() ?? "";
+  const sourceLabel = payload.includeOriginalProblem ? "유사문제 / 원본 포함" : "유사문제";
   const katexBaseUrl = pathToFileURL(path.join(process.cwd(), "node_modules", "katex", "dist") + path.sep).href;
 
-  const originalSection = sourceProblem
-    ? renderSection("Original Problem", "원본 문제", sourceProblem)
-    : "";
+  const originalPage =
+    payload.includeOriginalProblem && sourceProblem
+      ? payload.layoutStyle === "suneung"
+        ? renderSuneungPage(`${payload.title} - 원본`, sourceProblem, "원본 문제")
+        : renderNaesinPage(`${payload.title} - 원본`, sourceProblem, "원본 문제")
+      : "";
 
-  const answerLines = includeSolution
-    ? ""
-    : `
-      <div class="similar-export-answer-lines" aria-hidden="true">
-        <div class="similar-export-answer-line"></div>
-        <div class="similar-export-answer-line"></div>
-        <div class="similar-export-answer-line"></div>
-        <div class="similar-export-answer-line"></div>
-        <div class="similar-export-answer-line"></div>
-        <div class="similar-export-answer-line"></div>
-      </div>
-    `;
-
-  const solutionPages = includeSolution
-    ? `
-      <article class="similar-export-sheet" data-export-sheet="true">
-        <div class="similar-export-paper">
-          ${renderSection("Answer", "정답", payload.answer || "정답 정보가 없습니다.", true)}
-          ${renderSection("Solution", "풀이", payload.solution || "풀이 정보가 없습니다.")}
-          ${renderSection(
-            payload.solutionStyle === "handwritten-future" ? "Handwriting Ready" : "Variation Note",
-            payload.solutionStyle === "handwritten-future" ? "손풀이 확장 메모" : "변형 포인트",
-            payload.variationNote || "변형 포인트 정보가 없습니다.",
-            true,
-          )}
-        </div>
-      </article>
-    `
-    : "";
+  const problemPage =
+    payload.layoutStyle === "suneung"
+      ? renderSuneungPage(payload.title, payload.problem, sourceLabel)
+      : renderNaesinPage(payload.title, payload.problem, sourceLabel);
 
   return `<!doctype html>
 <html lang="ko">
@@ -477,74 +686,15 @@ export function buildSimilarExportHtml(payload: SimilarExportPayload) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="${katexBaseUrl}" />
     <link rel="stylesheet" href="katex.min.css" />
-    <title>${escapeHtml(sheetTitle)}</title>
-    <style>${buildExportStyles()}</style>
+    <title>${escapeHtml(title)}</title>
+    <style>${buildStyles()}</style>
   </head>
   <body>
-    <div class="similar-export-shell">
-      <article class="similar-export-sheet" data-export-sheet="true">
-        <div class="similar-export-paper">
-          <header class="similar-export-header">
-            <div class="similar-export-kicker">SIMILAR TEST SHEET</div>
-            <div class="similar-export-heading-row">
-              <div>
-                <h1 class="similar-export-title">${escapeHtml(sheetTitle)}</h1>
-                <p class="similar-export-subtitle">
-                  ${
-                    includeSolution
-                      ? "문제와 풀이가 함께 포함된 해설형 출력본"
-                      : "시험지 스타일의 문제 출력본"
-                  }
-                </p>
-              </div>
-              <div class="similar-export-badge">${includeSolution ? "해설 포함" : "문제지"}</div>
-            </div>
-            <div class="similar-export-meta-grid">
-              ${renderMetaField("학교", payload.meta.school)}
-              ${renderMetaField("학년", payload.meta.grade)}
-              ${renderMetaField("이름", payload.meta.studentName)}
-              ${renderMetaField("날짜", payload.meta.examDate)}
-              ${renderMetaField("회차", payload.meta.round)}
-              ${renderMetaField("형식", includeSolution ? "문제 + 풀이" : "문제만")}
-            </div>
-          </header>
-
-          <div class="similar-export-note">
-            export는 웹 화면과 분리된 전용 시험지 템플릿으로 렌더링되며, 수식은 서버에서 KaTeX 기준으로 고정 렌더링됩니다.
-          </div>
-
-          ${originalSection}
-        </div>
-      </article>
-
-      <article class="similar-export-sheet" data-export-sheet="true">
-        <div class="similar-export-paper">
-          <section class="similar-export-problem-card">
-            <div class="similar-export-problem-topline">
-              <div class="similar-export-section-label">Imitation Problem</div>
-              <div class="similar-export-score">배점 4점</div>
-            </div>
-
-            <div class="similar-export-question-heading">
-              <span class="similar-export-question-number">1</span>
-              <div>
-                <div class="similar-export-question-label">유사문제</div>
-                <h2 class="similar-export-question-title">${escapeHtml(payload.title)}</h2>
-              </div>
-            </div>
-
-            <div class="similar-export-markdown similar-export-problem-body">
-              ${renderMarkdownLikeHtml(payload.problem)}
-            </div>
-
-            ${answerLines}
-          </section>
-
-          <div class="similar-export-warning">${escapeHtml(payload.warning)}</div>
-        </div>
-      </article>
-
-      ${solutionPages}
+    <div class="worksheet-shell">
+      ${renderHeader(payload, title)}
+      ${originalPage}
+      ${problemPage}
+      ${renderSolutionPage(payload)}
     </div>
   </body>
 </html>`;

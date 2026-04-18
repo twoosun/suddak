@@ -51,6 +51,7 @@ function normalizePayload(payload: SimilarExportPayload | undefined) {
     variationNote: String(payload.variationNote || "").trim().slice(0, 8000),
     includeOriginalProblem: Boolean(payload.includeOriginalProblem),
     mode: payload.mode === "problem-with-solution" ? "problem-with-solution" : "problem-only",
+    layoutStyle: payload.layoutStyle === "naesin" ? "naesin" : "suneung",
     solutionStyle:
       payload.solutionStyle === "handwritten-future" ? "handwritten-future" : "typeset",
     meta: {

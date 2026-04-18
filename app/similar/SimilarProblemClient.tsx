@@ -10,17 +10,19 @@ import SectionCard from "@/components/common/SectionCard";
 import SimilarExportDocument from "@/components/similar/SimilarExportDocument";
 import ThemeToggleButton from "@/components/common/ThemeToggleButton";
 import {
-  dataUrlToUint8Array,
   buildExportFilename,
+  dataUrlToUint8Array,
   downloadBlob,
   parseContentDispositionFilename,
-  waitForExportReady,
   type SimilarExportFormat,
   type SimilarExportMode,
   type SimilarExportPayload,
 } from "@/lib/similar-export";
+import { saveSimilarHistoryItem } from "@/lib/similar-history";
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
+import { type WorksheetLayoutStyle } from "@/lib/worksheet";
+import { type SimilarResult } from "@/types/similar";
 
 type SimilarProblemClientProps = {
   historyId: number | null;
@@ -35,15 +37,6 @@ type SimilarSourceItem = {
   createdAt: string;
 };
 
-type SimilarResult = {
-  title: string;
-  problem: string;
-  answer: string;
-  solution: string;
-  variationNote: string;
-  warning: string;
-};
-
 type ExportFeedback = {
   tone: "info" | "success" | "error";
   text: string;
@@ -54,22 +47,21 @@ type ExportPageImage = {
 };
 
 async function captureExportPages(root: HTMLDivElement) {
+  const { waitForExportReady } = await import("@/lib/similar-export");
   await waitForExportReady(root);
 
-  const { toCanvas } = await import("html-to-image");
+  const { toPng } = await import("html-to-image");
   const sheetNodes = Array.from(root.querySelectorAll<HTMLElement>("[data-export-sheet='true']"));
   const pageImages: ExportPageImage[] = [];
 
   for (const sheetNode of sheetNodes) {
-    const canvas = await toCanvas(sheetNode, {
-      backgroundColor: "#fffdfa",
+    const dataUrl = await toPng(sheetNode, {
+      backgroundColor: "#ffffff",
       cacheBust: true,
       pixelRatio: 2,
+      skipFonts: true,
     });
-    const pageImagesForSheet = [canvas.toDataURL("image/png")];
-    for (const dataUrl of pageImagesForSheet) {
-      pageImages.push({ dataUrl });
-    }
+    pageImages.push({ dataUrl });
   }
 
   return pageImages;
@@ -162,7 +154,7 @@ async function requestExportFile(
   });
 
   if (!response.ok) {
-    let errorMessage = "export 요청에 실패했습니다.";
+    let errorMessage = "내보내기 요청을 처리하지 못했습니다.";
 
     try {
       const data = (await response.json()) as { error?: string };
@@ -182,10 +174,46 @@ async function requestExportFile(
   };
 }
 
-export default function SimilarProblemClient({
-  historyId,
-  source,
-}: SimilarProblemClientProps) {
+function LayoutStyleSelector({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: WorksheetLayoutStyle;
+  onChange: (next: WorksheetLayoutStyle) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{ display: "grid", gap: "8px" }}>
+      <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>디자인 선택</div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className={`suddak-btn ${value === "suneung" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+          onClick={() => onChange("suneung")}
+          disabled={disabled}
+        >
+          수능형
+        </button>
+        <button
+          type="button"
+          className={`suddak-btn ${value === "naesin" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+          onClick={() => onChange("naesin")}
+          disabled={disabled}
+        >
+          내신형
+        </button>
+      </div>
+      <div style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.7 }}>
+        {value === "suneung"
+          ? "한 페이지에 한 문제를 배치해 풀이 공간을 넉넉하게 확보합니다."
+          : "한 페이지당 네 문제를 2x2로 배치해 내신형 문제지 느낌으로 출력합니다."}
+      </div>
+    </div>
+  );
+}
+
+export default function SimilarProblemClient({ historyId, source }: SimilarProblemClientProps) {
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -196,6 +224,7 @@ export default function SimilarProblemClient({
   const [exportTarget, setExportTarget] = useState<SimilarExportFormat | null>(null);
   const [exportFeedback, setExportFeedback] = useState<ExportFeedback | null>(null);
   const [exportMode, setExportMode] = useState<SimilarExportMode>("problem-only");
+  const [layoutStyle, setLayoutStyle] = useState<WorksheetLayoutStyle>("suneung");
   const [includeOriginalProblem, setIncludeOriginalProblem] = useState(false);
   const [sheetSchool, setSheetSchool] = useState("");
   const [sheetGrade, setSheetGrade] = useState("");
@@ -227,6 +256,7 @@ export default function SimilarProblemClient({
       variationNote: result.variationNote,
       includeOriginalProblem,
       mode: exportMode,
+      layoutStyle,
       solutionStyle: "typeset",
       meta: {
         school: sheetSchool.trim(),
@@ -240,6 +270,7 @@ export default function SimilarProblemClient({
   }, [
     exportMode,
     includeOriginalProblem,
+    layoutStyle,
     result,
     sheetExamDate,
     sheetExamTitle,
@@ -274,7 +305,7 @@ export default function SimilarProblemClient({
         if (!session?.access_token) {
           setIsAdmin(false);
           setSourceItem(null);
-          setMessage("로그인 후 이용할 수 있습니다.");
+          setMessage("로그인이 필요합니다.");
           return;
         }
 
@@ -288,7 +319,7 @@ export default function SimilarProblemClient({
 
         if (!historyId) {
           setSourceItem(null);
-          setMessage("유효한 히스토리 항목이 없습니다.");
+          setMessage("유효한 원본 기록이 없습니다.");
           return;
         }
 
@@ -309,7 +340,7 @@ export default function SimilarProblemClient({
         setSourceItem(sourceData.item ?? null);
 
         if (!usageData?.isAdmin) {
-          setMessage("현재는 관리자 계정에서만 유사문제 생성을 테스트할 수 있습니다.");
+          setMessage("현재는 관리자 계정에서만 유사문제 생성 테스트가 가능합니다.");
         }
       } catch {
         setSourceItem(null);
@@ -320,22 +351,22 @@ export default function SimilarProblemClient({
       }
     };
 
-    load();
+    void load();
   }, [historyId, mounted]);
 
   const handleGenerate = async () => {
     if (!isLoggedIn) {
-      setMessage("로그인 후 이용해 주세요.");
+      setMessage("로그인이 필요합니다.");
       return;
     }
 
     if (!historyId) {
-      setMessage("유효한 원본 문제 기록이 없습니다.");
+      setMessage("원본 기록을 찾을 수 없습니다.");
       return;
     }
 
     if (!isAdmin) {
-      setMessage("현재는 관리자 계정만 유사문제 생성을 테스트할 수 있습니다.");
+      setMessage("현재는 관리자 계정에서만 유사문제 생성이 가능합니다.");
       return;
     }
 
@@ -367,10 +398,21 @@ export default function SimilarProblemClient({
         return;
       }
 
-      setResult(data.result ?? null);
-      setMessage("유사문제를 생성했습니다. 아래에서 내용을 확인하고 export할 수 있습니다.");
+      const nextResult = (data.result ?? null) as SimilarResult | null;
+      setResult(nextResult);
+
+      if (nextResult) {
+        saveSimilarHistoryItem({
+          sourceHistoryId: sourceItem?.id ?? historyId,
+          sourceActionType: sourceItem?.actionType ?? null,
+          sourceProblem: sourceItem?.recognizedText ?? "",
+          result: nextResult,
+        });
+      }
+
+      setMessage("유사문제를 생성했고 히스토리에도 저장했습니다. 아래에서 디자인을 고른 뒤 바로 export할 수 있습니다.");
     } catch {
-      setMessage("유사문제 생성 중 오류가 발생했습니다.");
+      setMessage("유사문제를 생성하는 중 오류가 발생했습니다.");
     } finally {
       setGenerating(false);
     }
@@ -378,21 +420,16 @@ export default function SimilarProblemClient({
 
   const handleExport = async (format: SimilarExportFormat) => {
     if (!exportPayload) {
-      setMessage("먼저 유사문제를 생성한 뒤 export를 시도해 주세요.");
+      setMessage("먼저 유사문제를 생성해 주세요.");
       return;
     }
 
     try {
       setExporting(true);
       setExportTarget(format);
-      const pendingText =
-        format === "pdf"
-          ? "PDF export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."
-          : "DOCX export 요청을 보냈고, 서버가 문서를 생성하는 중입니다.";
-      setMessage(pendingText);
       setExportFeedback({
         tone: "info",
-        text: pendingText,
+        text: format === "pdf" ? "PDF를 생성하고 있습니다." : "DOCX를 생성하고 있습니다.",
       });
 
       const {
@@ -417,67 +454,44 @@ export default function SimilarProblemClient({
       });
 
       downloadBlob(blob, filename);
-      const successText =
-        format === "pdf"
-          ? `PDF를 서버에서 생성했고 다운로드를 시작했습니다. 파일명: ${filename}`
-          : `DOCX를 서버에서 생성했고 다운로드를 시작했습니다. 파일명: ${filename}`;
-      setMessage(successText);
       setExportFeedback({
         tone: "success",
-        text: successText,
+        text: `${format.toUpperCase()} 다운로드를 시작했습니다. 파일명: ${filename}`,
       });
+      setMessage(`${format.toUpperCase()} 다운로드를 시작했습니다.`);
     } catch (error) {
-      const errorMessage =
-        error instanceof DOMException && error.name === "AbortError"
-          ? "export 생성 시간이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요."
-          : error instanceof Error
-            ? error.message
-            : "export 중 오류가 발생했습니다.";
+      const fallbackRoot = exportRootRef.current;
 
-      const canFallback = Boolean(exportRootRef.current);
-      if (canFallback) {
+      if (fallbackRoot) {
         try {
-          setExportFeedback({
-            tone: "info",
-            text:
-              format === "pdf"
-                ? "서버 export가 실패해 브라우저 fallback 방식으로 PDF를 다시 생성합니다."
-                : "서버 export가 실패해 브라우저 fallback 방식으로 DOCX를 다시 생성합니다.",
-          });
-
           if (format === "pdf") {
-            await exportPdfInBrowser(exportRootRef.current!, exportPayload);
+            await exportPdfInBrowser(fallbackRoot, exportPayload);
           } else {
-            await exportDocxInBrowser(exportRootRef.current!, exportPayload);
+            await exportDocxInBrowser(fallbackRoot, exportPayload);
           }
 
-          const fallbackSuccessText =
-            format === "pdf"
-              ? "서버 export는 실패했지만 브라우저 fallback으로 PDF 다운로드를 시작했습니다."
-              : "서버 export는 실패했지만 브라우저 fallback으로 DOCX 다운로드를 시작했습니다.";
-          setMessage(fallbackSuccessText);
           setExportFeedback({
             tone: "success",
-            text: fallbackSuccessText,
+            text: `서버 export가 실패해 브라우저 fallback으로 ${format.toUpperCase()}를 생성했습니다.`,
           });
+          setMessage(`${format.toUpperCase()} 다운로드를 시작했습니다.`);
+          return;
         } catch (fallbackError) {
-          const fallbackErrorMessage =
+          const text =
             fallbackError instanceof Error
-              ? `서버 export 실패 후 브라우저 fallback도 실패했습니다: ${fallbackError.message}`
-              : `서버 export 실패 후 브라우저 fallback도 실패했습니다. 원인: ${errorMessage}`;
-          setMessage(fallbackErrorMessage);
-          setExportFeedback({
-            tone: "error",
-            text: fallbackErrorMessage,
-          });
+              ? fallbackError.message
+              : error instanceof Error
+                ? error.message
+                : "내보내기 중 오류가 발생했습니다.";
+          setExportFeedback({ tone: "error", text });
+          setMessage(text);
+          return;
         }
-      } else {
-        setMessage(errorMessage);
-        setExportFeedback({
-          tone: "error",
-          text: errorMessage,
-        });
       }
+
+      const text = error instanceof Error ? error.message : "내보내기 중 오류가 발생했습니다.";
+      setExportFeedback({ tone: "error", text });
+      setMessage(text);
     } finally {
       setExporting(false);
       setExportTarget(null);
@@ -515,7 +529,7 @@ export default function SimilarProblemClient({
               </Link>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                 <span className="suddak-badge">유사문제 생성기</span>
-                <span className="suddak-badge">Beta</span>
+                <span className="suddak-badge">History Save</span>
                 {!isAdmin && <span className="suddak-badge">관리자 테스트 전용</span>}
               </div>
             </div>
@@ -531,7 +545,7 @@ export default function SimilarProblemClient({
               }}
             >
               <Link href="/history" className="suddak-btn suddak-btn-ghost">
-                기록
+                히스토리
               </Link>
               <Link href="/community" className="suddak-btn suddak-btn-ghost">
                 커뮤니티
@@ -542,7 +556,7 @@ export default function SimilarProblemClient({
               <MoreMenu
                 isDark={isDark}
                 onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
-                themeLabel={isDark ? "주간모드" : "야간모드"}
+                themeLabel={isDark ? "라이트모드" : "다크모드"}
                 redirectAfterLogout="/login"
               />
             </div>
@@ -554,7 +568,7 @@ export default function SimilarProblemClient({
             <div style={{ display: "grid", gap: "10px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                 <span className="suddak-badge">Beta Access</span>
-                <span className="suddak-badge">{isAdmin ? "관리자 테스트 가능" : "일반 계정"}</span>
+                <span className="suddak-badge">{isAdmin ? "관리자 계정" : "일반 계정"}</span>
               </div>
 
               <h1
@@ -570,8 +584,7 @@ export default function SimilarProblemClient({
               </h1>
 
               <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.8 }}>
-                원본 문제를 바탕으로 유사문제를 생성하고, export 전용 API로 PDF와 DOCX를 내려받을 수
-                있습니다.
+                원본 문제를 바탕으로 유사문제를 만들고, 수능형/내신형 디자인으로 PDF 또는 DOCX export가 가능합니다.
               </p>
             </div>
 
@@ -589,10 +602,12 @@ export default function SimilarProblemClient({
               <div style={{ fontWeight: 900 }}>
                 {isAdmin
                   ? "관리자 계정으로 생성과 export 테스트가 가능합니다."
-                  : "일반 계정은 화면 확인만 가능하고 생성 기능은 제한됩니다."}
+                  : "현재는 관리자 계정에서만 유사문제 생성 테스트가 가능합니다."}
               </div>
               <div style={{ color: "var(--muted)", lineHeight: 1.7 }}>{sourceLabel}</div>
             </div>
+
+            <LayoutStyleSelector value={layoutStyle} onChange={setLayoutStyle} disabled={exporting} />
 
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <button
@@ -601,43 +616,32 @@ export default function SimilarProblemClient({
                 onClick={handleGenerate}
                 disabled={generating || loading || !sourceItem}
               >
-                {generating ? "유사문제 생성 중..." : isAdmin ? "유사문제 생성" : "Beta 준비중"}
+                {generating ? "유사문제 생성 중..." : isAdmin ? "유사문제 생성" : "관리자 전용"}
               </button>
 
               <Link href="/history" className="suddak-btn suddak-btn-ghost">
-                기록으로 돌아가기
+                히스토리로 이동
               </Link>
             </div>
           </div>
         </section>
 
-        {message && (
-          <div
-            className="suddak-card"
-            style={{
-              padding: "14px 16px",
-              borderColor: "var(--border)",
-              background: "var(--card)",
-              lineHeight: 1.7,
-              fontWeight: 700,
-            }}
-          >
+        {message ? (
+          <div className="suddak-card" style={{ padding: "14px 16px", lineHeight: 1.7, fontWeight: 700 }}>
             {message}
           </div>
-        )}
+        ) : null}
 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "18px",
           }}
         >
           <SectionCard
             title="원본 문제"
-            description={
-              loading ? "히스토리에서 원본 문제를 불러오는 중입니다." : "유사문제의 기반이 되는 원본 문제입니다."
-            }
+            description={loading ? "원본 문제를 불러오는 중입니다." : "유사문제를 만들 때 참고하는 원본입니다."}
           >
             {sourceItem ? (
               <div style={{ display: "grid", gap: "14px" }}>
@@ -653,13 +657,13 @@ export default function SimilarProblemClient({
                   >
                     <span className="suddak-badge">기록 #{sourceItem.id}</span>
                     <span className="suddak-badge">
-                      {sourceItem.actionType === "solve" ? "풀이 기록" : "문제 읽기 기록"}
+                      {sourceItem.actionType === "solve" ? "풀이 기록" : "문제 인식 기록"}
                     </span>
                   </div>
                   <MarkdownMathBlock content={sourceItem.recognizedText} isDark={isDark} />
                 </div>
 
-                {sourceItem.solveResult && (
+                {sourceItem.solveResult ? (
                   <div className="suddak-card-soft" style={{ padding: "14px" }}>
                     <div
                       style={{
@@ -673,7 +677,7 @@ export default function SimilarProblemClient({
                     </div>
                     <MarkdownMathBlock content={sourceItem.solveResult} isDark={isDark} />
                   </div>
-                )}
+                ) : null}
               </div>
             ) : (
               <div className="suddak-card-soft" style={{ padding: "16px", color: "var(--muted)" }}>
@@ -682,10 +686,7 @@ export default function SimilarProblemClient({
             )}
           </SectionCard>
 
-          <SectionCard
-            title="생성 결과"
-            description="생성된 유사문제를 검토하고 export 모드와 시험지 메타데이터를 설정할 수 있습니다."
-          >
+          <SectionCard title="생성 결과" description="생성된 유사문제를 확인하고 바로 export할 수 있습니다.">
             {result ? (
               <div style={{ display: "grid", gap: "14px" }}>
                 <div
@@ -697,100 +698,56 @@ export default function SimilarProblemClient({
                       "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--card)), var(--card))",
                   }}
                 >
-                  <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900 }}>생성 제목</div>
+                  <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900 }}>제목</div>
                   <div style={{ marginTop: "6px", fontSize: "1.05rem", fontWeight: 900 }}>{result.title}</div>
                 </div>
 
                 <div className="suddak-card-soft" style={{ padding: "16px" }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--muted)",
-                      fontWeight: 900,
-                      marginBottom: "8px",
-                    }}
-                  >
+                  <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900, marginBottom: "8px" }}>
                     유사문제
                   </div>
                   <MarkdownMathBlock content={result.problem} isDark={isDark} />
                 </div>
 
-                <div className="suddak-card-soft" style={{ padding: "16px" }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--muted)",
-                      fontWeight: 900,
-                      marginBottom: "8px",
-                    }}
-                  >
-                    정답과 풀이
+                <div className="suddak-card-soft" style={{ padding: "16px", display: "grid", gap: "12px" }}>
+                  <div>
+                    <div
+                      style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900, marginBottom: "8px" }}
+                    >
+                      정답
+                    </div>
+                    <MarkdownMathBlock content={result.answer || "없음"} isDark={isDark} />
                   </div>
-                  <div style={{ display: "grid", gap: "10px" }}>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "var(--muted)",
-                          fontWeight: 900,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        정답
-                      </div>
-                      <MarkdownMathBlock content={result.answer || "없음"} isDark={isDark} />
+                  <div>
+                    <div
+                      style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900, marginBottom: "8px" }}
+                    >
+                      풀이
                     </div>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "var(--muted)",
-                          fontWeight: 900,
-                          marginBottom: "8px",
-                        }}
-                      >
-                        풀이
-                      </div>
-                      <MarkdownMathBlock content={result.solution || "없음"} isDark={isDark} />
-                    </div>
+                    <MarkdownMathBlock content={result.solution || "없음"} isDark={isDark} />
                   </div>
                 </div>
 
                 <div className="suddak-card-soft" style={{ padding: "16px" }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--muted)",
-                      fontWeight: 900,
-                      marginBottom: "8px",
-                    }}
-                  >
+                  <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900, marginBottom: "8px" }}>
                     변형 포인트
                   </div>
                   <div style={{ lineHeight: 1.8 }}>{result.variationNote || "없음"}</div>
                 </div>
 
-                <div
-                  className="suddak-card-soft"
-                  style={{
-                    padding: "14px",
-                    borderColor: "var(--border)",
-                    color: "var(--muted)",
-                    lineHeight: 1.7,
-                  }}
-                >
+                <div className="suddak-card-soft" style={{ padding: "14px", color: "var(--muted)", lineHeight: 1.7 }}>
                   {result.warning}
                 </div>
 
                 <div className="suddak-card-soft" style={{ padding: "16px", display: "grid", gap: "14px" }}>
+                  <LayoutStyleSelector value={layoutStyle} onChange={setLayoutStyle} disabled={exporting} />
+
                   <div style={{ display: "grid", gap: "8px" }}>
                     <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>출력 모드</div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <button
                         type="button"
-                        className={`suddak-btn ${
-                          exportMode === "problem-only" ? "suddak-btn-primary" : "suddak-btn-ghost"
-                        }`}
+                        className={`suddak-btn ${exportMode === "problem-only" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
                         onClick={() => setExportMode("problem-only")}
                         disabled={exporting}
                       >
@@ -798,11 +755,7 @@ export default function SimilarProblemClient({
                       </button>
                       <button
                         type="button"
-                        className={`suddak-btn ${
-                          exportMode === "problem-with-solution"
-                            ? "suddak-btn-primary"
-                            : "suddak-btn-ghost"
-                        }`}
+                        className={`suddak-btn ${exportMode === "problem-with-solution" ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
                         onClick={() => setExportMode("problem-with-solution")}
                         disabled={exporting}
                       >
@@ -812,9 +765,7 @@ export default function SimilarProblemClient({
                   </div>
 
                   <div style={{ display: "grid", gap: "10px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>
-                      문서 메타데이터
-                    </div>
+                    <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>문서 메타데이터</div>
                     <div
                       style={{
                         display: "grid",
@@ -822,59 +773,18 @@ export default function SimilarProblemClient({
                         gap: "10px",
                       }}
                     >
-                      <input
-                        className="suddak-input"
-                        placeholder="학교"
-                        value={sheetSchool}
-                        onChange={(e) => setSheetSchool(e.target.value)}
-                        disabled={exporting}
-                      />
-                      <input
-                        className="suddak-input"
-                        placeholder="학년"
-                        value={sheetGrade}
-                        onChange={(e) => setSheetGrade(e.target.value)}
-                        disabled={exporting}
-                      />
-                      <input
-                        className="suddak-input"
-                        placeholder="이름"
-                        value={sheetStudentName}
-                        onChange={(e) => setSheetStudentName(e.target.value)}
-                        disabled={exporting}
-                      />
-                      <input
-                        className="suddak-input"
-                        placeholder="시험지 제목"
-                        value={sheetExamTitle}
-                        onChange={(e) => setSheetExamTitle(e.target.value)}
-                        disabled={exporting}
-                      />
-                      <input
-                        className="suddak-input"
-                        placeholder="날짜"
-                        value={sheetExamDate}
-                        onChange={(e) => setSheetExamDate(e.target.value)}
-                        disabled={exporting}
-                      />
-                      <input
-                        className="suddak-input"
-                        placeholder="회차"
-                        value={sheetRound}
-                        onChange={(e) => setSheetRound(e.target.value)}
-                        disabled={exporting}
-                      />
+                      <input className="suddak-input" placeholder="학교" value={sheetSchool} onChange={(e) => setSheetSchool(e.target.value)} disabled={exporting} />
+                      <input className="suddak-input" placeholder="학년" value={sheetGrade} onChange={(e) => setSheetGrade(e.target.value)} disabled={exporting} />
+                      <input className="suddak-input" placeholder="이름" value={sheetStudentName} onChange={(e) => setSheetStudentName(e.target.value)} disabled={exporting} />
+                      <input className="suddak-input" placeholder="시험명" value={sheetExamTitle} onChange={(e) => setSheetExamTitle(e.target.value)} disabled={exporting} />
+                      <input className="suddak-input" placeholder="날짜" value={sheetExamDate} onChange={(e) => setSheetExamDate(e.target.value)} disabled={exporting} />
+                      <input className="suddak-input" placeholder="회차" value={sheetRound} onChange={(e) => setSheetRound(e.target.value)} disabled={exporting} />
                     </div>
                   </div>
 
                   <label
                     className="suddak-card-soft"
-                    style={{
-                      padding: "12px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
+                    style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: "10px" }}
                   >
                     <input
                       type="checkbox"
@@ -882,7 +792,7 @@ export default function SimilarProblemClient({
                       onChange={(e) => setIncludeOriginalProblem(e.target.checked)}
                       disabled={exporting || !sourceItem?.recognizedText}
                     />
-                    <span style={{ fontWeight: 800 }}>원본 문제 섹션 포함</span>
+                    <span style={{ fontWeight: 800 }}>원본 문제 함께 포함</span>
                   </label>
 
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -904,25 +814,21 @@ export default function SimilarProblemClient({
                     </button>
                   </div>
 
-                  <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: 1.7 }}>
-                    export는 브라우저에서 직접 문서를 만들지 않고, 서버 API가 전용 시험지 템플릿을 렌더한 뒤
-                    PDF와 DOCX 파일을 내려줍니다.
-                  </div>
-                  {(exporting || exportFeedback) && (
+                  {exportFeedback ? (
                     <div
                       className="suddak-card-soft"
                       style={{
                         padding: "12px 14px",
                         borderColor:
-                          exportFeedback?.tone === "error"
+                          exportFeedback.tone === "error"
                             ? "#ef4444"
-                            : exportFeedback?.tone === "success"
+                            : exportFeedback.tone === "success"
                               ? "#22c55e"
                               : "var(--primary)",
                         background:
-                          exportFeedback?.tone === "error"
+                          exportFeedback.tone === "error"
                             ? "color-mix(in srgb, #ef4444 10%, var(--card))"
-                            : exportFeedback?.tone === "success"
+                            : exportFeedback.tone === "success"
                               ? "color-mix(in srgb, #22c55e 10%, var(--card))"
                               : "color-mix(in srgb, var(--primary) 8%, var(--card))",
                         fontSize: "13px",
@@ -930,27 +836,27 @@ export default function SimilarProblemClient({
                         lineHeight: 1.7,
                       }}
                     >
-                      {exportFeedback?.text}
+                      {exportFeedback.text}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ) : (
               <div className="suddak-card-soft" style={{ padding: "16px", color: "var(--muted)" }}>
                 {isAdmin
-                  ? "유사문제를 생성하면 이 영역에 결과와 export 컨트롤이 나타납니다."
-                  : "일반 계정은 현재 결과 생성 기능이 비활성화되어 있습니다."}
+                  ? "유사문제를 생성하면 결과와 export 옵션이 여기에 나타납니다."
+                  : "현재는 일반 계정에서 결과 생성이 비활성화되어 있습니다."}
               </div>
             )}
           </SectionCard>
         </div>
       </div>
 
-      {exportPayload && (
+      {exportPayload ? (
         <div ref={exportRootRef} className="similar-export-stage" aria-hidden="true">
           <SimilarExportDocument payload={exportPayload} />
         </div>
-      )}
+      ) : null}
     </PageContainer>
   );
 }
