@@ -47,8 +47,8 @@ function ChoiceRow({ choices }: { choices: string[] }) {
     <div className="worksheet-choice-row">
       {choices.map((choice, index) => (
         <div key={`${index}-${choice}`} className="worksheet-choice-item">
-          <span className="worksheet-choice-marker">{String.fromCharCode(9312 + index)}</span>
-          <span>{choice}</span>
+          <span className="worksheet-choice-marker">{index + 1}.</span>
+          <MarkdownMathBlock content={choice} isDark={false} variant="plain" className="worksheet-choice-content" />
         </div>
       ))}
     </div>
@@ -135,9 +135,9 @@ function NaesinQuadrant({ item, index }: { item?: WorksheetProblemItem; index: n
   const historyCode = resolveHistoryCode(item);
 
   return (
-    <section className="worksheet-naesin-cell">
+      <section className="worksheet-naesin-cell">
       <div className="worksheet-naesin-cell-head">
-        <span className="worksheet-naesin-chip">{index + 1}</span>
+        <span className="worksheet-naesin-chip">{index + 1}번</span>
         <span className="worksheet-history-code worksheet-history-code-naesin">{historyCode}</span>
       </div>
       <MarkdownMathBlock
@@ -157,11 +157,6 @@ function NaesinProblemPage({ items, pageIndex }: { items: WorksheetProblemItem[]
   return (
     <article className="worksheet-sheet" data-export-sheet="true">
       <div className="worksheet-paper worksheet-paper-naesin">
-        <div className="worksheet-naesin-header">
-          <div className="worksheet-ribbon worksheet-ribbon-blue">Original</div>
-          <div className="worksheet-naesin-line" />
-          <div className="worksheet-ribbon worksheet-ribbon-green">Imitation</div>
-        </div>
         <div className="worksheet-naesin-grid">
           {paddedItems.map((item, index) => (
             <NaesinQuadrant

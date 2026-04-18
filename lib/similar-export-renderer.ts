@@ -98,8 +98,8 @@ function renderChoiceRow(choices: string[]) {
         .map(
           (choice, index) => `
             <div class="worksheet-choice-item">
-              <span class="worksheet-choice-marker">${String.fromCharCode(9312 + index)}</span>
-              <span>${escapeHtml(choice)}</span>
+              <span class="worksheet-choice-marker">${index + 1}.</span>
+              <span class="worksheet-choice-content">${renderInlineRichText(choice)}</span>
             </div>`,
         )
         .join("")}
@@ -333,42 +333,7 @@ function buildStyles() {
     }
 
     .worksheet-paper-naesin {
-      padding: 14px 14px 14px;
-    }
-
-    .worksheet-naesin-header {
-      display: grid;
-      grid-template-columns: 160px 1fr 160px;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .worksheet-ribbon {
-      padding: 15px 22px;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 800;
-      border: 4px solid #24326d;
-      clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 24px) 100%, 0 100%, 0 24px);
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.24);
-      font-family:
-        "Georgia",
-        "Times New Roman",
-        serif;
-    }
-
-    .worksheet-ribbon-blue {
-      background: linear-gradient(180deg, #9ec3ec 0%, #7ba7d8 100%);
-    }
-
-    .worksheet-ribbon-green {
-      background: linear-gradient(180deg, #c8e29a 0%, #a2cc64 100%);
-    }
-
-    .worksheet-naesin-line {
-      height: 3px;
-      background: #2a468e;
+      padding: 18px 14px 14px;
     }
 
     .worksheet-naesin-grid {
@@ -478,28 +443,37 @@ function buildStyles() {
     }
 
     .worksheet-choice-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 18px;
-      align-items: center;
-      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      align-items: start;
+      margin-top: 16px;
     }
 
     .worksheet-choice-item {
-      display: inline-flex;
-      align-items: center;
+      display: flex;
+      align-items: flex-start;
       gap: 6px;
-      font-size: 16px;
+      min-width: 0;
+      font-size: 13px;
       line-height: 1.35;
     }
 
     .worksheet-choice-marker {
+      flex: 0 0 auto;
+      min-width: 18px;
       font-family:
-        "Times New Roman",
-        "Apple Symbols",
-        serif;
-      font-size: 17px;
-      line-height: 1;
+        "Malgun Gothic",
+        "Apple SD Gothic Neo",
+        "Noto Sans KR",
+        sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+
+    .worksheet-choice-content {
+      min-width: 0;
     }
 
     .worksheet-problem-markdown {
@@ -541,22 +515,36 @@ function buildStyles() {
       font-size: 0.9em;
     }
 
+    .worksheet-choice-content .katex {
+      font-size: 0.85em;
+    }
+
     .worksheet-problem-markdown .katex-display,
-    .worksheet-display-math .katex-display {
-      margin: 0.18em 0;
+    .worksheet-display-math .katex-display,
+    .worksheet-choice-content .katex-display {
+      margin: 0.28em 0;
       overflow: visible;
       text-align: center;
     }
 
     .worksheet-problem-markdown .katex-display > .katex,
-    .worksheet-display-math .katex-display > .katex {
+    .worksheet-display-math .katex-display > .katex,
+    .worksheet-choice-content .katex-display > .katex {
+      display: inline-block;
       max-width: 100%;
       white-space: nowrap;
+      transform-origin: center top;
+      transform: scale(0.96);
     }
 
     .worksheet-problem-markdown .katex-html,
-    .worksheet-display-math .katex-html {
+    .worksheet-display-math .katex-html,
+    .worksheet-choice-content .katex-html {
       white-space: nowrap;
+    }
+
+    .worksheet-problem-markdown-naesin .katex-display > .katex {
+      transform: scale(0.88);
     }
   `;
 }
@@ -632,15 +620,10 @@ function renderNaesinPage(problem: string, historyCode?: string) {
   return `
     <article class="worksheet-sheet" data-export-sheet="true">
       <div class="worksheet-paper worksheet-paper-naesin">
-        <div class="worksheet-naesin-header">
-          <div class="worksheet-ribbon worksheet-ribbon-blue">Original</div>
-          <div class="worksheet-naesin-line"></div>
-          <div class="worksheet-ribbon worksheet-ribbon-green">Imitation</div>
-        </div>
         <div class="worksheet-naesin-grid">
           <section class="worksheet-naesin-cell">
             <div class="worksheet-naesin-cell-head">
-              <span class="worksheet-naesin-chip">1</span>
+              <span class="worksheet-naesin-chip">1번</span>
               <span class="worksheet-history-code worksheet-history-code-naesin">${escapeHtml(historyCode || "")}</span>
             </div>
             <div class="worksheet-problem-markdown worksheet-problem-markdown-naesin">${renderMarkdownLikeHtml(parsed.body)}</div>

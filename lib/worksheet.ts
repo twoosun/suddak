@@ -27,32 +27,36 @@ export type WorksheetParsedProblem = {
   choices: string[];
 };
 
-const NOISE_LINES = new Set([
-  "인식한 문제",
-  "인식된 원본 문제",
-  "풀이에 사용한 원본 문제",
-  "풀이에 사용된 원본 문제",
-  "문제 인식",
-  "풀이 기록",
-  "불확실",
-  "없음",
-  "불확실 없음",
-]);
-
 function normalizeLine(line: string) {
   return line.replace(/\s+/g, " ").trim();
 }
 
+function stripHeadingPrefix(line: string) {
+  return line.replace(/^#+\s*/, "").replace(/^[-*]\s*/, "").trim();
+}
+
+function isNoiseLine(line: string) {
+  const normalized = stripHeadingPrefix(normalizeLine(line))
+    .replace(/[.:：\-–—]+$/g, "")
+    .trim();
+
+  if (!normalized) return false;
+
+  return /^(?:인식한 문제|인식 문제|인식된 원본 문제|풀이에 사용된 원본 문제|문제 인식|해설 기록|불확실|불확실 없음|없음)$/u.test(
+    normalized,
+  );
+}
+
 function cleanChoiceValue(value: string) {
   return value
-    .replace(/^[①②③④⑤⑥⑦⑧⑨⑩]\s*/, "")
-    .replace(/^\(?\d+\)?[.)]?\s*/, "")
+    .replace(/^[①②③④⑤⑴⑵⑶⑷⑸]\s*/u, "")
+    .replace(/^\(?[1-5]\)?[.)]?\s*/, "")
     .trim();
 }
 
 function isShortChoiceCandidate(line: string) {
   const normalized = cleanChoiceValue(line);
-  return Boolean(normalized) && normalized.length <= 24 && !/[=]/.test(normalized);
+  return Boolean(normalized) && normalized.length <= 48 && !/[=:]/.test(normalized);
 }
 
 export function parseWorksheetProblem(content: string): WorksheetParsedProblem {
@@ -61,9 +65,9 @@ export function parseWorksheetProblem(content: string): WorksheetParsedProblem {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !NOISE_LINES.has(normalizeLine(line)));
+    .filter((line) => !isNoiseLine(line));
 
-  const explicitChoiceLines = lines.filter((line) => /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(line));
+  const explicitChoiceLines = lines.filter((line) => /^(?:[①②③④⑤⑴⑵⑶⑷⑸]|\(?[1-5]\)?[.)])\s*/u.test(line));
   if (explicitChoiceLines.length >= 2) {
     const choiceSet = new Set(explicitChoiceLines);
     return {
