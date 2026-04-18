@@ -44,6 +44,7 @@ function normalizePayload(payload: SimilarExportPayload | undefined) {
   return {
     title: String(payload.title || "").trim().slice(0, 200),
     warning: String(payload.warning || "").trim().slice(0, 1000),
+    historyCode: String(payload.historyCode || "").trim().slice(0, 40),
     sourceProblem: String(payload.sourceProblem || "").trim().slice(0, 20000),
     problem: String(payload.problem || "").trim().slice(0, 20000),
     answer: String(payload.answer || "").trim().slice(0, 4000),

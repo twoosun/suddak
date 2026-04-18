@@ -1,5 +1,5 @@
-import { type SimilarResult } from "@/types/similar";
 import { type WorksheetProblemItem } from "@/lib/worksheet";
+import { type SimilarResult } from "@/types/similar";
 
 const STORAGE_KEY = "suddak_similar_history_v1";
 
@@ -84,7 +84,7 @@ export function toWorksheetProblem(item: StoredSimilarHistoryItem): WorksheetPro
     id: item.id,
     title: item.title,
     problem: item.problem,
-    sourceLabel: item.sourceHistoryId ? `원본 기록 #${item.sourceHistoryId}` : "유사문제",
+    historyCode: item.sourceHistoryId ? `H-${item.sourceHistoryId}` : item.id.slice(-6).toUpperCase(),
     answer: item.answer,
     solution: item.solution,
     variationNote: item.variationNote,

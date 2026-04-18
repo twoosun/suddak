@@ -1,5 +1,10 @@
 import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
-import { chunkWorksheetProblems, type WorksheetLayoutStyle, type WorksheetProblemItem } from "@/lib/worksheet";
+import {
+  chunkWorksheetProblems,
+  parseWorksheetProblem,
+  type WorksheetLayoutStyle,
+  type WorksheetProblemItem,
+} from "@/lib/worksheet";
 
 type WorksheetMeta = {
   school?: string;
@@ -19,11 +24,33 @@ type Props = {
   meta?: WorksheetMeta;
 };
 
+function resolveHistoryCode(item: WorksheetProblemItem) {
+  if (item.historyCode) return item.historyCode;
+  if (item.id.startsWith("history-")) return `H-${item.id.replace("history-", "")}`;
+  if (item.id.startsWith("similar-")) return item.id.slice(-6).toUpperCase();
+  return "";
+}
+
 function MetaRow({ label, value }: { label: string; value?: string }) {
   return (
     <div className="worksheet-meta-item">
       <span>{label}</span>
       <span className="worksheet-meta-line">{value || ""}</span>
+    </div>
+  );
+}
+
+function ChoiceRow({ choices }: { choices: string[] }) {
+  if (choices.length === 0) return null;
+
+  return (
+    <div className="worksheet-choice-row">
+      {choices.map((choice, index) => (
+        <div key={`${index}-${choice}`} className="worksheet-choice-item">
+          <span className="worksheet-choice-marker">{String.fromCharCode(9312 + index)}</span>
+          <span>{choice}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -49,9 +76,7 @@ function WorksheetHeader({
       <div className="worksheet-header-main">
         <div className="worksheet-header-title-row">
           <h1 className="worksheet-header-title">{title}</h1>
-          <span className="worksheet-header-badge">
-            {layoutStyle === "suneung" ? "수능형" : "내신형"}
-          </span>
+          <span className="worksheet-header-badge">{layoutStyle === "suneung" ? "수능형" : "내신형"}</span>
         </div>
         {subtitle ? <p className="worksheet-header-subtitle">{subtitle}</p> : null}
         <div className="worksheet-meta-grid">
@@ -67,13 +92,10 @@ function WorksheetHeader({
   );
 }
 
-function SuneungProblemPage({
-  item,
-  index,
-}: {
-  item: WorksheetProblemItem;
-  index: number;
-}) {
+function SuneungProblemPage({ item, index }: { item: WorksheetProblemItem; index: number }) {
+  const parsed = parseWorksheetProblem(item.problem);
+  const historyCode = resolveHistoryCode(item);
+
   return (
     <article className="worksheet-sheet" data-export-sheet="true">
       <div className="worksheet-paper worksheet-paper-suneung">
@@ -82,61 +104,54 @@ function SuneungProblemPage({
         <div className="worksheet-suneung-sidebar">
           <span>SUDAK AI WORKSHEET</span>
         </div>
+        <div className="worksheet-history-code">{historyCode}</div>
         <div className="worksheet-problem-head worksheet-problem-head-suneung">
           <div className="worksheet-problem-number">{String(index + 1).padStart(2, "0")}</div>
-          <div className="worksheet-problem-meta">
-            {item.sourceLabel ? <span>{item.sourceLabel}</span> : null}
-          </div>
         </div>
-        <div className="worksheet-problem-title">{item.title}</div>
-        <MarkdownMathBlock
-          content={item.problem}
-          isDark={false}
-          variant="plain"
-          className="worksheet-problem-markdown worksheet-problem-markdown-suneung"
-        />
+        <div className="worksheet-problem-body-shell worksheet-problem-body-shell-suneung">
+          <MarkdownMathBlock
+            content={parsed.body}
+            isDark={false}
+            variant="plain"
+            className="worksheet-problem-markdown worksheet-problem-markdown-suneung"
+          />
+          <ChoiceRow choices={parsed.choices} />
+        </div>
       </div>
     </article>
   );
 }
 
-function NaesinQuadrant({
-  item,
-  index,
-}: {
-  item?: WorksheetProblemItem;
-  index: number;
-}) {
-  return (
-    <section className={`worksheet-naesin-cell ${item ? "" : "worksheet-naesin-cell-empty"}`}>
-      {item ? (
-        <>
-          <div className="worksheet-naesin-cell-head">
-            <span className="worksheet-naesin-chip">{index + 1}</span>
-            {item.sourceLabel ? <span className="worksheet-naesin-source">{item.sourceLabel}</span> : null}
-          </div>
-          <div className="worksheet-naesin-title">{item.title}</div>
-          <MarkdownMathBlock
-            content={item.problem}
-            isDark={false}
-            variant="plain"
-            className="worksheet-problem-markdown worksheet-problem-markdown-naesin"
-          />
-        </>
-      ) : (
+function NaesinQuadrant({ item, index }: { item?: WorksheetProblemItem; index: number }) {
+  if (!item) {
+    return (
+      <section className="worksheet-naesin-cell worksheet-naesin-cell-empty">
         <div className="worksheet-naesin-empty" />
-      )}
+      </section>
+    );
+  }
+
+  const parsed = parseWorksheetProblem(item.problem);
+  const historyCode = resolveHistoryCode(item);
+
+  return (
+    <section className="worksheet-naesin-cell">
+      <div className="worksheet-naesin-cell-head">
+        <span className="worksheet-naesin-chip">{index + 1}</span>
+        <span className="worksheet-history-code worksheet-history-code-naesin">{historyCode}</span>
+      </div>
+      <MarkdownMathBlock
+        content={parsed.body}
+        isDark={false}
+        variant="plain"
+        className="worksheet-problem-markdown worksheet-problem-markdown-naesin"
+      />
+      <ChoiceRow choices={parsed.choices} />
     </section>
   );
 }
 
-function NaesinProblemPage({
-  items,
-  pageIndex,
-}: {
-  items: WorksheetProblemItem[];
-  pageIndex: number;
-}) {
+function NaesinProblemPage({ items, pageIndex }: { items: WorksheetProblemItem[]; pageIndex: number }) {
   const paddedItems = Array.from({ length: 4 }, (_, index) => items[index]);
 
   return (
@@ -161,13 +176,7 @@ function NaesinProblemPage({
   );
 }
 
-function SolutionPage({
-  item,
-  index,
-}: {
-  item: WorksheetProblemItem;
-  index: number;
-}) {
+function SolutionPage({ item, index }: { item: WorksheetProblemItem; index: number }) {
   return (
     <article className="worksheet-sheet" data-export-sheet="true">
       <div className="worksheet-paper worksheet-paper-solution">

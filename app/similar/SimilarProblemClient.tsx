@@ -249,6 +249,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     return {
       title: result.title,
       warning: result.warning,
+      historyCode: sourceItem?.id ? `H-${sourceItem.id}` : undefined,
       sourceProblem: sourceItem?.recognizedText ?? "",
       problem: result.problem,
       answer: result.answer,
@@ -278,6 +279,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     sheetRound,
     sheetSchool,
     sheetStudentName,
+    sourceItem?.id,
     sourceItem?.recognizedText,
   ]);
 

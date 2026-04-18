@@ -12,7 +12,7 @@ export default function SimilarExportDocument({ payload }: Props) {
       id: "similar-problem",
       title: payload.title,
       problem: payload.problem,
-      sourceLabel: payload.includeOriginalProblem ? "유사문제 / 원본 포함" : "유사문제",
+      historyCode: payload.historyCode,
       answer: payload.answer,
       solution: payload.solution,
       variationNote: payload.variationNote,

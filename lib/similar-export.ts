@@ -18,6 +18,7 @@ export type SimilarExportMeta = {
 export type SimilarExportPayload = {
   title: string;
   warning: string;
+  historyCode?: string;
   sourceProblem?: string;
   problem: string;
   answer: string;

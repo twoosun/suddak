@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { type SimilarExportPayload } from "@/lib/similar-export";
+import { parseWorksheetProblem } from "@/lib/worksheet";
 
 function escapeHtml(value: string) {
   return value
@@ -88,6 +89,24 @@ function renderMarkdownLikeHtml(content: string) {
     .join("");
 }
 
+function renderChoiceRow(choices: string[]) {
+  if (choices.length === 0) return "";
+
+  return `
+    <div class="worksheet-choice-row">
+      ${choices
+        .map(
+          (choice, index) => `
+            <div class="worksheet-choice-item">
+              <span class="worksheet-choice-marker">${String.fromCharCode(9312 + index)}</span>
+              <span>${escapeHtml(choice)}</span>
+            </div>`,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function buildStyles() {
   return `
     @page {
@@ -168,8 +187,7 @@ function buildStyles() {
     .worksheet-header-badge,
     .worksheet-header-subtitle,
     .worksheet-meta-item,
-    .worksheet-problem-meta,
-    .worksheet-naesin-source,
+    .worksheet-history-code,
     .worksheet-solution-label,
     .worksheet-solution-index,
     .worksheet-solution-block-label,
@@ -283,11 +301,19 @@ function buildStyles() {
       letter-spacing: 0.18em;
     }
 
-    .worksheet-problem-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
+    .worksheet-history-code {
+      position: absolute;
+      top: 80px;
+      right: 62px;
+      color: rgba(0, 0, 0, 0.35);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+
+    .worksheet-history-code-naesin {
+      position: static;
+      color: rgba(0, 0, 0, 0.28);
+      font-size: 10px;
     }
 
     .worksheet-problem-head-suneung {
@@ -297,25 +323,17 @@ function buildStyles() {
 
     .worksheet-problem-number {
       color: #21a446;
-      font-size: 38px;
+      font-size: 36px;
       font-weight: 700;
       line-height: 1;
     }
 
-    .worksheet-problem-meta {
-      padding-top: 14px;
-      color: #7c7c7c;
-      font-size: 12px;
-    }
-
-    .worksheet-problem-title {
-      margin: 14px 0 0 62px;
-      font-size: 20px;
-      font-weight: 700;
+    .worksheet-problem-body-shell-suneung {
+      margin: 16px 44px 0 62px;
     }
 
     .worksheet-paper-naesin {
-      padding: 16px 14px 14px;
+      padding: 14px 14px 14px;
     }
 
     .worksheet-naesin-header {
@@ -358,28 +376,20 @@ function buildStyles() {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: repeat(2, minmax(0, 1fr));
-      min-height: 1020px;
+      min-height: 1024px;
       border: 1px solid #d3d3d3;
     }
 
-    .worksheet-naesin-grid::before,
-    .worksheet-naesin-grid::after {
+    .worksheet-naesin-grid::before {
       content: "";
       position: absolute;
-      background: #b9b9b9;
-      pointer-events: none;
-    }
-
-    .worksheet-naesin-grid::before {
       top: 0;
       bottom: 0;
       left: 50%;
       width: 1px;
+      background: #b9b9b9;
       transform: translateX(-0.5px);
-    }
-
-    .worksheet-naesin-grid::after {
-      display: none;
+      pointer-events: none;
     }
 
     .worksheet-naesin-cell {
@@ -396,25 +406,12 @@ function buildStyles() {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     .worksheet-naesin-chip {
       font-size: 15px;
       font-weight: 700;
-    }
-
-    .worksheet-naesin-source {
-      color: #3e9a34;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .worksheet-naesin-title {
-      margin-bottom: 8px;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.3;
     }
 
     .worksheet-paper-solution {
@@ -480,6 +477,31 @@ function buildStyles() {
       color: #666;
     }
 
+    .worksheet-choice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .worksheet-choice-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 16px;
+      line-height: 1.35;
+    }
+
+    .worksheet-choice-marker {
+      font-family:
+        "Times New Roman",
+        "Apple Symbols",
+        serif;
+      font-size: 17px;
+      line-height: 1;
+    }
+
     .worksheet-problem-markdown {
       color: #111;
       word-break: keep-all;
@@ -487,16 +509,15 @@ function buildStyles() {
     }
 
     .worksheet-problem-markdown-suneung {
-      margin: 18px 44px 0 62px;
-      font-size: 17px;
-      line-height: 1.62;
-      min-height: 810px;
+      font-size: 15px;
+      line-height: 1.48;
+      min-height: 0;
     }
 
     .worksheet-problem-markdown-naesin {
-      font-size: 14px;
-      line-height: 1.5;
-      max-height: 448px;
+      font-size: 13px;
+      line-height: 1.42;
+      max-height: 418px;
       overflow: hidden;
     }
 
@@ -504,25 +525,25 @@ function buildStyles() {
     .worksheet-problem-markdown ol,
     .worksheet-problem-markdown ul,
     .worksheet-display-math {
-      margin: 0 0 8px;
+      margin: 0 0 6px;
     }
 
     .worksheet-problem-markdown ol,
     .worksheet-problem-markdown ul {
-      padding-left: 28px;
+      padding-left: 24px;
     }
 
     .worksheet-problem-markdown li {
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .worksheet-problem-markdown .katex {
-      font-size: 0.96em;
+      font-size: 0.9em;
     }
 
     .worksheet-problem-markdown .katex-display,
     .worksheet-display-math .katex-display {
-      margin: 0.35em 0;
+      margin: 0.18em 0;
       overflow: visible;
       text-align: center;
     }
@@ -583,25 +604,31 @@ function renderHeader(payload: SimilarExportPayload, title: string) {
   `;
 }
 
-function renderSuneungPage(title: string, problem: string, sourceLabel: string) {
+function renderSuneungPage(index: number, problem: string, historyCode?: string) {
+  const parsed = parseWorksheetProblem(problem);
+
   return `
     <article class="worksheet-sheet" data-export-sheet="true">
       <div class="worksheet-paper worksheet-paper-suneung">
         <div class="worksheet-suneung-frame"></div>
         <div class="worksheet-suneung-topline"></div>
         <div class="worksheet-suneung-sidebar"><span>SUDAK AI WORKSHEET</span></div>
+        <div class="worksheet-history-code">${escapeHtml(historyCode || "")}</div>
         <div class="worksheet-problem-head worksheet-problem-head-suneung">
-          <div class="worksheet-problem-number">01</div>
-          <div class="worksheet-problem-meta"><span>${escapeHtml(sourceLabel)}</span></div>
+          <div class="worksheet-problem-number">${String(index + 1).padStart(2, "0")}</div>
         </div>
-        <div class="worksheet-problem-title">${escapeHtml(title)}</div>
-        <div class="worksheet-problem-markdown worksheet-problem-markdown-suneung">${renderMarkdownLikeHtml(problem)}</div>
+        <div class="worksheet-problem-body-shell-suneung">
+          <div class="worksheet-problem-markdown worksheet-problem-markdown-suneung">${renderMarkdownLikeHtml(parsed.body)}</div>
+          ${renderChoiceRow(parsed.choices)}
+        </div>
       </div>
     </article>
   `;
 }
 
-function renderNaesinPage(title: string, problem: string, sourceLabel: string) {
+function renderNaesinPage(problem: string, historyCode?: string) {
+  const parsed = parseWorksheetProblem(problem);
+
   return `
     <article class="worksheet-sheet" data-export-sheet="true">
       <div class="worksheet-paper worksheet-paper-naesin">
@@ -614,10 +641,10 @@ function renderNaesinPage(title: string, problem: string, sourceLabel: string) {
           <section class="worksheet-naesin-cell">
             <div class="worksheet-naesin-cell-head">
               <span class="worksheet-naesin-chip">1</span>
-              <span class="worksheet-naesin-source">${escapeHtml(sourceLabel)}</span>
+              <span class="worksheet-history-code worksheet-history-code-naesin">${escapeHtml(historyCode || "")}</span>
             </div>
-            <div class="worksheet-naesin-title">${escapeHtml(title)}</div>
-            <div class="worksheet-problem-markdown worksheet-problem-markdown-naesin">${renderMarkdownLikeHtml(problem)}</div>
+            <div class="worksheet-problem-markdown worksheet-problem-markdown-naesin">${renderMarkdownLikeHtml(parsed.body)}</div>
+            ${renderChoiceRow(parsed.choices)}
           </section>
           <section class="worksheet-naesin-cell worksheet-naesin-cell-empty"><div class="worksheet-naesin-empty"></div></section>
           <section class="worksheet-naesin-cell worksheet-naesin-cell-empty"><div class="worksheet-naesin-empty"></div></section>
@@ -660,20 +687,19 @@ function renderSolutionPage(payload: SimilarExportPayload) {
 export function buildSimilarExportHtml(payload: SimilarExportPayload) {
   const title = payload.meta.examTitle.trim() || payload.title;
   const sourceProblem = payload.sourceProblem?.trim() ?? "";
-  const sourceLabel = payload.includeOriginalProblem ? "유사문제 / 원본 포함" : "유사문제";
   const katexBaseUrl = pathToFileURL(path.join(process.cwd(), "node_modules", "katex", "dist") + path.sep).href;
 
   const originalPage =
     payload.includeOriginalProblem && sourceProblem
       ? payload.layoutStyle === "suneung"
-        ? renderSuneungPage(`${payload.title} - 원본`, sourceProblem, "원본 문제")
-        : renderNaesinPage(`${payload.title} - 원본`, sourceProblem, "원본 문제")
+        ? renderSuneungPage(0, sourceProblem, payload.historyCode)
+        : renderNaesinPage(sourceProblem, payload.historyCode)
       : "";
 
   const problemPage =
     payload.layoutStyle === "suneung"
-      ? renderSuneungPage(payload.title, payload.problem, sourceLabel)
-      : renderNaesinPage(payload.title, payload.problem, sourceLabel);
+      ? renderSuneungPage(0, payload.problem, payload.historyCode)
+      : renderNaesinPage(payload.problem, payload.historyCode);
 
   return `<!doctype html>
 <html lang="ko">
