@@ -251,7 +251,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[api/similar/export][POST] error:", error);
     return Response.json(
-      { error: "export 파일을 생성하는 중 오류가 발생했습니다." },
+      {
+        error:
+          error instanceof Error && error.message
+            ? error.message
+            : "export 파일을 생성하는 중 오류가 발생했습니다.",
+      },
       { status: 500 },
     );
   } finally {
