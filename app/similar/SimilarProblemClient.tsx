@@ -41,6 +41,11 @@ type SimilarResult = {
   warning: string;
 };
 
+type ExportFeedback = {
+  tone: "info" | "success" | "error";
+  text: string;
+};
+
 async function requestExportFile(
   accessToken: string,
   format: SimilarExportFormat,
@@ -94,6 +99,7 @@ export default function SimilarProblemClient({
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportTarget, setExportTarget] = useState<SimilarExportFormat | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<ExportFeedback | null>(null);
   const [exportMode, setExportMode] = useState<SimilarExportMode>("problem-only");
   const [includeOriginalProblem, setIncludeOriginalProblem] = useState(false);
   const [sheetSchool, setSheetSchool] = useState("");
@@ -283,11 +289,15 @@ export default function SimilarProblemClient({
     try {
       setExporting(true);
       setExportTarget(format);
-      setMessage(
+      const pendingText =
         format === "pdf"
-          ? "서버에서 PDF를 생성 중입니다. 수식 렌더링 때문에 잠시 시간이 걸릴 수 있어요."
-          : "서버에서 DOCX를 생성 중입니다. 페이지 이미지를 만들고 있어요.",
-      );
+          ? "PDF export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."
+          : "DOCX export 요청을 보냈고, 서버가 문서를 생성하는 중입니다.";
+      setMessage(pendingText);
+      setExportFeedback({
+        tone: "info",
+        text: pendingText,
+      });
 
       const {
         data: { session },
@@ -311,11 +321,15 @@ export default function SimilarProblemClient({
       });
 
       downloadBlob(blob, filename);
-      setMessage(
+      const successText =
         format === "pdf"
-          ? "PDF를 서버 API에서 생성해 바로 다운로드했습니다."
-          : "DOCX를 서버 API에서 생성해 바로 다운로드했습니다.",
-      );
+          ? `PDF를 서버에서 생성했고 다운로드를 시작했습니다. 파일명: ${filename}`
+          : `DOCX를 서버에서 생성했고 다운로드를 시작했습니다. 파일명: ${filename}`;
+      setMessage(successText);
+      setExportFeedback({
+        tone: "success",
+        text: successText,
+      });
     } catch (error) {
       const errorMessage =
         error instanceof DOMException && error.name === "AbortError"
@@ -324,6 +338,10 @@ export default function SimilarProblemClient({
             ? error.message
             : "export 중 오류가 발생했습니다.";
       setMessage(errorMessage);
+      setExportFeedback({
+        tone: "error",
+        text: errorMessage,
+      });
     } finally {
       setExporting(false);
       setExportTarget(null);
@@ -754,21 +772,29 @@ export default function SimilarProblemClient({
                     export는 브라우저에서 직접 문서를 만들지 않고, 서버 API가 전용 시험지 템플릿을 렌더한 뒤
                     PDF와 DOCX 파일을 내려줍니다.
                   </div>
-                  {exporting && (
+                  {(exporting || exportFeedback) && (
                     <div
                       className="suddak-card-soft"
                       style={{
                         padding: "12px 14px",
-                        borderColor: "var(--primary)",
-                        background: "color-mix(in srgb, var(--primary) 8%, var(--card))",
+                        borderColor:
+                          exportFeedback?.tone === "error"
+                            ? "#ef4444"
+                            : exportFeedback?.tone === "success"
+                              ? "#22c55e"
+                              : "var(--primary)",
+                        background:
+                          exportFeedback?.tone === "error"
+                            ? "color-mix(in srgb, #ef4444 10%, var(--card))"
+                            : exportFeedback?.tone === "success"
+                              ? "color-mix(in srgb, #22c55e 10%, var(--card))"
+                              : "color-mix(in srgb, var(--primary) 8%, var(--card))",
                         fontSize: "13px",
                         fontWeight: 700,
                         lineHeight: 1.7,
                       }}
                     >
-                      {exportTarget === "pdf"
-                        ? "PDF export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."
-                        : "DOCX export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."}
+                      {exportFeedback?.text}
                     </div>
                   )}
                 </div>
