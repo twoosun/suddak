@@ -1,3 +1,10 @@
+export type SimilarProblemMeta = {
+  subjectLabel: string;
+  subtopic: string;
+  difficulty: "easy" | "medium" | "hard";
+  difficultyLabel: string;
+};
+
 export type SimilarResult = {
   title: string;
   problem: string;
@@ -5,4 +12,5 @@ export type SimilarResult = {
   solution: string;
   variationNote: string;
   warning: string;
+  meta: SimilarProblemMeta | null;
 };

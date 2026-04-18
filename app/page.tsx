@@ -15,6 +15,7 @@ import {
   buildPreprocessedPreviewUrl,
 } from "@/lib/ocr-preprocess";
 import { buildShareUrlFromSolve } from "@/lib/community-share";
+import { saveHistoryMetadata } from "@/lib/history-metadata";
 import { buildSimilarProblemUrl } from "@/lib/similar-problem";
 import { Settings } from "lucide-react";
 
@@ -380,6 +381,18 @@ export default function HomePage() {
     if (!mounted) return;
     loadUsage();
   }, [session, mounted]);
+
+  useEffect(() => {
+    if (!solveMeta?.historyId) return;
+
+    saveHistoryMetadata({
+      historyId: solveMeta.historyId,
+      subjectLabel: solveMeta.subjectLabel,
+      subtopic: solveMeta.subtopic,
+      difficulty: solveMeta.difficulty,
+      difficultyLabel: difficultyLabelMap[solveMeta.difficulty],
+    });
+  }, [solveMeta]);
 
   /* # 6. 파일 선택 */
   const resetOutputs = () => {

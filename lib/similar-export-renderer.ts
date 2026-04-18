@@ -2,6 +2,7 @@ import katex from "katex";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { normalizeMathMarkdown } from "@/lib/math-markdown";
 import { type SimilarExportPayload } from "@/lib/similar-export";
 import { parseWorksheetProblem } from "@/lib/worksheet";
 
@@ -58,7 +59,7 @@ function renderListBlock(lines: string[], ordered: boolean) {
 }
 
 function renderMarkdownLikeHtml(content: string) {
-  const normalized = content.replace(/\r\n/g, "\n").trim();
+  const normalized = normalizeMathMarkdown(content).trim();
   if (!normalized) return "<p>내용이 없습니다.</p>";
 
   const blocks = normalized.split(/\n{2,}/);

@@ -11,8 +11,16 @@ import ThemeToggleButton from "@/components/common/ThemeToggleButton";
 import MoreMenu from "@/components/MoreMenu";
 import WorksheetDocument from "@/components/worksheet/WorksheetDocument";
 import { buildShareUrlFromHistory } from "@/lib/community-share";
+import {
+  getHistoryMetadataMap,
+  type CachedHistoryMetadata,
+} from "@/lib/history-metadata";
 import { printElementInNewWindow } from "@/lib/print-window";
-import { getStoredSimilarHistory, toWorksheetProblem, type StoredSimilarHistoryItem } from "@/lib/similar-history";
+import {
+  getStoredSimilarHistory,
+  toWorksheetProblem,
+  type StoredSimilarHistoryItem,
+} from "@/lib/similar-history";
 import { buildSimilarProblemUrl } from "@/lib/similar-problem";
 import { supabase } from "@/lib/supabase";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
@@ -26,27 +34,23 @@ type ServerHistoryItem = {
   created_at: string;
 };
 
-type DisplayHistoryItem =
-  | {
-      key: string;
-      kind: "history";
-      createdAt: string;
-      label: string;
-      historyCode: string;
-      problemText: string;
-      solveResult: string | null;
-      source: ServerHistoryItem;
-    }
-  | {
-      key: string;
-      kind: "similar";
-      createdAt: string;
-      label: string;
-      historyCode: string;
-      problemText: string;
-      solveResult: string;
-      source: StoredSimilarHistoryItem;
-    };
+type ItemMetaSummary = {
+  subjectLabel: string;
+  subtopic: string;
+  difficultyLabel: string;
+};
+
+type DisplayHistoryItem = {
+  key: string;
+  kind: "history" | "similar";
+  createdAt: string;
+  label: string;
+  historyCode: string;
+  problemText: string;
+  solveResult: string | null;
+  meta: ItemMetaSummary | null;
+  source: ServerHistoryItem | StoredSimilarHistoryItem;
+};
 
 type FilterType = "all" | "read" | "solve" | "similar";
 
@@ -87,6 +91,26 @@ function resolveHistoryCode(item: ServerHistoryItem | StoredSimilarHistoryItem) 
   return item.sourceHistoryId ? `H-${item.sourceHistoryId}` : item.id.slice(-6).toUpperCase();
 }
 
+function normalizeCachedMeta(meta: CachedHistoryMetadata | null | undefined): ItemMetaSummary | null {
+  if (!meta) return null;
+
+  return {
+    subjectLabel: meta.subjectLabel,
+    subtopic: meta.subtopic,
+    difficultyLabel: meta.difficultyLabel,
+  };
+}
+
+function normalizeSimilarMeta(item: StoredSimilarHistoryItem): ItemMetaSummary | null {
+  if (!item.meta) return null;
+
+  return {
+    subjectLabel: item.meta.subjectLabel,
+    subtopic: item.meta.subtopic,
+    difficultyLabel: item.meta.difficultyLabel,
+  };
+}
+
 function LayoutStyleSelector({
   value,
   onChange,
@@ -122,6 +146,7 @@ export default function HistoryPage() {
   const [isDark, setIsDark] = useState(false);
   const [serverItems, setServerItems] = useState<ServerHistoryItem[]>([]);
   const [similarItems, setSimilarItems] = useState<StoredSimilarHistoryItem[]>([]);
+  const [historyMetaMap, setHistoryMetaMap] = useState<Map<number, CachedHistoryMetadata>>(new Map());
   const [message, setMessage] = useState("불러오는 중...");
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
@@ -131,6 +156,7 @@ export default function HistoryPage() {
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [showReviewOnly, setShowReviewOnly] = useState(false);
   const [layoutStyle, setLayoutStyle] = useState<WorksheetLayoutStyle>("suneung");
+  const [openItemKey, setOpenItemKey] = useState<string | null>(null);
 
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [reviewNotes, setReviewNotes] = useState<string[]>([]);
@@ -144,6 +170,7 @@ export default function HistoryPage() {
     setBookmarks(getSavedStringArray(BOOKMARK_KEY));
     setReviewNotes(getSavedStringArray(REVIEW_KEY));
     setSimilarItems(getStoredSimilarHistory());
+    setHistoryMetaMap(getHistoryMetadataMap());
     setMounted(true);
   }, []);
 
@@ -152,6 +179,7 @@ export default function HistoryPage() {
 
     const handleFocus = () => {
       setSimilarItems(getStoredSimilarHistory());
+      setHistoryMetaMap(getHistoryMetadataMap());
     };
 
     window.addEventListener("focus", handleFocus);
@@ -228,6 +256,7 @@ export default function HistoryPage() {
         label: item.action_type === "solve" ? "풀이 기록" : "문제 인식",
         problemText: item.recognized_text?.trim() || "",
         solveResult: item.solve_result,
+        meta: normalizeCachedMeta(historyMetaMap.get(item.id)),
         source: item,
       }));
 
@@ -239,13 +268,14 @@ export default function HistoryPage() {
       label: "유사문제",
       problemText: item.problem,
       solveResult: item.solution,
+      meta: normalizeSimilarMeta(item),
       source: item,
     }));
 
     return [...mappedSimilarItems, ...mappedServerItems].sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [serverItems, similarItems]);
+  }, [historyMetaMap, serverItems, similarItems]);
 
   const filteredItems = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -253,8 +283,8 @@ export default function HistoryPage() {
     return items.filter((item) => {
       if (filterType !== "all") {
         if (filterType === "similar" && item.kind !== "similar") return false;
-        if (filterType === "read" && !(item.kind === "history" && item.source.action_type === "read")) return false;
-        if (filterType === "solve" && !(item.kind === "history" && item.source.action_type === "solve")) return false;
+        if (filterType === "read" && !(item.kind === "history" && "action_type" in item.source && item.source.action_type === "read")) return false;
+        if (filterType === "solve" && !(item.kind === "history" && "action_type" in item.source && item.source.action_type === "solve")) return false;
       }
 
       if (showBookmarksOnly && !bookmarks.includes(item.key)) return false;
@@ -262,7 +292,16 @@ export default function HistoryPage() {
 
       if (!keyword) return true;
 
-      const target = [item.label, item.historyCode, item.problemText, item.solveResult || ""].join(" ").toLowerCase();
+      const target = [
+        item.label,
+        item.historyCode,
+        item.meta?.subjectLabel || "",
+        item.meta?.subtopic || "",
+        item.meta?.difficultyLabel || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
       return target.includes(keyword);
     });
   }, [items, filterType, search, showBookmarksOnly, showReviewOnly, bookmarks, reviewNotes]);
@@ -276,10 +315,13 @@ export default function HistoryPage() {
     () =>
       selectedItems.map((item) =>
         item.kind === "similar"
-          ? toWorksheetProblem(item.source)
+          ? toWorksheetProblem(item.source as StoredSimilarHistoryItem)
           : {
               id: item.key,
-              title: item.source.action_type === "solve" ? "풀이에 사용된 원본 문제" : "인식된 원본 문제",
+              title:
+                (item.source as ServerHistoryItem).action_type === "solve"
+                  ? "풀이에 사용한 원본 문제"
+                  : "인식된 원본 문제",
               problem: item.problemText,
               historyCode: item.historyCode,
               sourceLabel: item.label,
@@ -291,8 +333,8 @@ export default function HistoryPage() {
   const stat = useMemo(
     () => ({
       total: items.length,
-      read: items.filter((item) => item.kind === "history" && item.source.action_type === "read").length,
-      solve: items.filter((item) => item.kind === "history" && item.source.action_type === "solve").length,
+      read: items.filter((item) => item.kind === "history" && "action_type" in item.source && item.source.action_type === "read").length,
+      solve: items.filter((item) => item.kind === "history" && "action_type" in item.source && item.source.action_type === "solve").length,
       similar: items.filter((item) => item.kind === "similar").length,
       selected: selectedKeys.length,
     }),
@@ -373,7 +415,7 @@ export default function HistoryPage() {
                 flexShrink: 0,
               }}
             >
-              <Image src="/logo.png" alt="수딱 로고" fill sizes="48px" style={{ objectFit: "cover" }} />
+              <Image src="/logo.png" alt="수닥 로고" fill sizes="48px" style={{ objectFit: "cover" }} />
             </div>
             <div>
               <div
@@ -387,7 +429,7 @@ export default function HistoryPage() {
                 히스토리
               </div>
               <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--primary)", marginTop: "4px" }}>
-                인식 기록과 유사문제를 한 번에 관리
+                코드와 분류 중심으로 간소화한 기록 목록
               </div>
             </div>
           </Link>
@@ -434,11 +476,11 @@ export default function HistoryPage() {
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.total}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--muted)" }}>인식</div>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>문제 인식</div>
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.read}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
-          <div style={{ fontSize: "12px", color: "var(--muted)" }}>풀이</div>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>풀이 기록</div>
           <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>{stat.solve}</div>
         </div>
         <div className="suddak-card" style={{ padding: "16px" }}>
@@ -453,7 +495,7 @@ export default function HistoryPage() {
 
       <SectionCard
         title="출력 준비"
-        description="히스토리와 유사문제를 골라 한 번에 인쇄하거나 PDF로 저장할 수 있습니다."
+        description="선택한 문제를 한 번에 인쇄하거나 PDF로 저장할 수 있습니다."
         style={{ marginBottom: "18px" }}
       >
         <div style={{ display: "grid", gap: "14px" }}>
@@ -477,20 +519,20 @@ export default function HistoryPage() {
           </div>
 
           <div className="suddak-card-soft" style={{ padding: "12px 14px", color: "var(--muted)", lineHeight: 1.7 }}>
-            브라우저 인쇄 창에서 실제 프린트와 PDF 저장을 모두 할 수 있습니다. 선택한 레이아웃이 인쇄에 그대로 반영됩니다.
+            상세를 열지 않아도 선택은 가능합니다. 목록은 간단히 유지하고, 필요한 항목만 펼쳐서 확인하는 방식입니다.
           </div>
         </div>
       </SectionCard>
 
       <SectionCard
         title="필터"
-        description="유형별로 모아 보고, 북마크와 복습 표시, 코드 검색으로 빠르게 추릴 수 있습니다."
+        description="과목, 주제, 난이도, 히스토리 코드 중심으로 빠르게 찾을 수 있게 바꿨습니다."
         style={{ marginBottom: "18px" }}
       >
         <div style={{ display: "grid", gap: "12px" }}>
           <input
             className="suddak-input"
-            placeholder="문제 내용, 풀이 내용, 히스토리 코드 검색"
+            placeholder="히스토리 코드, 과목, 주제, 난이도 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -522,7 +564,10 @@ export default function HistoryPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="기록 목록" description="체크박스로 여러 문제를 골라 출력 목록에 바로 담을 수 있습니다.">
+      <SectionCard
+        title="기록 목록"
+        description="목록은 커뮤니티 글 리스트처럼 간단히 두고, 눌렀을 때만 본문과 액션을 보여줍니다."
+      >
         {loading ? (
           <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)" }}>
             불러오는 중...
@@ -532,104 +577,125 @@ export default function HistoryPage() {
             {message || "조건에 맞는 기록이 없습니다."}
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "16px" }}>
+          <div style={{ display: "grid", gap: "12px" }}>
             {filteredItems.map((item) => {
               const bookmarked = bookmarks.includes(item.key);
               const reviewed = reviewNotes.includes(item.key);
               const selected = selectedKeys.includes(item.key);
+              const expanded = openItemKey === item.key;
 
               return (
-                <article key={item.key} className="suddak-card-soft" style={{ padding: "16px", display: "grid", gap: "14px" }}>
+                <article key={item.key} className="suddak-card-soft" style={{ padding: "14px", display: "grid", gap: "12px" }}>
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
+                      display: "grid",
+                      gridTemplateColumns: "auto minmax(0, 1fr) auto",
                       gap: "12px",
-                      flexWrap: "wrap",
+                      alignItems: "start",
                     }}
                   >
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, paddingTop: "4px" }}>
                       <input type="checkbox" checked={selected} onChange={() => toggleSelection(item.key)} />
                       선택
                     </label>
 
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                      <span className="suddak-badge">{item.label}</span>
-                      {item.kind === "similar" ? <span className="suddak-badge">local history</span> : null}
-                      <span className="suddak-badge">{item.historyCode}</span>
-                      {bookmarked ? <span className="suddak-badge">북마크</span> : null}
-                      {reviewed ? <span className="suddak-badge">복습</span> : null}
-                    </div>
-
-                    <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 700 }}>{formatDate(item.createdAt)}</div>
-                  </div>
-
-                  <div className="suddak-card" style={{ padding: "14px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                      {item.kind === "similar" ? "유사문제" : "인식된 문제"}
-                    </div>
-                    <div style={{ marginBottom: "10px", fontSize: "13px", fontWeight: 900, color: "var(--primary)" }}>{item.historyCode}</div>
-                    <MarkdownMathBlock content={item.problemText} isDark={isDark} />
-                  </div>
-
-                  {item.kind === "history" && item.solveResult ? (
-                    <div className="suddak-card" style={{ padding: "14px" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                        풀이 결과
-                      </div>
-                      <MarkdownMathBlock content={item.solveResult} isDark={isDark} />
-                    </div>
-                  ) : null}
-
-                  {item.kind === "similar" ? (
-                    <div className="suddak-card" style={{ padding: "14px" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
-                        생성 풀이
-                      </div>
-                      <MarkdownMathBlock content={item.solveResult} isDark={isDark} />
-                    </div>
-                  ) : null}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px" }}>
                     <button
                       type="button"
-                      className={`suddak-btn ${bookmarked ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
-                      onClick={() => toggleBookmark(item.key)}
+                      onClick={() => setOpenItemKey((prev) => (prev === item.key ? null : item.key))}
+                      style={{
+                        display: "grid",
+                        gap: "10px",
+                        padding: 0,
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
                     >
-                      {bookmarked ? "북마크 해제" : "북마크"}
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                        <span className="suddak-badge">{item.label}</span>
+                        {item.kind === "similar" ? <span className="suddak-badge">local history</span> : null}
+                        <span className="suddak-badge">{item.historyCode}</span>
+                        {bookmarked ? <span className="suddak-badge">북마크</span> : null}
+                        {reviewed ? <span className="suddak-badge">복습</span> : null}
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {item.meta?.subjectLabel ? <span className="suddak-badge">{item.meta.subjectLabel}</span> : null}
+                        {item.meta?.subtopic ? <span className="suddak-badge">{item.meta.subtopic}</span> : null}
+                        {item.meta?.difficultyLabel ? <span className="suddak-badge">{item.meta.difficultyLabel}</span> : null}
+                        {!item.meta ? <span className="suddak-badge">분류 정보 없음</span> : null}
+                      </div>
                     </button>
 
-                    <button
-                      type="button"
-                      className={`suddak-btn ${reviewed ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
-                      onClick={() => toggleReview(item.key)}
-                    >
-                      {reviewed ? "복습 해제" : "복습"}
-                    </button>
-
-                    {item.kind === "history" ? (
-                      <>
-                        <Link
-                          href={buildSimilarProblemUrl({
-                            historyId: item.source.id,
-                            source: "history",
-                          })}
-                          className="suddak-btn suddak-btn-ghost"
-                        >
-                          유사문제 생성
-                        </Link>
-
-                        <Link href={buildShareUrlFromHistory(item.source)} className="suddak-btn suddak-btn-ghost">
-                          커뮤니티 공유
-                        </Link>
-                      </>
-                    ) : (
-                      <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => toggleSelection(item.key)}>
-                        {selected ? "선택 해제" : "출력 목록에 추가"}
+                    <div style={{ display: "grid", gap: "8px", justifyItems: "end" }}>
+                      <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 700 }}>{formatDate(item.createdAt)}</div>
+                      <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => setOpenItemKey((prev) => (prev === item.key ? null : item.key))}>
+                        {expanded ? "닫기" : "열기"}
                       </button>
-                    )}
+                    </div>
                   </div>
+
+                  {expanded ? (
+                    <div style={{ display: "grid", gap: "12px" }}>
+                      <div className="suddak-card" style={{ padding: "14px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
+                          {item.kind === "similar" ? "유사문제 본문" : "원본 문제"}
+                        </div>
+                        <MarkdownMathBlock content={item.problemText} isDark={isDark} />
+                      </div>
+
+                      {item.solveResult ? (
+                        <div className="suddak-card" style={{ padding: "14px" }}>
+                          <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)", marginBottom: "8px" }}>
+                            {item.kind === "similar" ? "생성 풀이" : "풀이 결과"}
+                          </div>
+                          <MarkdownMathBlock content={item.solveResult} isDark={isDark} />
+                        </div>
+                      ) : null}
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px" }}>
+                        <button
+                          type="button"
+                          className={`suddak-btn ${bookmarked ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+                          onClick={() => toggleBookmark(item.key)}
+                        >
+                          {bookmarked ? "북마크 해제" : "북마크"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`suddak-btn ${reviewed ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+                          onClick={() => toggleReview(item.key)}
+                        >
+                          {reviewed ? "복습 해제" : "복습"}
+                        </button>
+
+                        {item.kind === "history" ? (
+                          <>
+                            <Link
+                              href={buildSimilarProblemUrl({
+                                historyId: (item.source as ServerHistoryItem).id,
+                                source: "history",
+                              })}
+                              className="suddak-btn suddak-btn-ghost"
+                            >
+                              유사문제 생성
+                            </Link>
+
+                            <Link href={buildShareUrlFromHistory(item.source as ServerHistoryItem)} className="suddak-btn suddak-btn-ghost">
+                              커뮤니티 공유
+                            </Link>
+                          </>
+                        ) : (
+                          <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => toggleSelection(item.key)}>
+                            {selected ? "선택 해제" : "출력 목록에 추가"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               );
             })}
@@ -650,4 +716,3 @@ export default function HistoryPage() {
     </PageContainer>
   );
 }
-

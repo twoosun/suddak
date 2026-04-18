@@ -4,6 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
+import { normalizeMathMarkdown } from "@/lib/math-markdown";
+
 type Props = {
   content: string;
   isDark: boolean;
@@ -18,6 +20,8 @@ export default function MarkdownMathBlock({
   className = "",
   variant = "default",
 }: Props) {
+  const normalizedContent = normalizeMathMarkdown(content);
+
   return (
     <div
       className={[
@@ -30,7 +34,7 @@ export default function MarkdownMathBlock({
         .join(" ")}
     >
       <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

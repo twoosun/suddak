@@ -15,6 +15,7 @@ export type StoredSimilarHistoryItem = {
   solution: string;
   variationNote: string;
   warning: string;
+  meta: SimilarResult["meta"];
 };
 
 function isStoredSimilarHistoryItem(value: unknown): value is StoredSimilarHistoryItem {
@@ -34,7 +35,8 @@ function isStoredSimilarHistoryItem(value: unknown): value is StoredSimilarHisto
     typeof record.answer === "string" &&
     typeof record.solution === "string" &&
     typeof record.variationNote === "string" &&
-    typeof record.warning === "string"
+    typeof record.warning === "string" &&
+    (record.meta === null || typeof record.meta === "object")
   );
 }
 
@@ -72,6 +74,7 @@ export function saveSimilarHistoryItem(params: {
     solution: params.result.solution,
     variationNote: params.result.variationNote,
     warning: params.result.warning,
+    meta: params.result.meta,
   };
 
   const items = [nextItem, ...getStoredSimilarHistory()].slice(0, 50);

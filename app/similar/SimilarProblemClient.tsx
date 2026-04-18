@@ -59,7 +59,7 @@ async function captureExportPages(root: HTMLDivElement) {
       backgroundColor: "#ffffff",
       cacheBust: true,
       pixelRatio: 2,
-      skipFonts: true,
+      skipFonts: false,
     });
     pageImages.push({ dataUrl });
   }
@@ -702,6 +702,13 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
                 >
                   <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 900 }}>제목</div>
                   <div style={{ marginTop: "6px", fontSize: "1.05rem", fontWeight: 900 }}>{result.title}</div>
+                  {result.meta ? (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                      <span className="suddak-badge">{result.meta.subjectLabel}</span>
+                      {result.meta.subtopic ? <span className="suddak-badge">{result.meta.subtopic}</span> : null}
+                      <span className="suddak-badge">{result.meta.difficultyLabel}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="suddak-card-soft" style={{ padding: "16px" }}>
