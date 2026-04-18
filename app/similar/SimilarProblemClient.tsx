@@ -45,9 +45,12 @@ async function requestExportFile(
   accessToken: string,
   format: SimilarExportFormat,
   payload: SimilarExportPayload,
+  signal?: AbortSignal,
 ) {
   const response = await fetch("/api/similar/export", {
     method: "POST",
+    cache: "no-store",
+    signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
@@ -90,6 +93,7 @@ export default function SimilarProblemClient({
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportTarget, setExportTarget] = useState<SimilarExportFormat | null>(null);
   const [exportMode, setExportMode] = useState<SimilarExportMode>("problem-only");
   const [includeOriginalProblem, setIncludeOriginalProblem] = useState(false);
   const [sheetSchool, setSheetSchool] = useState("");
@@ -278,10 +282,11 @@ export default function SimilarProblemClient({
 
     try {
       setExporting(true);
+      setExportTarget(format);
       setMessage(
         format === "pdf"
-          ? "서버에서 PDF를 생성하고 있습니다."
-          : "서버에서 DOCX를 생성하고 있습니다.",
+          ? "서버에서 PDF를 생성 중입니다. 수식 렌더링 때문에 잠시 시간이 걸릴 수 있어요."
+          : "서버에서 DOCX를 생성 중입니다. 페이지 이미지를 만들고 있어요.",
       );
 
       const {
@@ -293,7 +298,18 @@ export default function SimilarProblemClient({
         return;
       }
 
-      const { blob, filename } = await requestExportFile(session.access_token, format, exportPayload);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 90000);
+
+      const { blob, filename } = await requestExportFile(
+        session.access_token,
+        format,
+        exportPayload,
+        controller.signal,
+      ).finally(() => {
+        window.clearTimeout(timeoutId);
+      });
+
       downloadBlob(blob, filename);
       setMessage(
         format === "pdf"
@@ -301,10 +317,16 @@ export default function SimilarProblemClient({
           : "DOCX를 서버 API에서 생성해 바로 다운로드했습니다.",
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "export 중 오류가 발생했습니다.";
+      const errorMessage =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "export 생성 시간이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요."
+          : error instanceof Error
+            ? error.message
+            : "export 중 오류가 발생했습니다.";
       setMessage(errorMessage);
     } finally {
       setExporting(false);
+      setExportTarget(null);
     }
   };
 
@@ -716,7 +738,7 @@ export default function SimilarProblemClient({
                       onClick={() => void handleExport("pdf")}
                       disabled={exporting}
                     >
-                      PDF 다운로드
+                      {exporting && exportTarget === "pdf" ? "PDF 생성 중..." : "PDF 다운로드"}
                     </button>
                     <button
                       type="button"
@@ -724,7 +746,7 @@ export default function SimilarProblemClient({
                       onClick={() => void handleExport("docx")}
                       disabled={exporting}
                     >
-                      DOCX 다운로드
+                      {exporting && exportTarget === "docx" ? "DOCX 생성 중..." : "DOCX 다운로드"}
                     </button>
                   </div>
 
@@ -732,6 +754,23 @@ export default function SimilarProblemClient({
                     export는 브라우저에서 직접 문서를 만들지 않고, 서버 API가 전용 시험지 템플릿을 렌더한 뒤
                     PDF와 DOCX 파일을 내려줍니다.
                   </div>
+                  {exporting && (
+                    <div
+                      className="suddak-card-soft"
+                      style={{
+                        padding: "12px 14px",
+                        borderColor: "var(--primary)",
+                        background: "color-mix(in srgb, var(--primary) 8%, var(--card))",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {exportTarget === "pdf"
+                        ? "PDF export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."
+                        : "DOCX export 요청을 보냈고, 서버가 문서를 생성하는 중입니다."}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
