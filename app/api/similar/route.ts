@@ -269,6 +269,57 @@ function parseSimilarSolutionResult(rawText: string) {
   return parseJsonText<SimilarSolutionResult>(rawText);
 }
 
+function repairCommonLatexCorruption(content: string) {
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/[\uFFFD?](?=rac\b)/g, "\\f")
+    .replace(/[\uFFFD?](?=sqrt\b)/g, "\\")
+    .replace(/[\uFFFD?](?=left\b)/g, "\\")
+    .replace(/[\uFFFD?](?=right\b)/g, "\\")
+    .replace(/[\uFFFD?](?=cdot\b)/g, "\\")
+    .replace(/[\uFFFD?](?=times\b)/g, "\\")
+    .replace(/[\uFFFD?](?=pm\b)/g, "\\")
+    .replace(/[\uFFFD?](?=mp\b)/g, "\\")
+    .replace(/[\uFFFD?](?=leq\b)/g, "\\")
+    .replace(/[\uFFFD?](?=geq\b)/g, "\\")
+    .replace(/[\uFFFD?](?=neq\b)/g, "\\")
+    .replace(/[\uFFFD?](?=sin\b)/g, "\\")
+    .replace(/[\uFFFD?](?=cos\b)/g, "\\")
+    .replace(/[\uFFFD?](?=tan\b)/g, "\\")
+    .replace(/[\uFFFD?](?=log\b)/g, "\\")
+    .replace(/[\uFFFD?](?=ln\b)/g, "\\")
+    .replace(/(^|[^\\])frac(?=\s*\{)/g, "$1\\frac")
+    .replace(/(^|[^\\])sqrt(?=\s*\{)/g, "$1\\sqrt");
+}
+
+function sanitizeSimilarOutline(draft: SimilarOutline): SimilarOutline {
+  return {
+    ...draft,
+    title: draft.title?.trim(),
+    problem: draft.problem ? repairCommonLatexCorruption(draft.problem).trim() : draft.problem,
+    answer: draft.answer ? repairCommonLatexCorruption(draft.answer).trim() : draft.answer,
+    variationNote: draft.variationNote ? repairCommonLatexCorruption(draft.variationNote).trim() : draft.variationNote,
+    warning: draft.warning?.trim(),
+    meta: draft.meta
+      ? {
+          ...draft.meta,
+          subjectLabel: draft.meta.subjectLabel?.trim(),
+          subtopic: draft.meta.subtopic?.trim(),
+          difficultyLabel: draft.meta.difficultyLabel?.trim(),
+        }
+      : draft.meta,
+  };
+}
+
+function sanitizeSimilarDraft(draft: SimilarDraft): SimilarDraft {
+  const sanitizedOutline = sanitizeSimilarOutline(draft);
+
+  return {
+    ...sanitizedOutline,
+    solution: draft.solution ? repairCommonLatexCorruption(draft.solution).trim() : draft.solution,
+  };
+}
+
 function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
   if (!meta) return null;
 
@@ -381,7 +432,7 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
     let outline: SimilarOutline;
 
     try {
-      outline = parseSimilarOutline(outlineText);
+      outline = sanitizeSimilarOutline(parseSimilarOutline(outlineText));
     } catch (error) {
       console.error("[api/similar] outline parse error:", error);
       console.error("[api/similar] outline raw:", outlineText);
@@ -427,7 +478,9 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
       verificationIssues.unshift("verifier marked candidate as invalid");
     }
 
-    const verifiedAnswer = verification.correctedAnswer?.trim() || outline.answer?.trim() || "";
+    const verifiedAnswer = repairCommonLatexCorruption(
+      verification.correctedAnswer?.trim() || outline.answer?.trim() || "",
+    );
     if (!verifiedAnswer) {
       verificationIssues.push("verification did not produce a usable answer");
     }
@@ -440,10 +493,10 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
       continue;
     }
 
-    const verifiedDraft: SimilarDraft = {
+    const verifiedDraft: SimilarDraft = sanitizeSimilarDraft({
       ...outline,
       answer: verifiedAnswer,
-    };
+    });
 
     const solutionText = await requestSimilarDraft(
       buildSolutionPrompt(JSON.stringify(verifiedDraft, null, 2), JSON.stringify(verification, null, 2)),
@@ -469,11 +522,11 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
       continue;
     }
 
-    const candidate: SimilarDraft = {
+    const candidate: SimilarDraft = sanitizeSimilarDraft({
       ...verifiedDraft,
-      answer: solutionResult.answer?.trim() || verifiedAnswer,
+      answer: repairCommonLatexCorruption(solutionResult.answer?.trim() || verifiedAnswer),
       solution: solutionResult.solution?.trim() || "",
-    };
+    });
 
     const finalIssues = validateFinalDraft(candidate);
     if (finalIssues.length > 0) {
