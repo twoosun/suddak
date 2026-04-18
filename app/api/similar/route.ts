@@ -1,3 +1,4 @@
+import katex from "katex";
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -23,15 +24,24 @@ type SimilarDraft = {
   } | null;
 };
 
-type SimilarReviewResult = {
+type SimilarOutline = Omit<SimilarDraft, "solution">;
+
+type SimilarVerificationResult = {
   isValid?: boolean;
   issues?: string[];
-  candidate?: SimilarDraft | null;
+  correctedAnswer?: string;
+  reasoningSummary?: string;
 };
 
-const DEFAULT_WARNING = "베타 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
+type SimilarSolutionResult = {
+  answer?: string;
+  solution?: string;
+};
+
+const DEFAULT_WARNING = "변형 문제 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
 const SIMILAR_MODEL = "gpt-4o-mini";
 const SIMILAR_MAX_OUTPUT_TOKENS = 2000;
+const SIMILAR_MAX_RETRIES = 3;
 
 async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -72,86 +82,88 @@ async function getHistoryItem(historyId: number, userId: string) {
   return data;
 }
 
-function buildGenerationPrompt() {
+function buildDraftPrompt(previousIssues: string[] = []) {
+  const retrySection =
+    previousIssues.length > 0
+      ? ["", "[Previous failures to fix]", ...previousIssues.map((issue, index) => `${index + 1}. ${issue}`)]
+      : [];
+
   return [
-    "너는 수능/내신 스타일 고등 수학 유사문제를 만드는 출제 검토자다.",
-    "반드시 JSON 객체 하나만 반환하라.",
-    "원본과 같은 개념, 학년군, 난이도를 유지하되 숫자와 조건, 보기 구성을 자연스럽게 변형하라.",
-    "문제 본문, 보기, 정답, 풀이가 서로 논리적으로 완전히 일치해야 한다.",
-    "풀이에는 핵심 관찰과 계산 과정을 충분히 적고, variationNote에는 무엇을 어떻게 바꿨는지 구체적으로 적어라.",
-    "수식은 반드시 LaTeX로 작성하고 inline 수식은 $...$, 블록 수식은 $$...$$ 만 사용하라.",
-    "\\(...\\), \\[...\\], \\begin, \\end 는 쓰지 마라.",
-    "객관식이면 보기를 줄바꿈하여 `1.`, `2.`, `3.`, `4.`, `5.` 형식으로 작성하라.",
-    "meta에는 subjectLabel, subtopic, difficulty, difficultyLabel을 채워라.",
+    "You create a similar Korean high-school math problem from the source problem.",
+    "Stage order is strict: stage 1 creates only the draft problem and final answer.",
+    "Do not write the full solution in this stage.",
+    "Return exactly one JSON object and nothing else.",
+    "The new problem must be solvable, internally consistent, and appropriate for Korean high-school math.",
+    "Change numbers or conditions enough to make it a distinct similar problem while preserving the topic and level.",
+    "All math must use valid LaTeX.",
+    "Inline math uses $...$ and display math uses $$...$$ only.",
+    "Do not use \\(...\\), \\[...\\], \\begin, or \\end.",
+    "If the problem is multiple-choice, choices must use `1.`, `2.`, `3.`, `4.`, `5.`.",
+    "variationNote must clearly explain what changed from the source problem.",
+    "Fill meta.subjectLabel, meta.subtopic, meta.difficulty, and meta.difficultyLabel.",
     "",
-    "반환 형식:",
+    "Return format:",
     "{",
-    '  "title": "유사문제 제목",',
-    '  "problem": "문제 본문",',
-    '  "answer": "정답",',
-    '  "solution": "풀이",',
-    '  "variationNote": "변형 사항",',
-    '  "warning": "검토 안내 문구",',
+    '  "title": "similar problem title",',
+    '  "problem": "problem statement",',
+    '  "answer": "final answer only",',
+    '  "variationNote": "what changed",',
+    '  "warning": "short caution text",',
     '  "meta": {',
-    '    "subjectLabel": "과목",',
-    '    "subtopic": "주제",',
+    '    "subjectLabel": "subject",',
+    '    "subtopic": "subtopic",',
     '    "difficulty": "easy | medium | hard",',
     '    "difficultyLabel": "쉬움 | 보통 | 어려움"',
     "  }",
     "}",
+    ...retrySection,
   ].join("\n");
 }
 
-function buildReviewPrompt(candidate: string) {
+function buildVerificationPrompt(candidate: string) {
   return [
-    "아래 JSON 초안을 내부 검수하고 필요하면 바로 수정하라.",
-    "반드시 JSON 객체 하나만 반환하라.",
-    "반환 형식:",
+    "You are the verifier for a generated Korean high-school math problem.",
+    "Stage 2 verifies the draft by independently checking solvability and answer consistency.",
+    "Do not write the full solution in this stage.",
+    "Return exactly one JSON object and nothing else.",
+    "If the problem itself is broken, contradictory, unsolvable, or malformed, set isValid to false.",
+    "If the problem is valid but the proposed answer is wrong, provide correctedAnswer.",
+    "List every issue you find, including malformed LaTeX or unreadable math text.",
+    "",
+    "Return format:",
     "{",
     '  "isValid": true,',
     '  "issues": ["issue"],',
-    '  "candidate": {',
-    '    "title": "유사문제 제목",',
-    '    "problem": "문제 본문",',
-    '    "answer": "정답",',
-    '    "solution": "풀이",',
-    '    "variationNote": "변형 사항",',
-    '    "warning": "검토 안내 문구",',
-    '    "meta": {',
-    '      "subjectLabel": "과목",',
-    '      "subtopic": "주제",',
-    '      "difficulty": "easy | medium | hard",',
-    '      "difficultyLabel": "쉬움 | 보통 | 어려움"',
-    "    }",
-    "  }",
+    '  "correctedAnswer": "answer or empty string",',
+    '  "reasoningSummary": "brief verification summary"',
     "}",
     "",
-    "검수 기준:",
-    "1. 문제, 정답, 풀이가 서로 모순 없이 맞아야 한다.",
-    "2. 객관식 보기 구성이 정답과 일치해야 한다.",
-    "3. 수식 표기는 $...$, $$...$$ 만 사용해야 한다.",
-    "4. 고등 수학 문항 톤으로 자연스러워야 한다.",
-    "5. variationNote는 실제 변형 포인트를 구체적으로 설명해야 한다.",
-    "6. meta 정보는 문제와 맞아야 한다.",
-    "",
-    "[검수 대상 JSON]",
+    "[Candidate JSON]",
     candidate,
   ].join("\n");
 }
 
-function buildRepairPrompt(candidate: string, issues: string[]) {
+function buildSolutionPrompt(candidate: string, verification: string) {
   return [
-    "아래 JSON의 오류를 고쳐라.",
-    "반드시 수정된 JSON 객체 하나만 반환하라.",
-    "문제, 정답, 풀이의 일관성을 최우선으로 맞춰라.",
-    "warning은 비우지 마라.",
-    "variationNote에는 어떤 요소를 바꿨는지 구체적으로 적어라.",
+    "You are the solver for a verified Korean high-school math problem.",
+    "Stage 3 writes the full solution only after stage 2 verification has finished.",
+    "Use the verified answer exactly unless it is obviously equivalent notation.",
+    "Return exactly one JSON object and nothing else.",
+    "The solution must be complete, logically valid, and consistent with the verified answer.",
+    "All math must use valid LaTeX.",
+    "Inline math uses $...$ and display math uses $$...$$ only.",
     "",
-    "[발견된 문제]",
-    issues.length > 0 ? issues.map((issue, index) => `${index + 1}. ${issue}`).join("\n") : "- 없음",
+    "Return format:",
+    "{",
+    '  "answer": "final answer only",',
+    '  "solution": "full solution text"',
+    "}",
     "",
-    "[현재 JSON]",
+    "[Verified candidate JSON]",
     candidate,
+    "",
+    "[Verification result JSON]",
+    verification,
   ].join("\n");
 }
 
@@ -245,12 +257,16 @@ function parseJsonText<T>(rawText: string) {
   throw new Error("JSON parse failed");
 }
 
-function parseSimilarDraft(rawText: string) {
-  return parseJsonText<SimilarDraft>(rawText);
+function parseSimilarOutline(rawText: string) {
+  return parseJsonText<SimilarOutline>(rawText);
 }
 
-function parseSimilarReviewResult(rawText: string) {
-  return parseJsonText<SimilarReviewResult>(rawText);
+function parseSimilarVerificationResult(rawText: string) {
+  return parseJsonText<SimilarVerificationResult>(rawText);
+}
+
+function parseSimilarSolutionResult(rawText: string) {
+  return parseJsonText<SimilarSolutionResult>(rawText);
 }
 
 function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
@@ -269,85 +285,212 @@ function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
   };
 }
 
-function validateSimilarDraft(draft: SimilarDraft) {
-  const issues: string[] = [];
-  const mergedText = [draft.problem, draft.answer, draft.solution].join("\n");
+function extractLatexExpressions(content: string) {
+  const expressions: Array<{ expression: string; displayMode: boolean }> = [];
+  const mathRegex = /\$\$([\s\S]+?)\$\$|\$([^\n$]+?)\$/g;
 
-  if (!draft.title?.trim()) issues.push("title is empty");
-  if ((draft.problem?.trim().length || 0) < 12) issues.push("problem is too short");
-  if (!draft.answer?.trim()) issues.push("answer is empty");
-  if (!draft.solution?.trim()) issues.push("solution is empty");
-  if (!draft.variationNote?.trim()) issues.push("variationNote is empty");
-  if (!draft.warning?.trim()) issues.push("warning is empty");
-  if (!draft.meta?.subjectLabel?.trim()) issues.push("meta.subjectLabel is empty");
-  if (!draft.meta?.difficultyLabel?.trim()) issues.push("meta.difficultyLabel is empty");
-  if (/[\\]\(|[\\]\)|[\\]\[|[\\]\]|\\begin|\\end/.test(mergedText)) {
-    issues.push("latex delimiters must use $...$ or $$...$$ only");
+  for (const match of content.matchAll(mathRegex)) {
+    const expression = (match[1] ?? match[2] ?? "").trim();
+    if (!expression) continue;
+    expressions.push({ expression, displayMode: Boolean(match[1]) });
+  }
+
+  return expressions;
+}
+
+function validateLatexText(content: string, fieldName: string) {
+  const issues: string[] = [];
+  const trimmed = content.trim();
+  if (!trimmed) return issues;
+
+  if (/[\\]\(|[\\]\)|[\\]\[|[\\]\]|\\begin|\\end/.test(trimmed)) {
+    issues.push(`${fieldName}: latex delimiters must use $...$ or $$...$$ only`);
+  }
+
+  const suspiciousPatterns: Array<[RegExp, string]> = [
+    [/(^|[^\\])frac\s*\{/u, `${fieldName}: 'frac' is missing a leading backslash`],
+    [/(^|[^\\])sqrt\s*\{/u, `${fieldName}: 'sqrt' is missing a leading backslash`],
+    [/\?rac/u, `${fieldName}: contains broken latex command '?rac'`],
+    [/\?frac/u, `${fieldName}: contains broken latex command '?frac'`],
+    [/\?sqrt/u, `${fieldName}: contains broken latex command '?sqrt'`],
+  ];
+
+  for (const [pattern, message] of suspiciousPatterns) {
+    if (pattern.test(trimmed)) {
+      issues.push(message);
+    }
+  }
+
+  for (const { expression, displayMode } of extractLatexExpressions(trimmed)) {
+    try {
+      katex.renderToString(expression, {
+        throwOnError: true,
+        strict: "error",
+        output: "htmlAndMathml",
+        displayMode,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "unknown katex error";
+      issues.push(`${fieldName}: invalid latex "${expression}" (${detail})`);
+    }
   }
 
   return issues;
 }
 
+function validateSimilarOutline(draft: SimilarOutline) {
+  const issues: string[] = [];
+
+  if (!draft.title?.trim()) issues.push("title is empty");
+  if ((draft.problem?.trim().length || 0) < 12) issues.push("problem is too short");
+  if (!draft.answer?.trim()) issues.push("answer is empty");
+  if (!draft.variationNote?.trim()) issues.push("variationNote is empty");
+  if (!draft.warning?.trim()) issues.push("warning is empty");
+  if (!draft.meta?.subjectLabel?.trim()) issues.push("meta.subjectLabel is empty");
+  if (!draft.meta?.difficultyLabel?.trim()) issues.push("meta.difficultyLabel is empty");
+
+  issues.push(...validateLatexText(draft.problem ?? "", "problem"));
+  issues.push(...validateLatexText(draft.answer ?? "", "answer"));
+  issues.push(...validateLatexText(draft.variationNote ?? "", "variationNote"));
+
+  return issues;
+}
+
+function validateFinalDraft(draft: SimilarDraft) {
+  const issues = validateSimilarOutline(draft);
+
+  if (!draft.solution?.trim()) issues.push("solution is empty");
+  issues.push(...validateLatexText(draft.solution ?? "", "solution"));
+
+  return issues;
+}
+
 async function generateValidatedSimilarProblem(recognizedText: string, solveResult: string) {
-  const draftText = await requestSimilarDraft(buildGenerationPrompt(), recognizedText, solveResult);
-  if (!draftText) {
-    throw new Error("유사문제 생성 결과가 비어 있습니다.");
-  }
+  let retryIssues: string[] = [];
+  let lastIssues: string[] = [];
 
-  let candidate: SimilarDraft;
+  for (let attempt = 1; attempt <= SIMILAR_MAX_RETRIES; attempt += 1) {
+    const outlineText = await requestSimilarDraft(buildDraftPrompt(retryIssues), recognizedText, solveResult);
 
-  try {
-    candidate = parseSimilarDraft(draftText);
-  } catch (error) {
-    console.error("[api/similar] draft parse error:", error);
-    console.error("[api/similar] draft raw:", draftText);
-    throw new Error("1차 생성 결과를 JSON으로 정리하지 못했습니다.");
-  }
-
-  const reviewText = await requestSimilarDraft(
-    buildReviewPrompt(JSON.stringify(candidate, null, 2)),
-    recognizedText,
-    solveResult,
-  );
-
-  if (reviewText) {
-    try {
-      const review = parseSimilarReviewResult(reviewText);
-      if (review.candidate) {
-        candidate = review.candidate;
-      }
-
-      const mergedIssues = [...(review.issues ?? []), ...validateSimilarDraft(candidate)];
-      if (review.isValid === false || mergedIssues.length > 0) {
-        const repairedText = await requestSimilarDraft(
-          buildRepairPrompt(JSON.stringify(candidate, null, 2), mergedIssues),
-          recognizedText,
-          solveResult,
-        );
-
-        if (repairedText) {
-          try {
-            candidate = parseSimilarDraft(repairedText);
-          } catch (error) {
-            console.error("[api/similar] repair parse error:", error);
-            console.error("[api/similar] repair raw:", repairedText);
-            throw new Error("수정 결과를 JSON으로 정리하지 못했습니다.");
-          }
-        }
-      }
-    } catch (error) {
-      console.error("[api/similar] review parse error:", error);
-      console.error("[api/similar] review raw:", reviewText);
+    if (!outlineText) {
+      lastIssues = ["draft response was empty"];
+      retryIssues = lastIssues;
+      continue;
     }
+
+    let outline: SimilarOutline;
+
+    try {
+      outline = parseSimilarOutline(outlineText);
+    } catch (error) {
+      console.error("[api/similar] outline parse error:", error);
+      console.error("[api/similar] outline raw:", outlineText);
+      lastIssues = ["draft JSON parse failed"];
+      retryIssues = lastIssues;
+      continue;
+    }
+
+    const outlineIssues = validateSimilarOutline(outline);
+    if (outlineIssues.length > 0) {
+      console.error("[api/similar] outline validation issues:", outlineIssues);
+      lastIssues = outlineIssues;
+      retryIssues = outlineIssues;
+      continue;
+    }
+
+    const verificationText = await requestSimilarDraft(
+      buildVerificationPrompt(JSON.stringify(outline, null, 2)),
+      recognizedText,
+      solveResult,
+    );
+
+    if (!verificationText) {
+      lastIssues = ["verification response was empty"];
+      retryIssues = lastIssues;
+      continue;
+    }
+
+    let verification: SimilarVerificationResult;
+
+    try {
+      verification = parseSimilarVerificationResult(verificationText);
+    } catch (error) {
+      console.error("[api/similar] verification parse error:", error);
+      console.error("[api/similar] verification raw:", verificationText);
+      lastIssues = ["verification JSON parse failed"];
+      retryIssues = lastIssues;
+      continue;
+    }
+
+    const verificationIssues = [...(verification.issues ?? [])];
+    if (verification.isValid === false) {
+      verificationIssues.unshift("verifier marked candidate as invalid");
+    }
+
+    const verifiedAnswer = verification.correctedAnswer?.trim() || outline.answer?.trim() || "";
+    if (!verifiedAnswer) {
+      verificationIssues.push("verification did not produce a usable answer");
+    }
+    verificationIssues.push(...validateLatexText(verifiedAnswer, "verifiedAnswer"));
+
+    if (verificationIssues.length > 0) {
+      console.error("[api/similar] verification issues:", verificationIssues);
+      lastIssues = verificationIssues;
+      retryIssues = verificationIssues;
+      continue;
+    }
+
+    const verifiedDraft: SimilarDraft = {
+      ...outline,
+      answer: verifiedAnswer,
+    };
+
+    const solutionText = await requestSimilarDraft(
+      buildSolutionPrompt(JSON.stringify(verifiedDraft, null, 2), JSON.stringify(verification, null, 2)),
+      recognizedText,
+      solveResult,
+    );
+
+    if (!solutionText) {
+      lastIssues = ["solution response was empty"];
+      retryIssues = lastIssues;
+      continue;
+    }
+
+    let solutionResult: SimilarSolutionResult;
+
+    try {
+      solutionResult = parseSimilarSolutionResult(solutionText);
+    } catch (error) {
+      console.error("[api/similar] solution parse error:", error);
+      console.error("[api/similar] solution raw:", solutionText);
+      lastIssues = ["solution JSON parse failed"];
+      retryIssues = lastIssues;
+      continue;
+    }
+
+    const candidate: SimilarDraft = {
+      ...verifiedDraft,
+      answer: solutionResult.answer?.trim() || verifiedAnswer,
+      solution: solutionResult.solution?.trim() || "",
+    };
+
+    const finalIssues = validateFinalDraft(candidate);
+    if (finalIssues.length > 0) {
+      console.error("[api/similar] final validation issues:", finalIssues);
+      lastIssues = finalIssues;
+      retryIssues = finalIssues;
+      continue;
+    }
+
+    return candidate;
   }
 
-  const finalIssues = validateSimilarDraft(candidate);
-  if (finalIssues.length > 0) {
-    console.error("[api/similar] final validation issues:", finalIssues);
-    throw new Error(`검증에 실패했습니다. (${finalIssues.join(", ")})`);
-  }
-
-  return candidate;
+  throw new Error(
+    `유사문제 생성 검증에 반복 실패했습니다. ${
+      lastIssues.length > 0 ? lastIssues.join(", ") : "unknown error"
+    }`,
+  );
 }
 
 export async function GET(req: NextRequest) {
