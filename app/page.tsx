@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import DailyRewardCard from "@/components/DailyRewardCard";
-import NotificationBell from "@/components/NotificationBell";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
 import { getSessionWithRecovery, supabase } from "@/lib/supabase";
@@ -791,7 +789,6 @@ export default function HomePage() {
       </section>
 
       {/* # 13. 공지 문구 */}
-      <DailyRewardCard />
 
       {noticeText && (
         <div
