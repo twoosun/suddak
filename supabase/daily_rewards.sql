@@ -1,0 +1,114 @@
+alter table public.user_profiles
+  add column if not exists credits integer;
+
+update public.user_profiles
+set credits = 0
+where credits is null;
+
+alter table public.user_profiles
+  alter column credits set default 0;
+
+alter table public.user_profiles
+  alter column credits set not null;
+
+create table if not exists public.daily_rewards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reward_date date not null,
+  amount integer not null,
+  reward_type text not null default 'daily',
+  created_at timestamptz not null default now(),
+  constraint daily_rewards_user_id_reward_date_key unique (user_id, reward_date)
+);
+
+create index if not exists daily_rewards_user_id_created_at_idx
+  on public.daily_rewards(user_id, created_at desc);
+
+create table if not exists public.credit_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  amount integer not null,
+  balance_after integer not null,
+  reason text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists credit_transactions_user_id_created_at_idx
+  on public.credit_transactions(user_id, created_at desc);
+
+create or replace function public.claim_daily_reward(
+  p_user_id uuid,
+  p_reward_date date,
+  p_amount integer,
+  p_reward_type text default 'daily'
+)
+returns table (
+  ok boolean,
+  credits integer,
+  amount integer,
+  reward_type text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_balance integer;
+begin
+  insert into public.daily_rewards (
+    user_id,
+    reward_date,
+    amount,
+    reward_type
+  )
+  values (
+    p_user_id,
+    p_reward_date,
+    p_amount,
+    p_reward_type
+  );
+
+  update public.user_profiles
+  set credits = credits + p_amount
+  where id = p_user_id
+  returning public.user_profiles.credits into next_balance;
+
+  if next_balance is null then
+    raise exception 'user profile not found for %', p_user_id;
+  end if;
+
+  insert into public.credit_transactions (
+    user_id,
+    type,
+    amount,
+    balance_after,
+    reason
+  )
+  values (
+    p_user_id,
+    'DAILY_REWARD',
+    p_amount,
+    next_balance,
+    'daily_reward:' || p_reward_type
+  );
+
+  return query
+  select true, next_balance, p_amount, p_reward_type;
+exception
+  when unique_violation then
+    return query
+    select
+      false,
+      coalesce(
+        (
+          select user_profiles.credits
+          from public.user_profiles
+          where user_profiles.id = p_user_id
+        ),
+        0
+      ),
+      p_amount,
+      p_reward_type;
+end;
+$$;
