@@ -15,6 +15,22 @@ type ClaimDailyRewardRow = {
   reward_type: RewardType;
 };
 
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function logSupabaseError(context: string, error: SupabaseErrorLike) {
+  console.error(context, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+}
+
 async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
 
@@ -143,7 +159,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      console.error("[api/daily-reward][POST] rpc error:", error);
+      logSupabaseError("[api/daily-reward][POST] rpc error", error);
       return NextResponse.json({ error: "리워드 지급에 실패했습니다." }, { status: 500 });
     }
 

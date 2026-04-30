@@ -54,7 +54,7 @@ security definer
 set search_path = public
 as $$
 declare
-  next_balance integer;
+  v_next_balance integer;
 begin
   insert into public.daily_rewards (
     user_id,
@@ -69,12 +69,12 @@ begin
     p_reward_type
   );
 
-  update public.user_profiles
-  set credits = credits + p_amount
-  where id = p_user_id
-  returning public.user_profiles.credits into next_balance;
+  update public.user_profiles as up
+  set credits = up.credits + p_amount
+  where up.id = p_user_id
+  returning up.credits into v_next_balance;
 
-  if next_balance is null then
+  if v_next_balance is null then
     raise exception 'user profile not found for %', p_user_id;
   end if;
 
@@ -89,26 +89,26 @@ begin
     p_user_id,
     'DAILY_REWARD',
     p_amount,
-    next_balance,
+    v_next_balance,
     'daily_reward:' || p_reward_type
   );
 
   return query
-  select true, next_balance, p_amount, p_reward_type;
+  select true::boolean, v_next_balance::integer, p_amount::integer, p_reward_type::text;
 exception
   when unique_violation then
     return query
     select
-      false,
+      false::boolean,
       coalesce(
         (
-          select user_profiles.credits
-          from public.user_profiles
-          where user_profiles.id = p_user_id
+          select up.credits
+          from public.user_profiles as up
+          where up.id = p_user_id
         ),
         0
-      ),
-      p_amount,
-      p_reward_type;
+      )::integer,
+      p_amount::integer,
+      p_reward_type::text;
 end;
 $$;
