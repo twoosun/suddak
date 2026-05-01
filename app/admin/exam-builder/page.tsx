@@ -148,17 +148,26 @@ export default function ExamBuilderPage() {
     [blueprint]
   );
 
-  const handleMockAddFile = () => {
-    const nextIndex = referenceFiles.length + 1;
+  const formatFileSize = (size: number) => {
+    if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))}KB`;
+    return `${(size / 1024 / 1024).toFixed(1)}MB`;
+  };
+
+  const handleFilesSelected = (selectedFiles: FileList | null) => {
+    if (!selectedFiles?.length) return;
+
+    const uploadedFiles = Array.from(selectedFiles).map((file, index) => ({
+      id: `upload-${Date.now()}-${index}`,
+      name: file.name,
+      kind: referenceKind,
+      sizeLabel: formatFileSize(file.size),
+      status: "업로드됨" as const,
+      file,
+    }));
+
     setReferenceFiles((files) => [
       ...files,
-      {
-        id: `ref-${Date.now()}`,
-        name: `mock_reference_${nextIndex}.pdf`,
-        kind: referenceKind,
-        sizeLabel: "mock",
-        status: "대기",
-      },
+      ...uploadedFiles,
     ]);
   };
 
@@ -234,7 +243,7 @@ export default function ExamBuilderPage() {
           files={referenceFiles}
           selectedKind={referenceKind}
           onKindChange={setReferenceKind}
-          onMockAddFile={handleMockAddFile}
+          onFilesSelected={handleFilesSelected}
           onAnalyze={handleAnalyze}
         />
       );

@@ -16,22 +16,7 @@ export const referenceFileKinds: ReferenceFileKind[] = [
   "직접 제작 자료",
 ];
 
-export const mockReferenceFiles: ReferenceFile[] = [
-  {
-    id: "ref-1",
-    name: "2025_송도고_수학1_중간.pdf",
-    kind: "학교 기출",
-    sizeLabel: "6쪽",
-    status: "분석 완료",
-  },
-  {
-    id: "ref-2",
-    name: "수특_지수로그_발췌.pdf",
-    kind: "수능특강",
-    sizeLabel: "8쪽",
-    status: "분석 완료",
-  },
-];
+export const mockReferenceFiles: ReferenceFile[] = [];
 
 export const mockAnalysisResult: ReferenceAnalysisResult = {
   detectedSubject: "수학Ⅰ",
@@ -67,13 +52,13 @@ export const mockExamBlueprint: ExamBlueprint = {
   overallTransformStrength: "높음",
   examMinutes: 50,
   sourceRange: mockAnalysisResult.sourceRange,
-  referenceSummary: "학교 기출 1건, 수능특강 발췌 1건",
+  referenceSummary: "업로드 참고 자료 기반 mock 분석",
   items: [
     {
       id: "item-1",
       number: 1,
       format: "객관식",
-      referenceLocation: "수특 34p 02번",
+      referenceLocation: "업로드 자료 1번",
       topic: "지수법칙 계산",
       problemType: "계산형",
       score: 3.0,
@@ -85,7 +70,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-2",
       number: 2,
       format: "객관식",
-      referenceLocation: "학교 프린트 2p 04번",
+      referenceLocation: "업로드 자료 2번",
       topic: "로그의 성질",
       problemType: "조건 추론",
       score: 3.5,
@@ -97,7 +82,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-3",
       number: 3,
       format: "객관식",
-      referenceLocation: "2025 송도고 12번",
+      referenceLocation: "업로드 자료 3번",
       topic: "로그함수 그래프",
       problemType: "그래프 해석",
       score: 4.0,
@@ -109,7 +94,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-4",
       number: 4,
       format: "객관식",
-      referenceLocation: "수특 38p 유제",
+      referenceLocation: "업로드 자료 4번",
       topic: "지수함수와 방정식",
       problemType: "복합 계산",
       score: 4.5,
@@ -121,7 +106,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-5",
       number: 5,
       format: "서술형",
-      referenceLocation: "학교 프린트 5p 03번",
+      referenceLocation: "업로드 자료 5번",
       topic: "로그함수의 최대최소",
       problemType: "서술형",
       score: 6.5,
@@ -133,7 +118,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-6",
       number: 6,
       format: "서술형",
-      referenceLocation: "2025 송도고 서술형 2번",
+      referenceLocation: "업로드 자료 6번",
       topic: "로그함수와 매개변수",
       problemType: "고난도 추론",
       score: 7.0,

@@ -3,15 +3,9 @@ import { Archive, Download, FileCheck2, Layers3 } from "lucide-react";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
-import ExamSetCard from "@/components/naesin/exam-set-card";
 import NaesinHeader from "@/components/naesin/naesin-header";
 import SubjectFilter from "@/components/naesin/subject-filter";
-import UnitPracticeSection from "@/components/naesin/unit-practice-section";
-import {
-  filterNaesinExamSets,
-  naesinExamSets,
-  naesinUnitPractices,
-} from "@/lib/naesin/mock-data";
+import { filterNaesinExamSets, naesinExamSets } from "@/lib/naesin/mock-data";
 import type { NaesinSubject } from "@/lib/naesin/types";
 
 type Props = {
@@ -37,10 +31,6 @@ export default async function NaesinPage({ searchParams }: Props) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const selectedSubject = readSubject(resolvedSearchParams.subject);
   const examSets = filterNaesinExamSets(selectedSubject);
-  const unitPractices =
-    selectedSubject === "all"
-      ? naesinUnitPractices
-      : naesinUnitPractices.filter((practice) => practice.subject === selectedSubject);
   const publicSetCount = naesinExamSets.filter((set) => set.publishStatus === "공개").length;
 
   return (
@@ -53,8 +43,8 @@ export default async function NaesinPage({ searchParams }: Props) {
             <span className="naesin-eyebrow">수딱 내신 대비 전용</span>
             <h1>내신딱딱</h1>
             <p>
-              시험 범위에 맞춰 딱 필요한 문제만 모았습니다. 예상기출, 동형모의고사,
-              단원별 문제 세트를 다운로드 중심으로 빠르게 확인하세요.
+              시험 범위에 맞춰 딱 필요한 문제만 모았습니다. 관리자가 제작한 예상기출,
+              동형모의고사, 단원별 문제 세트가 검수되면 이곳에 공개됩니다.
             </p>
           </div>
           <div className="naesin-hero-panel">
@@ -91,8 +81,8 @@ export default async function NaesinPage({ searchParams }: Props) {
         </section>
 
         <SectionCard
-          title="관리자 예상기출 목록"
-          description="검수된 예상기출과 변형 문제 세트를 과목별로 확인할 수 있습니다."
+          title="공개 자료"
+          description="아직 공개된 내신딱딱 자료가 없습니다. 관리자 제작기에서 검수 후 게시하면 이 목록에 표시됩니다."
           rightSlot={
             <Link href="/admin/exam-builder" className="suddak-btn suddak-btn-ghost">
               <Archive size={16} />
@@ -100,35 +90,11 @@ export default async function NaesinPage({ searchParams }: Props) {
             </Link>
           }
         >
-          <div className="naesin-exam-list">
-            {examSets.map((examSet) => (
-              <ExamSetCard key={examSet.id} examSet={examSet} />
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="단원별 문제풀이"
-          description="향후 온라인 풀이, 정답 확인, AI 해설, 오답 저장과 연결될 단원별 학습 영역입니다."
-        >
-          <UnitPracticeSection practices={unitPractices} />
-        </SectionCard>
-
-        <SectionCard
-          title="추천 자료"
-          description="시험 직전에는 공개 예상기출과 동형모의고사를 먼저 확인하는 흐름으로 설계했습니다."
-        >
-          <div className="naesin-recommend-grid">
-            {naesinExamSets
-              .filter((set) => set.featured)
-              .map((set) => (
-                <Link key={set.id} href={`/naesin/${set.id}`} className="suddak-card-soft">
-                  <span className="suddak-badge">{set.materialType}</span>
-                  <strong>{set.title}</strong>
-                  <p>{set.examRange}</p>
-                </Link>
-              ))}
-          </div>
+          {examSets.length === 0 ? (
+            <div className="suddak-card-soft naesin-empty-state">
+              공개 대기 중입니다. 예상기출, 동형모의고사, 단원별 문제 세트는 게시 후 이곳에 정리됩니다.
+            </div>
+          ) : null}
         </SectionCard>
       </div>
     </PageContainer>

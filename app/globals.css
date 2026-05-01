@@ -1895,6 +1895,18 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
+.exam-builder-upload-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
 .exam-builder-upload-box p,
 .exam-builder-publish-box p,
 .exam-builder-analysis-card p,
@@ -2054,10 +2066,17 @@ a {
 
 .exam-builder-validation-panel,
 .exam-builder-empty-state,
-.exam-builder-access-card {
+.exam-builder-access-card,
+.naesin-empty-state {
   display: grid;
   gap: 10px;
   padding: 16px;
+}
+
+.naesin-empty-state {
+  color: var(--muted);
+  line-height: 1.75;
+  font-weight: 800;
 }
 
 .exam-builder-validation-panel {

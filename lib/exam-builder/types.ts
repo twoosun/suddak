@@ -23,7 +23,8 @@ export type ReferenceFile = {
   name: string;
   kind: ReferenceFileKind;
   sizeLabel: string;
-  status: "대기" | "분석 완료";
+  status: "업로드됨" | "대기" | "분석 완료";
+  file?: File;
 };
 
 export type ReferenceAnalysisResult = {

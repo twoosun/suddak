@@ -20,9 +20,11 @@ export function getTotalScore(items: BlueprintItem[]) {
   );
 }
 
-export function analyzeReferenceFile(_files: ReferenceFile[]): ReferenceAnalysisResult {
-  void _files;
-  return mockAnalysisResult;
+export function analyzeReferenceFile(files: ReferenceFile[]): ReferenceAnalysisResult {
+  return {
+    ...mockAnalysisResult,
+    detectedProblemCount: Math.max(mockAnalysisResult.detectedProblemCount, files.length * 6),
+  };
 }
 
 export function createInitialBlueprint(
