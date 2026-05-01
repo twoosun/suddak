@@ -1,21 +1,53 @@
-import { FileUp, SearchCheck } from "lucide-react";
+import { FileUp, Plus, SearchCheck } from "lucide-react";
 
-import type { ReferenceFile } from "@/lib/exam-builder/types";
+import { referenceFileKinds } from "@/lib/exam-builder/mock-data";
+import type { ReferenceFile, ReferenceFileKind } from "@/lib/exam-builder/types";
 
 type Props = {
   files: ReferenceFile[];
+  selectedKind: ReferenceFileKind;
+  onKindChange: (kind: ReferenceFileKind) => void;
+  onMockAddFile: () => void;
   onAnalyze: () => void;
 };
 
-export default function ReferenceUploadStep({ files, onAnalyze }: Props) {
+export default function ReferenceUploadStep({
+  files,
+  selectedKind,
+  onKindChange,
+  onMockAddFile,
+  onAnalyze,
+}: Props) {
   return (
     <div className="exam-builder-step">
       <div className="exam-builder-upload-box">
         <FileUp size={24} />
         <div>
-          <strong>참고 자료 업로드</strong>
-          <p>수특, 수완, 기출, 학교 프린트, 기존 시험지를 분석용 자료로 올립니다.</p>
+          <strong>참고 파일 업로드</strong>
+          <p>PDF, DOCX, PNG, JPG 파일을 지원할 예정입니다. 현재는 mock 분석 버튼으로 흐름을 확인합니다.</p>
         </div>
+      </div>
+
+      <div className="exam-builder-upload-controls">
+        <label>
+          자료 유형
+          <select
+            className="suddak-select"
+            value={selectedKind}
+            onChange={(event) => onKindChange(event.target.value as ReferenceFileKind)}
+          >
+            {referenceFileKinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {kind}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          참고 파일
+          <input className="suddak-input" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" />
+        </label>
       </div>
 
       <div className="exam-builder-file-list">
@@ -24,7 +56,7 @@ export default function ReferenceUploadStep({ files, onAnalyze }: Props) {
             <div>
               <strong>{file.name}</strong>
               <span>
-                {file.kind} · {file.pageCount}쪽
+                {file.kind} · {file.sizeLabel}
               </span>
             </div>
             <span className="suddak-badge">{file.status}</span>
@@ -32,10 +64,16 @@ export default function ReferenceUploadStep({ files, onAnalyze }: Props) {
         ))}
       </div>
 
-      <button type="button" className="suddak-btn suddak-btn-primary" onClick={onAnalyze}>
-        <SearchCheck size={16} />
-        파일 분석 결과 보기
-      </button>
+      <div className="exam-builder-action-row">
+        <button type="button" className="suddak-btn suddak-btn-ghost" onClick={onMockAddFile}>
+          <Plus size={16} />
+          mock 파일 추가
+        </button>
+        <button type="button" className="suddak-btn suddak-btn-primary" onClick={onAnalyze}>
+          <SearchCheck size={16} />
+          mock 분석 시작
+        </button>
+      </div>
     </div>
   );
 }

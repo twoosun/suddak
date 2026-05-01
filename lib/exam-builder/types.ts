@@ -5,30 +5,49 @@ export type ExamBuilderStep =
   | "generation"
   | "result";
 
+export type ReferenceFileKind =
+  | "수능특강"
+  | "수능완성"
+  | "평가원/교육청 기출"
+  | "학교 기출"
+  | "학교 프린트"
+  | "직접 제작 자료";
+
+export type ProblemFormat = "객관식" | "서술형";
+export type DifficultyLevel = "기본" | "중간" | "상" | "고난도";
+export type TransformStrength = "낮음" | "중간" | "높음";
+export type GeneratedFileFormat = "DOCX" | "PDF";
+
 export type ReferenceFile = {
   id: string;
   name: string;
-  kind: "수특" | "수완" | "기출" | "학교 프린트" | "기존 시험지";
-  pageCount: number;
+  kind: ReferenceFileKind;
+  sizeLabel: string;
   status: "대기" | "분석 완료";
 };
 
-export type AnalysisPoint = {
-  id: string;
-  label: string;
-  detail: string;
-  riskLevel: "낮음" | "보통" | "주의";
+export type ReferenceAnalysisResult = {
+  detectedSubject: string;
+  majorUnits: string[];
+  detectedProblemCount: number;
+  majorTypes: string[];
+  examPoints: string[];
+  difficultyDistribution: Record<DifficultyLevel, number>;
+  transformablePoints: string[];
+  sourceRange: string;
 };
 
 export type BlueprintItem = {
   id: string;
   number: number;
-  unit: string;
+  format: ProblemFormat;
+  referenceLocation: string;
   topic: string;
-  format: "객관식" | "서술형";
+  problemType: string;
   score: number;
-  difficulty: "기본" | "중간" | "상" | "고난도";
-  transformStrength: "낮음" | "중간" | "높음";
+  difficulty: DifficultyLevel;
+  transformStrength: TransformStrength;
+  intent: string;
 };
 
 export type ExamBlueprint = {
@@ -37,19 +56,36 @@ export type ExamBlueprint = {
   totalProblems: number;
   multipleChoiceCount: number;
   writtenCount: number;
-  similarityPolicy: string;
+  overallDifficulty: DifficultyLevel;
+  overallTransformStrength: TransformStrength;
+  examMinutes: number;
+  sourceRange: string;
+  referenceSummary: string;
   items: BlueprintItem[];
 };
 
-export type GenerationStage = {
-  id: string;
-  label: string;
-  description: string;
-  progress: number;
+export type BlueprintValidation = {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  totalScore: number;
 };
 
-export type BuilderResultAsset = {
+export type GenerationStep = {
+  id: string;
   label: string;
-  format: "PDF" | "DOCX";
-  status: "생성 완료" | "대기";
+};
+
+export type ExamGenerationJob = {
+  id: string;
+  progress: number;
+  currentStepId: string;
+  status: "running" | "completed";
+};
+
+export type GeneratedExamFile = {
+  id: string;
+  label: string;
+  format: GeneratedFileFormat;
+  href: string;
 };

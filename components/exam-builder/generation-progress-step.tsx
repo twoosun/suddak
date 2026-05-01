@@ -1,54 +1,51 @@
-import type { GenerationStage } from "@/lib/exam-builder/types";
+import { CheckCircle2, Circle } from "lucide-react";
+
+import type { ExamGenerationJob, GenerationStep } from "@/lib/exam-builder/types";
 
 type Props = {
-  stages: GenerationStage[];
-  activeStageIndex: number;
-  onComplete: () => void;
+  job: ExamGenerationJob;
+  steps: GenerationStep[];
 };
 
-export default function GenerationProgressStep({
-  stages,
-  activeStageIndex,
-  onComplete,
-}: Props) {
-  const activeStage = stages[Math.min(activeStageIndex, stages.length - 1)];
+export default function GenerationProgressStep({ job, steps }: Props) {
+  const activeIndex = steps.findIndex((step) => step.id === job.currentStepId);
+  const currentStep = steps[activeIndex] ?? steps[0];
 
   return (
     <div className="exam-builder-step">
       <div className="exam-builder-progress-panel">
         <div className="exam-builder-progress-top">
           <span>현재 단계</span>
-          <strong>{activeStage.label}</strong>
+          <strong>{currentStep.label}</strong>
+          <b>{Math.round(job.progress)}%</b>
         </div>
         <div className="exam-builder-progress-track">
-          <div
-            className="exam-builder-progress-fill"
-            style={{ width: `${activeStage.progress}%` }}
-          />
+          <div className="exam-builder-progress-fill" style={{ width: `${job.progress}%` }} />
         </div>
-        <p>{activeStage.description}</p>
+        <p>생성 job: {job.id}</p>
       </div>
 
       <div className="exam-builder-stage-list">
-        {stages.map((stage, index) => (
-          <div
-            key={stage.id}
-            className={`exam-builder-stage-row ${
-              index <= activeStageIndex ? "exam-builder-stage-row-active" : ""
-            }`}
-          >
-            <span>{index + 1}</span>
-            <div>
-              <strong>{stage.label}</strong>
-              <p>{stage.description}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+        {steps.map((step, index) => {
+          const done = index < activeIndex || job.status === "completed";
+          const active = index === activeIndex && job.status !== "completed";
 
-      <button type="button" className="suddak-btn suddak-btn-primary" onClick={onComplete}>
-        생성 완료 화면 보기
-      </button>
+          return (
+            <div
+              key={step.id}
+              className={`exam-builder-stage-row ${
+                done || active ? "exam-builder-stage-row-active" : ""
+              }`}
+            >
+              <span>{done ? <CheckCircle2 size={16} /> : <Circle size={16} />}</span>
+              <div>
+                <strong>{step.label}</strong>
+                <p>{done ? "완료" : active ? "진행 중" : "대기"}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
