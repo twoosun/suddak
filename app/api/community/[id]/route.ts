@@ -107,6 +107,18 @@ export async function GET(
       .eq("id", data.user_id)
       .maybeSingle();
 
+    let viewerPicked = false;
+    if (currentUserId) {
+      const { data: pickRow } = await supabase
+        .from("community_post_picks")
+        .select("id")
+        .eq("post_id", postId)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      viewerPicked = Boolean(pickRow);
+    }
+
     return NextResponse.json({
       post: {
         ...data,
@@ -115,6 +127,7 @@ export async function GET(
       },
       viewer_is_admin: false,
       viewer_liked: false,
+      viewer_picked: viewerPicked,
       current_user_id: currentUserId,
     });
   } catch (error) {
@@ -344,6 +357,15 @@ export async function DELETE(
 
     if (deleteLikesError) {
       console.error("[DELETE /api/community/[id]] likes delete error:", deleteLikesError);
+    }
+
+    const { error: deletePicksError } = await supabase
+      .from("community_post_picks")
+      .delete()
+      .eq("post_id", postId);
+
+    if (deletePicksError) {
+      console.error("[DELETE /api/community/[id]] picks delete error:", deletePicksError);
     }
 
     const { error: deletePostError } = await supabase

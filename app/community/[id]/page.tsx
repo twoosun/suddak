@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 
 
 import { supabase } from "@/lib/supabase";
+import { PICK_ICON } from "@/lib/community-picks";
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 
 import PageContainer from "@/components/common/PageContainer";
@@ -27,6 +28,8 @@ type CommunityPost = {
   is_public: boolean;
   is_notice: boolean;
   like_count: number;
+  pick_count: number;
+  is_pick_post: boolean;
   comment_count: number;
   created_at: string;
   updated_at: string;
@@ -72,6 +75,7 @@ export default function CommunityDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
   const [viewerLiked, setViewerLiked] = useState(false);
+  const [viewerPicked, setViewerPicked] = useState(false);
 
   const [commentInput, setCommentInput] = useState("");
   const [replyInput, setReplyInput] = useState("");
@@ -80,6 +84,7 @@ export default function CommunityDetailPage() {
   const [commentLoading, setCommentLoading] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [pickLoading, setPickLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
 
@@ -135,6 +140,7 @@ export default function CommunityDetailPage() {
       setPost(data.post);
       setViewerIsAdmin(Boolean(data.viewer_is_admin));
       setViewerLiked(Boolean(data.viewer_liked));
+      setViewerPicked(Boolean(data.viewer_picked));
       setCurrentUserId(data.current_user_id ?? null);
     } catch {
       setPost(null);
@@ -212,6 +218,45 @@ export default function CommunityDetailPage() {
       );
     } finally {
       setLikeLoading(false);
+    }
+  };
+
+  const handlePickToggle = async () => {
+    if (!post || pickLoading) return;
+
+    try {
+      setPickLoading(true);
+
+      const headers = await getAuthHeader();
+      if (!headers) {
+        alert("로그인 후 딱픽할 수 있어.");
+        return;
+      }
+
+      const res = await fetch(`/api/community/${post.id}/pick`, {
+        method: "POST",
+        headers,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "딱픽 처리에 실패했습니다.");
+        return;
+      }
+
+      setViewerPicked(Boolean(data.picked));
+      setPost((prev) =>
+        prev
+          ? {
+              ...prev,
+              pick_count: data.pick_count ?? prev.pick_count,
+              is_pick_post: Boolean(data.is_pick_post),
+            }
+          : prev
+      );
+    } finally {
+      setPickLoading(false);
     }
   };
 
@@ -514,12 +559,19 @@ export default function CommunityDetailPage() {
         <div style={{ display: "grid", gap: "18px" }}>
           {/* # 15. 본문 */}
           <SectionCard
-            title={post.title}
+            title={`${post.is_pick_post ? `${PICK_ICON} ` : ""}${post.title}`}
             description="게시글 본문과 작성 정보야."
             rightSlot={
-              <span className="suddak-badge">
-                {post.is_notice ? "공지" : post.post_type === "problem" ? "문제글" : "자유글"}
-              </span>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {post.is_pick_post && (
+                  <span className="suddak-badge suddak-badge-pick">
+                    {PICK_ICON} 딱픽글
+                  </span>
+                )}
+                <span className="suddak-badge">
+                  {post.is_notice ? "공지" : post.post_type === "problem" ? "문제글" : "자유글"}
+                </span>
+              </div>
             }
           >
             <div style={{ display: "grid", gap: "14px" }}>
@@ -541,6 +593,8 @@ export default function CommunityDetailPage() {
                 <span>{formatDateTime(post.created_at)}</span>
                 <span>·</span>
                 <span>좋아요 {post.like_count ?? 0}</span>
+                <span>·</span>
+                <span>{PICK_ICON} 딱픽 {post.pick_count ?? 0}</span>
                 <span>·</span>
                 <span>댓글 {post.comment_count ?? 0}</span>
               </div>
@@ -580,6 +634,20 @@ export default function CommunityDetailPage() {
                   gap: "10px",
                 }}
               >
+                <button
+                  type="button"
+                  className={`suddak-btn suddak-btn-pick ${viewerPicked ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+                  onClick={handlePickToggle}
+                  disabled={pickLoading}
+                  style={{ minHeight: "58px", fontSize: "17px" }}
+                >
+                  {pickLoading
+                    ? "처리 중..."
+                    : viewerPicked
+                      ? `${PICK_ICON} 딱픽 완료 ${post.pick_count ?? 0}`
+                      : `${PICK_ICON} 딱픽 ${post.pick_count ?? 0}`}
+                </button>
+
                 <button
                   type="button"
                   className={`suddak-btn ${viewerLiked ? "suddak-btn-primary" : "suddak-btn-ghost"}`}

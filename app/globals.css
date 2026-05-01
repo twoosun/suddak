@@ -240,6 +240,22 @@ a {
   font-weight: 800;
 }
 
+.suddak-badge-pick {
+  border-color: color-mix(in srgb, #f59e0b 42%, var(--border));
+  background: color-mix(in srgb, #f59e0b 14%, var(--soft));
+  color: #92400e;
+}
+
+.dark .suddak-badge-pick {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.suddak-btn-pick {
+  border-color: color-mix(in srgb, #f59e0b 36%, var(--border));
+}
+
 /* # 8. 드래그 드롭 강조 */
 .suddak-dropzone-active {
   border-color: var(--primary) !important;

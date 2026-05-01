@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -14,6 +14,11 @@ function createAdminClient() {
 }
 
 type PostType = "free" | "problem";
+
+type CommunityPostRow = {
+  user_id: string | null;
+  [key: string]: unknown;
+};
 
 function parseBoolean(value: string | null, defaultValue: boolean) {
   if (value === null) return defaultValue;
@@ -34,9 +39,11 @@ async function getIsAdmin(supabase: ReturnType<typeof createAdminClient>, userId
 
 async function enrichPostsWithAuthors(
   supabase: ReturnType<typeof createAdminClient>,
-  posts: any[]
+  posts: CommunityPostRow[]
 ) {
-  const uniqueUserIds = [...new Set(posts.map((post) => post.user_id).filter(Boolean))];
+  const uniqueUserIds = [
+    ...new Set(posts.map((post) => post.user_id).filter((id): id is string => Boolean(id))),
+  ];
 
   if (uniqueUserIds.length === 0) {
     return posts.map((post) => ({
@@ -59,7 +66,7 @@ async function enrichPostsWithAuthors(
 
   return posts.map((post) => ({
     ...post,
-    author_name: profileMap.get(post.user_id) ?? "익명",
+    author_name: post.user_id ? profileMap.get(post.user_id) ?? "익명" : "익명",
     author_avatar_url: null,
   }));
 }
@@ -71,6 +78,8 @@ export async function GET(req: NextRequest) {
     const page = Math.max(Number(searchParams.get("page") || "1"), 1);
     const limit = Math.min(Math.max(Number(searchParams.get("limit") || "10"), 1), 50);
     const postType = searchParams.get("postType");
+    const filter = searchParams.get("filter");
+    const sort = searchParams.get("sort");
     const search = searchParams.get("search")?.trim() || "";
     const onlyPublic = parseBoolean(searchParams.get("public"), true);
 
@@ -80,8 +89,13 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("community_posts")
       .select("*", { count: "exact" })
-      .order("is_notice", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("is_notice", { ascending: false });
+
+    if (filter === "pick" && sort === "pick_count") {
+      query = query.order("pick_count", { ascending: false });
+    }
+
+    query = query.order("created_at", { ascending: false });
 
     if (onlyPublic) {
       query = query.eq("is_public", true);
@@ -89,6 +103,10 @@ export async function GET(req: NextRequest) {
 
     if (postType === "free" || postType === "problem") {
       query = query.eq("post_type", postType);
+    }
+
+    if (filter === "pick") {
+      query = query.eq("is_pick_post", true);
     }
 
     if (search) {

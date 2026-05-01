@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import NotificationBell from "@/components/NotificationBell";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { PICK_ICON } from "@/lib/community-picks";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
@@ -22,13 +22,15 @@ type CommunityPost = {
   recognized_text: string | null;
   solve_result: string | null;
   like_count: number;
+  pick_count: number;
+  is_pick_post: boolean;
   comment_count: number;
   is_notice?: boolean;
   created_at: string;
   author_name?: string | null;
 };
 
-type PostFilter = "all" | "free" | "problem";
+type PostFilter = "all" | "free" | "problem" | "pick";
 
 /* # 1. 날짜 포맷 */
 function formatDate(value: string) {
@@ -54,10 +56,32 @@ export default function CommunityPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<PostFilter>("all");
 
+  const updateFilter = (nextFilter: PostFilter) => {
+    setFilter(nextFilter);
+
+    const params = new URLSearchParams(window.location.search);
+    if (nextFilter === "all") {
+      params.delete("filter");
+    } else {
+      params.set("filter", nextFilter);
+    }
+
+    const query = params.toString();
+    window.history.pushState(null, "", query ? `/community?${query}` : "/community");
+  };
+
   /* # 3. 초기화 */
   useEffect(() => {
     initTheme();
     setIsDark(getStoredTheme() === "dark");
+    const initialFilter = new URLSearchParams(window.location.search).get("filter");
+    if (
+      initialFilter === "free" ||
+      initialFilter === "problem" ||
+      initialFilter === "pick"
+    ) {
+      setFilter(initialFilter);
+    }
     setMounted(true);
   }, []);
 
@@ -73,7 +97,8 @@ export default function CommunityPage() {
         const params = new URLSearchParams();
         params.set("page", "1");
         params.set("limit", "30");
-        if (filter !== "all") params.set("postType", filter);
+        if (filter === "free" || filter === "problem") params.set("postType", filter);
+        if (filter === "pick") params.set("filter", "pick");
         if (search.trim()) params.set("search", search.trim());
 
         const {
@@ -118,6 +143,7 @@ export default function CommunityPage() {
       total: posts.length,
       free: posts.filter((post) => post.post_type === "free").length,
       problem: posts.filter((post) => post.post_type === "problem").length,
+      pick: posts.filter((post) => post.is_pick_post).length,
     };
   }, [posts]);
 
@@ -265,6 +291,12 @@ export default function CommunityPage() {
             {stat.problem}
           </div>
         </div>
+        <div className="suddak-card" style={{ padding: "16px" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)" }}>{PICK_ICON} 딱픽글</div>
+          <div style={{ fontSize: "28px", fontWeight: 950, marginTop: "6px" }}>
+            {stat.pick}
+          </div>
+        </div>
       </section>
 
       {/* # 8. 검색 / 필터 */}
@@ -291,9 +323,10 @@ export default function CommunityPage() {
             <select
               className="suddak-select"
               value={filter}
-              onChange={(e) => setFilter(e.target.value as PostFilter)}
+              onChange={(e) => updateFilter(e.target.value as PostFilter)}
             >
               <option value="all">전체 글</option>
+              <option value="pick">{PICK_ICON} 딱픽글</option>
               <option value="free">자유글만</option>
               <option value="problem">문제글만</option>
             </select>
@@ -347,6 +380,11 @@ export default function CommunityPage() {
                     <span className="suddak-badge">
                       {post.is_notice ? "공지" : post.post_type === "problem" ? "문제글" : "자유글"}
                     </span>
+                    {post.is_pick_post && (
+                      <span className="suddak-badge suddak-badge-pick">
+                        {PICK_ICON} 딱픽글
+                      </span>
+                    )}
 
                     <div
                       style={{
@@ -359,6 +397,7 @@ export default function CommunityPage() {
                         flex: 1,
                       }}
                     >
+                      {post.is_pick_post ? `${PICK_ICON} ` : ""}
                       {post.title}
                     </div>
                   </div>
@@ -379,6 +418,8 @@ export default function CommunityPage() {
                     <span>{formatDate(post.created_at)}</span>
                     <span>·</span>
                     <span>좋아요 {post.like_count ?? 0}</span>
+                    <span>·</span>
+                    <span>{PICK_ICON} 딱픽 {post.pick_count ?? 0}</span>
                     <span>·</span>
                     <span>댓글 {post.comment_count ?? 0}</span>
                   </div>
