@@ -37,6 +37,7 @@ export type ReferenceAnalysisResult = {
   difficultyDistribution: Record<DifficultyLevel, number>;
   transformablePoints: string[];
   sourceRange: string;
+  sourceReferences?: string[];
 };
 
 export type BlueprintItem = {

@@ -26,6 +26,7 @@ export function analyzeReferenceFile(files: ReferenceFile[]): ReferenceAnalysisR
   return {
     ...mockAnalysisResult,
     detectedProblemCount: Math.max(mockAnalysisResult.detectedProblemCount, files.length * 6),
+    sourceReferences: files.map((file, index) => `업로드 자료 ${file.name} p.추정 문항 ${index + 1}`),
   };
 }
 
@@ -70,7 +71,11 @@ export function createBlueprintFromAnalysis(
       id: `item-${Date.now()}-${index + 1}`,
       number: index + 1,
       format: isWritten ? "서술형" : "객관식",
-      referenceLocation: `업로드 자료 ${Math.floor(index / 3) + 1} p.${Math.floor(index / 3) + 1} 문항 ${index + 1}`,
+      referenceLocation: pickFrom(
+        analysis.sourceReferences ?? [],
+        index,
+        `업로드 자료 ${Math.floor(index / 3) + 1} p.${Math.floor(index / 3) + 1} 문항 ${index + 1}`
+      ),
       topic: unit,
       problemType: type,
       score: getTargetScore(totalProblems, index),

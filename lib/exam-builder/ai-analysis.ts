@@ -50,6 +50,7 @@ const responseSchema = {
         "difficultyDistribution",
         "transformablePoints",
         "sourceRange",
+        "sourceReferences",
       ],
       properties: {
         detectedSubject: { type: "string" },
@@ -70,6 +71,7 @@ const responseSchema = {
         },
         transformablePoints: { type: "array", items: { type: "string" } },
         sourceRange: { type: "string" },
+        sourceReferences: { type: "array", items: { type: "string" } },
       },
     },
     blueprint: {
@@ -157,7 +159,7 @@ function normalizeItems(items: BlueprintItem[], totalProblems: number) {
     id: item.id || `item-${index + 1}`,
     number: index + 1,
     format: coerceFormat(item.format),
-    referenceLocation: String(item.referenceLocation || `참고자료 ${index + 1}번`),
+    referenceLocation: String(item.referenceLocation || `업로드 자료 ${index + 1} p.${index + 1} 문항 ${index + 1}`),
     topic: String(item.topic || "핵심 개념"),
     problemType: String(item.problemType || "내신형"),
     score: Number.isFinite(Number(item.score)) ? Number(Number(item.score).toFixed(1)) : 4,
@@ -192,6 +194,9 @@ function normalizeAiResult(value: AiAnalysisResult): AiAnalysisResult {
         ? value.analysis.transformablePoints
         : ["문장, 수치, 조건 배열을 새롭게 재구성합니다."],
       sourceRange: String(value.analysis.sourceRange || value.blueprint.sourceRange || ""),
+      sourceReferences: value.analysis.sourceReferences?.length
+        ? value.analysis.sourceReferences
+        : items.map((item) => item.referenceLocation),
     },
     blueprint: {
       ...value.blueprint,
@@ -237,7 +242,8 @@ export async function analyzeReferenceFilesWithAI(
         "중요 원칙:",
         "- 원문 복제 금지. 생성될 문항은 문장, 수치, 조건 배열, 선지 표현을 그대로 따라 하면 안 된다.",
         "- 숫자만 바꾼 변형이 아니라 같은 개념과 풀이 아이디어를 새 문항으로 재구성해야 한다.",
-        "- 참고 위치는 관리자가 원자료를 추적할 수 있게 파일명/쪽/문항 추정 형태로 작성한다.",
+        "- 참고 위치는 반드시 '업로드 자료 [파일명] p.[쪽번호] 문항 [번호]' 형태로 작성한다.",
+        "- 쪽번호나 문항번호를 확정할 수 없으면 추정값을 쓰되 'p.추정' 또는 '문항 추정'처럼 표시한다.",
         "- blueprint.items 개수는 blueprint.totalProblems와 같아야 한다.",
         "- 객관식 수와 서술형 수의 합은 totalProblems와 같아야 한다.",
         "- 배점은 소수점 한 자리까지 허용한다.",
