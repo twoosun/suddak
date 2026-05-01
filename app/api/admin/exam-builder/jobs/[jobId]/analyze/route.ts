@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
+import { analyzeReferenceFilesWithAI } from "@/lib/exam-builder/ai-analysis";
 import { getAdminUserFromRequest } from "@/lib/exam-builder/server";
-import { analyzeReferenceFile, createInitialBlueprint } from "@/lib/exam-builder/utils";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { ReferenceFile } from "@/lib/exam-builder/types";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { jobId } = await params;
   const { data: rows, error: fileError } = await supabaseAdmin
     .from("exam_builder_reference_files")
-    .select("id, kind, original_name, file_size")
+    .select("id, kind, original_name, mime_type, file_size, storage_path")
     .eq("job_id", jobId)
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
@@ -39,8 +39,33 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     sizeLabel: formatFileSize(Number(row.file_size) || 0),
     status: "분석 완료",
   }));
-  const analysis = analyzeReferenceFile(files);
-  const blueprint = createInitialBlueprint(analysis);
+
+  const aiFiles = [];
+
+  for (const row of rows.slice(0, 8)) {
+    const { data: blob, error: downloadError } = await supabaseAdmin.storage
+      .from("exam-builder")
+      .download(row.storage_path);
+
+    if (downloadError || !blob) {
+      return Response.json(
+        { error: `${row.original_name} 파일을 읽지 못했습니다.` },
+        { status: 500 }
+      );
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    aiFiles.push({
+      id: row.id,
+      name: row.original_name,
+      kind: row.kind,
+      mimeType: row.mime_type || "application/octet-stream",
+      size: Number(row.file_size) || arrayBuffer.byteLength,
+      base64: Buffer.from(arrayBuffer).toString("base64"),
+    });
+  }
+
+  const { analysis, blueprint } = await analyzeReferenceFilesWithAI(aiFiles);
 
   const { error: updateError } = await supabaseAdmin
     .from("exam_builder_jobs")
