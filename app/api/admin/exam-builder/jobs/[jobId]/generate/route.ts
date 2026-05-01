@@ -5,7 +5,13 @@ import {
   buildExamPdfBuffer,
   generatedFileDefinitions,
 } from "@/lib/exam-builder/export-files";
-import { getAdminUserFromRequest, getStorageContentType, sanitizeStorageName } from "@/lib/exam-builder/server";
+import { generateProblemsWithAI } from "@/lib/exam-builder/problem-generation";
+import {
+  ensureExamBuilderBucket,
+  getAdminUserFromRequest,
+  getStorageContentType,
+  sanitizeStorageName,
+} from "@/lib/exam-builder/server";
 import { getTotalScore } from "@/lib/exam-builder/utils";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { ExamBlueprint, ReferenceAnalysisResult } from "@/lib/exam-builder/types";
@@ -35,13 +41,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return Response.json({ error: "설계표와 분석 결과가 필요합니다." }, { status: 400 });
   }
 
+  const generatedBlueprint = await generateProblemsWithAI(blueprint, analysis);
+
   await supabaseAdmin
     .from("exam_builder_jobs")
     .update({
       status: "generating",
       progress: 55,
       current_step: "export",
-      blueprint,
+      blueprint: generatedBlueprint,
       analysis,
       updated_at: new Date().toISOString(),
     })
@@ -53,19 +61,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .insert({
       builder_job_id: jobId,
       created_by: user.id,
-      title: blueprint.title,
-      subject: blueprint.subject,
-      source_range: blueprint.sourceRange,
-      reference_summary: blueprint.referenceSummary,
-      total_problems: blueprint.totalProblems,
-      multiple_choice_count: blueprint.multipleChoiceCount,
-      written_count: blueprint.writtenCount,
-      total_score: getTotalScore(blueprint.items),
-      overall_difficulty: blueprint.overallDifficulty,
-      overall_transform_strength: blueprint.overallTransformStrength,
-      exam_minutes: blueprint.examMinutes,
+      title: generatedBlueprint.title,
+      subject: generatedBlueprint.subject,
+      source_range: generatedBlueprint.sourceRange,
+      reference_summary: generatedBlueprint.referenceSummary,
+      total_problems: generatedBlueprint.totalProblems,
+      multiple_choice_count: generatedBlueprint.multipleChoiceCount,
+      written_count: generatedBlueprint.writtenCount,
+      total_score: getTotalScore(generatedBlueprint.items),
+      overall_difficulty: generatedBlueprint.overallDifficulty,
+      overall_transform_strength: generatedBlueprint.overallTransformStrength,
+      exam_minutes: generatedBlueprint.examMinutes,
       analysis,
-      blueprint,
+      blueprint: generatedBlueprint,
       is_published: false,
     })
     .select("id")
@@ -73,14 +81,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   if (examSetError) return Response.json({ error: examSetError.message }, { status: 500 });
 
+  await ensureExamBuilderBucket();
+
   const generatedFiles = [];
-  const baseName = sanitizeStorageName(blueprint.title);
+  const baseName = sanitizeStorageName(generatedBlueprint.title);
 
   for (const definition of generatedFileDefinitions) {
     const buffer =
       definition.format === "DOCX"
-        ? await buildExamDocxBuffer(blueprint, analysis, definition.role)
-        : buildExamPdfBuffer(blueprint, analysis, definition.role);
+        ? await buildExamDocxBuffer(generatedBlueprint, analysis, definition.role)
+        : buildExamPdfBuffer(generatedBlueprint, analysis, definition.role);
     const extension = definition.format.toLowerCase();
     const path = `generated/${user.id}/${examSet.id}/${baseName}-${definition.role}.${extension}`;
 
@@ -133,5 +143,5 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .eq("id", jobId)
     .eq("user_id", user.id);
 
-  return Response.json({ examSetId: examSet.id, files: generatedFiles });
+  return Response.json({ examSetId: examSet.id, blueprint: generatedBlueprint, files: generatedFiles });
 }

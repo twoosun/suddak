@@ -1932,6 +1932,11 @@ a {
   padding: 14px;
 }
 
+.exam-builder-file-row-success {
+  border-color: color-mix(in srgb, #16a34a 55%, var(--border));
+  background: color-mix(in srgb, #16a34a 8%, var(--card));
+}
+
 .exam-builder-file-row div {
   display: grid;
   gap: 4px;

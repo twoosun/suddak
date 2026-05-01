@@ -14,8 +14,7 @@ function buildRows(blueprint: ExamBlueprint, role: FileRole) {
     return blueprint.items.map((item) => [
       `${item.number}`,
       item.format,
-      item.topic,
-      item.problemType,
+      item.problemText || `${item.topic} ${item.problemType} 문항`,
       `${item.score.toFixed(1)}점`,
     ]);
   }
@@ -23,9 +22,8 @@ function buildRows(blueprint: ExamBlueprint, role: FileRole) {
   if (role === "solution") {
     return blueprint.items.map((item) => [
       `${item.number}`,
-      item.topic,
-      "정답은 생성 엔진 연결 후 자동 채점 기준으로 채워집니다.",
-      item.intent,
+      item.answer || "정답 생성 필요",
+      item.solution || item.intent,
     ]);
   }
 
@@ -52,9 +50,9 @@ export async function buildExamDocxBuffer(
 ) {
   const headers =
     role === "exam"
-      ? ["번호", "형식", "주제", "유형", "배점"]
+      ? ["번호", "형식", "문항", "배점"]
       : role === "solution"
-        ? ["번호", "주제", "정답", "해설 방향"]
+        ? ["번호", "정답", "해설"]
         : ["번호", "참고 위치", "주제", "난이도", "변형강도", "출제 의도"];
 
   const rows = [headers, ...buildRows(blueprint, role)].map(

@@ -20,6 +20,7 @@ type Props = {
   onAddRow: () => void;
   onDeleteRow: (id: string) => void;
   onAutoArrange: () => void;
+  onAutoDesign: () => void;
   onRecommendAgain: () => void;
   onGenerate: () => void;
 };
@@ -44,6 +45,7 @@ export default function BlueprintEditorStep({
   onAddRow,
   onDeleteRow,
   onAutoArrange,
+  onAutoDesign,
   onRecommendAgain,
   onGenerate,
 }: Props) {
@@ -172,6 +174,10 @@ export default function BlueprintEditorStep({
         <button type="button" className="suddak-btn suddak-btn-ghost" onClick={onAutoArrange}>
           <Shuffle size={16} />
           자동 재배치
+        </button>
+        <button type="button" className="suddak-btn suddak-btn-ghost" onClick={onAutoDesign}>
+          <WandSparkles size={16} />
+          분석 기반 자동 설계
         </button>
         <button type="button" className="suddak-btn suddak-btn-ghost" onClick={onRecommendAgain}>
           <RefreshCcw size={16} />

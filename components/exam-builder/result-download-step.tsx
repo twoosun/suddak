@@ -48,7 +48,7 @@ export default function ResultDownloadStep({
               <strong>
                 {file.label} {file.format}
               </strong>
-              <span>mock 파일 다운로드</span>
+              <span>{file.href === "#" ? "mock 결과" : "생성 파일 다운로드"}</span>
             </div>
           </a>
         ))}

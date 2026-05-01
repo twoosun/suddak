@@ -68,7 +68,14 @@ export default function ReferenceUploadStep({
           </div>
         ) : (
           files.map((file) => (
-            <div key={file.id} className="suddak-card-soft exam-builder-file-row">
+            <div
+              key={file.id}
+              className={`suddak-card-soft exam-builder-file-row ${
+                file.status === "업로드됨" || file.status === "분석 완료"
+                  ? "exam-builder-file-row-success"
+                  : ""
+              }`}
+            >
               <div>
                 <strong>{file.name}</strong>
                 <span>

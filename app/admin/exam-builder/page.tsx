@@ -15,6 +15,7 @@ import { generationSteps, mockReferenceFiles } from "@/lib/exam-builder/mock-dat
 import {
   analyzeReferenceFile,
   createExamFiles,
+  createBlueprintFromAnalysis,
   createInitialBlueprint,
   getGenerationProgress,
   normalizeBlueprintNumbers,
@@ -347,10 +348,15 @@ export default function ExamBuilderPage() {
     setBlueprint({ ...blueprint, items: nextItems });
   };
 
+  const handleAutoDesign = () => {
+    if (!analysis || !blueprint) return;
+    setBlueprint(createBlueprintFromAnalysis(analysis, blueprint.totalProblems));
+  };
+
   const handleRecommendAgain = () => {
     const nextAnalysis = analysis ?? analyzeReferenceFile(referenceFiles);
     setAnalysis(nextAnalysis);
-    setBlueprint(createInitialBlueprint(nextAnalysis));
+    setBlueprint(createBlueprintFromAnalysis(nextAnalysis, blueprint?.totalProblems ?? 20));
   };
 
   const handleStartGeneration = async () => {
@@ -367,7 +373,7 @@ export default function ExamBuilderPage() {
       if (!token || !analysis) throw new Error("생성에 필요한 정보가 부족합니다.");
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 120000);
 
       const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/generate`, {
         method: "POST",
@@ -383,6 +389,7 @@ export default function ExamBuilderPage() {
       if (!res.ok) throw new Error(data?.error || "파일 생성에 실패했습니다.");
 
       setExamSetId(data.examSetId);
+      if (data.blueprint) setBlueprint(data.blueprint);
       setGeneratedFiles(data.files ?? []);
       setJob({
         ...localJob,
@@ -443,6 +450,7 @@ export default function ExamBuilderPage() {
           onAddRow={handleAddRow}
           onDeleteRow={handleDeleteRow}
           onAutoArrange={handleAutoArrange}
+          onAutoDesign={handleAutoDesign}
           onRecommendAgain={handleRecommendAgain}
           onGenerate={handleStartGeneration}
         />

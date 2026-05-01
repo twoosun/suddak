@@ -265,7 +265,7 @@ export async function analyzeReferenceFilesWithAI(
   ];
 
   const response = await client.responses.create({
-    model: process.env.EXAM_BUILDER_ANALYSIS_MODEL || "gpt-5.4-mini",
+    model: process.env.EXAM_BUILDER_ANALYSIS_MODEL || "gpt-4.1-mini",
     store: false,
     max_output_tokens: 6000,
     input: [

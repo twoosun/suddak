@@ -50,6 +50,9 @@ export type BlueprintItem = {
   difficulty: DifficultyLevel;
   transformStrength: TransformStrength;
   intent: string;
+  problemText?: string;
+  answer?: string;
+  solution?: string;
 };
 
 export type ExamBlueprint = {
