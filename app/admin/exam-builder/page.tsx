@@ -14,6 +14,7 @@ import ResultDownloadStep from "@/components/exam-builder/result-download-step";
 import { generationSteps, mockReferenceFiles } from "@/lib/exam-builder/mock-data";
 import {
   analyzeReferenceFile,
+  createExamFiles,
   createInitialBlueprint,
   getGenerationProgress,
   normalizeBlueprintNumbers,
@@ -130,7 +131,7 @@ export default function ExamBuilderPage() {
     const timer = window.setInterval(() => {
       setJob((currentJob) => {
         if (!currentJob || currentJob.status !== "running") return currentJob;
-        return getGenerationProgress(currentJob, currentJob.progress + 4);
+        return getGenerationProgress(currentJob, Math.min(96, currentJob.progress + 4));
       });
     }, 360);
 
@@ -190,10 +191,11 @@ export default function ExamBuilderPage() {
   const handleFilesSelected = async (selectedFiles: FileList | null) => {
     if (!selectedFiles?.length) return;
 
+    const selectedFileArray = Array.from(selectedFiles);
     setBusyMessage("파일을 업로드하는 중입니다.");
     const uploadBatchId = Date.now();
 
-    const pendingFiles = Array.from(selectedFiles).map((file, index) => ({
+    const pendingFiles = selectedFileArray.map((file, index) => ({
       id: `upload-${uploadBatchId}-${index}`,
       name: file.name,
       kind: referenceKind,
@@ -211,7 +213,7 @@ export default function ExamBuilderPage() {
 
       const formData = new FormData();
       formData.append("kind", referenceKind);
-      Array.from(selectedFiles).forEach((file) => {
+      selectedFileArray.forEach((file) => {
         formData.append("files", file);
       });
 
@@ -364,6 +366,9 @@ export default function ExamBuilderPage() {
       const token = await getAccessToken();
       if (!token || !analysis) throw new Error("생성에 필요한 정보가 부족합니다.");
 
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
       const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/generate`, {
         method: "POST",
         headers: {
@@ -371,7 +376,9 @@ export default function ExamBuilderPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ blueprint, analysis }),
+        signal: controller.signal,
       });
+      window.clearTimeout(timeoutId);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "파일 생성에 실패했습니다.");
 
@@ -386,14 +393,22 @@ export default function ExamBuilderPage() {
       setBusyMessage("파일 생성이 완료되었습니다.");
       setStep("result");
     } catch (error) {
-      setBusyMessage(error instanceof Error ? error.message : "파일 생성 중 오류가 발생했습니다.");
+      const errorMessage =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "서버 파일 생성 시간이 길어져 mock 결과로 전환했습니다."
+          : error instanceof Error
+            ? error.message
+            : "파일 생성 중 오류가 발생했습니다.";
+
+      setGeneratedFiles(createExamFiles(blueprint));
       setJob({
         ...localJob,
         status: "completed",
         progress: 100,
         currentStepId: "export",
       });
-      setStep("blueprint");
+      setBusyMessage(`${errorMessage} 실제 다운로드 파일은 서버 생성이 안정화된 뒤 제공됩니다.`);
+      setStep("result");
     }
   };
 
