@@ -74,6 +74,7 @@ export default function ReferenceUploadStep({
                 <span>
                   {file.kind} · {file.sizeLabel}
                 </span>
+                {file.errorMessage && <span>{file.errorMessage}</span>}
               </div>
               <span className="suddak-badge">{file.status}</span>
             </div>
@@ -84,7 +85,7 @@ export default function ReferenceUploadStep({
       <div className="exam-builder-action-row">
         <div className="suddak-card-soft exam-builder-upload-hint">
           <Upload size={16} />
-          <span>파일은 Supabase Storage에 저장된 뒤 분석에 사용됩니다.</span>
+          <span>서버 저장이 실패해도 현재 브라우저 세션의 파일로 mock 분석을 진행할 수 있습니다.</span>
         </div>
         <button
           type="button"

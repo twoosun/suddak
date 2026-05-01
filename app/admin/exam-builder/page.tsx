@@ -233,6 +233,7 @@ export default function ExamBuilderPage() {
       ]);
       setBusyMessage("업로드가 완료되었습니다.");
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.";
       const pendingIds = new Set(pendingFiles.map((file) => file.id));
       setReferenceFiles((files) =>
         files.map((file) =>
@@ -240,11 +241,12 @@ export default function ExamBuilderPage() {
             ? {
                 ...file,
                 status: "업로드 실패" as const,
+                errorMessage,
               }
             : file
         )
       );
-      setBusyMessage(error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.");
+      setBusyMessage(`${errorMessage} 서버 저장 없이 mock 분석을 진행할 수 있습니다.`);
     }
   };
 
@@ -253,6 +255,23 @@ export default function ExamBuilderPage() {
       const hasPersistedFiles = referenceFiles.some(
         (file) => file.status === "업로드됨" || file.status === "분석 완료"
       );
+      const hasSessionFiles = referenceFiles.some((file) => file.file);
+
+      if (!hasPersistedFiles && hasSessionFiles) {
+        const nextAnalysis = analyzeReferenceFile(referenceFiles);
+        setReferenceFiles((files) =>
+          files.map((file) => ({
+            ...file,
+            status: "분석 완료" as const,
+          }))
+        );
+        setAnalysis(nextAnalysis);
+        setBlueprint(createInitialBlueprint(nextAnalysis));
+        setBusyMessage("서버 업로드가 실패해 브라우저 세션 파일로 mock 분석을 완료했습니다.");
+        setStep("analysis");
+        return;
+      }
+
       if (!hasPersistedFiles) throw new Error("서버에 저장된 참고 파일이 없습니다. 파일 업로드를 다시 시도해 주세요.");
 
       setBusyMessage("업로드 파일을 분석하는 중입니다.");
@@ -381,7 +400,7 @@ export default function ExamBuilderPage() {
   const renderContent = () => {
     if (step === "upload") {
       const canAnalyze = referenceFiles.some(
-        (file) => file.status === "업로드됨" || file.status === "분석 완료"
+        (file) => file.status === "업로드됨" || file.status === "분석 완료" || Boolean(file.file)
       );
 
       return (

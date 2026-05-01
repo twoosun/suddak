@@ -24,6 +24,7 @@ export type ReferenceFile = {
   kind: ReferenceFileKind;
   sizeLabel: string;
   status: "업로드 중" | "업로드됨" | "업로드 실패" | "대기" | "분석 완료";
+  errorMessage?: string;
   file?: File;
 };
 
