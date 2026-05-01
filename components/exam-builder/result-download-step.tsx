@@ -42,14 +42,18 @@ export default function ResultDownloadStep({
     <div className="exam-builder-step">
       <div className="exam-builder-result-grid">
         {files.map((file) => (
-          <a key={file.id} href={file.href} className="suddak-card-soft exam-builder-result-card">
-            <Download size={18} />
-            <div>
-              <strong>
-                {file.label} {file.format}
-              </strong>
-              <span>{file.href === "#" ? "mock 결과" : "생성 파일 다운로드"}</span>
-            </div>
+          <a
+            key={file.id}
+            href={file.href}
+            className={`exam-builder-download-button ${
+              file.format === "PDF" ? "exam-builder-download-pdf" : "exam-builder-download-docx"
+            }`}
+            target={file.href === "#" ? undefined : "_blank"}
+            rel={file.href === "#" ? undefined : "noopener noreferrer"}
+          >
+            <Download size={15} />
+            <span>{file.label}</span>
+            <strong>{file.format}</strong>
           </a>
         ))}
       </div>

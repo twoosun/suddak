@@ -2190,6 +2190,40 @@ a {
   font-weight: 800;
 }
 
+.exam-builder-download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgb(15 23 42 / 0.08);
+}
+
+.exam-builder-download-button span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exam-builder-download-pdf {
+  color: #991b1b;
+  border-color: color-mix(in srgb, #ef4444 38%, var(--border));
+  background: color-mix(in srgb, #ef4444 12%, var(--card));
+}
+
+.exam-builder-download-docx {
+  color: #1d4ed8;
+  border-color: color-mix(in srgb, #3b82f6 38%, var(--border));
+  background: color-mix(in srgb, #3b82f6 12%, var(--card));
+}
+
 .exam-builder-preview {
   display: grid;
   gap: 14px;
