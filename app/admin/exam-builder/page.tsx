@@ -40,6 +40,13 @@ const steps: Array<{ id: ExamBuilderStep; label: string }> = [
   { id: "result", label: "결과 파일 다운로드" },
 ];
 
+type UploadedReferenceRow = {
+  id: string;
+  kind: ReferenceFileKind;
+  original_name: string;
+  file_size: number;
+};
+
 function createEmptyItem(number: number): BlueprintItem {
   return {
     id: `item-${Date.now()}-${number}`,
@@ -144,6 +151,18 @@ export default function ExamBuilderPage() {
     return `${(size / 1024 / 1024).toFixed(1)}MB`;
   };
 
+  const mapUploadedReferences = (
+    rows: UploadedReferenceRow[],
+    status: ReferenceFile["status"] = "업로드됨"
+  ): ReferenceFile[] =>
+    rows.map((row) => ({
+      id: row.id,
+      name: row.original_name,
+      kind: row.kind as ReferenceFileKind,
+      sizeLabel: formatFileSize(Number(row.file_size) || 0),
+      status,
+    }));
+
   const getAccessToken = async () => {
     const session = await getSessionWithRecovery();
     return session?.access_token ?? null;
@@ -172,17 +191,18 @@ export default function ExamBuilderPage() {
     if (!selectedFiles?.length) return;
 
     setBusyMessage("파일을 업로드하는 중입니다.");
+    const uploadBatchId = Date.now();
 
-    const uploadedFiles = Array.from(selectedFiles).map((file, index) => ({
-      id: `upload-${Date.now()}-${index}`,
+    const pendingFiles = Array.from(selectedFiles).map((file, index) => ({
+      id: `upload-${uploadBatchId}-${index}`,
       name: file.name,
       kind: referenceKind,
       sizeLabel: formatFileSize(file.size),
-      status: "업로드됨" as const,
+      status: "업로드 중" as const,
       file,
     }));
 
-    setReferenceFiles((files) => [...files, ...uploadedFiles]);
+    setReferenceFiles((files) => [...files, ...pendingFiles]);
 
     try {
       const nextJobId = await ensureJob();
@@ -205,14 +225,36 @@ export default function ExamBuilderPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "파일 업로드에 실패했습니다.");
 
+      const persistedFiles = mapUploadedReferences(data.files ?? []);
+      const pendingIds = new Set(pendingFiles.map((file) => file.id));
+      setReferenceFiles((files) => [
+        ...files.filter((file) => !pendingIds.has(file.id)),
+        ...persistedFiles,
+      ]);
       setBusyMessage("업로드가 완료되었습니다.");
     } catch (error) {
+      const pendingIds = new Set(pendingFiles.map((file) => file.id));
+      setReferenceFiles((files) =>
+        files.map((file) =>
+          pendingIds.has(file.id)
+            ? {
+                ...file,
+                status: "업로드 실패" as const,
+              }
+            : file
+        )
+      );
       setBusyMessage(error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.");
     }
   };
 
   const handleAnalyze = async () => {
     try {
+      const hasPersistedFiles = referenceFiles.some(
+        (file) => file.status === "업로드됨" || file.status === "분석 완료"
+      );
+      if (!hasPersistedFiles) throw new Error("서버에 저장된 참고 파일이 없습니다. 파일 업로드를 다시 시도해 주세요.");
+
       setBusyMessage("업로드 파일을 분석하는 중입니다.");
       const nextJobId = await ensureJob();
       const token = await getAccessToken();
@@ -227,7 +269,11 @@ export default function ExamBuilderPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "분석에 실패했습니다.");
 
-      setReferenceFiles(data.files ?? referenceFiles.map((file) => ({ ...file, status: "분석 완료" as const })));
+      setReferenceFiles(
+        data.files
+          ? (data.files as ReferenceFile[])
+          : referenceFiles.map((file) => ({ ...file, status: "분석 완료" as const }))
+      );
       setAnalysis(data.analysis);
       setBlueprint(data.blueprint);
       setBusyMessage("분석이 완료되었습니다.");
@@ -334,10 +380,15 @@ export default function ExamBuilderPage() {
 
   const renderContent = () => {
     if (step === "upload") {
+      const canAnalyze = referenceFiles.some(
+        (file) => file.status === "업로드됨" || file.status === "분석 완료"
+      );
+
       return (
         <ReferenceUploadStep
           files={referenceFiles}
           selectedKind={referenceKind}
+          canAnalyze={canAnalyze}
           onKindChange={setReferenceKind}
           onFilesSelected={handleFilesSelected}
           onAnalyze={handleAnalyze}

@@ -6,6 +6,7 @@ import type { ReferenceFile, ReferenceFileKind } from "@/lib/exam-builder/types"
 type Props = {
   files: ReferenceFile[];
   selectedKind: ReferenceFileKind;
+  canAnalyze: boolean;
   onKindChange: (kind: ReferenceFileKind) => void;
   onFilesSelected: (files: FileList | null) => void;
   onAnalyze: () => void;
@@ -14,6 +15,7 @@ type Props = {
 export default function ReferenceUploadStep({
   files,
   selectedKind,
+  canAnalyze,
   onKindChange,
   onFilesSelected,
   onAnalyze,
@@ -82,16 +84,16 @@ export default function ReferenceUploadStep({
       <div className="exam-builder-action-row">
         <div className="suddak-card-soft exam-builder-upload-hint">
           <Upload size={16} />
-          <span>파일은 아직 서버에 저장하지 않고 브라우저 세션에서만 mock 분석에 사용합니다.</span>
+          <span>파일은 Supabase Storage에 저장된 뒤 분석에 사용됩니다.</span>
         </div>
         <button
           type="button"
           className="suddak-btn suddak-btn-primary"
           onClick={onAnalyze}
-          disabled={files.length === 0}
+          disabled={!canAnalyze}
         >
           <SearchCheck size={16} />
-          mock 분석 시작
+          분석 시작
         </button>
       </div>
     </div>
