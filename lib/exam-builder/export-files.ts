@@ -1,12 +1,112 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import { AlignmentType, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 
 import type { ExamBlueprint, ReferenceAnalysisResult } from "./types";
 
 type FileRole = "exam" | "solution" | "analysis";
 
+const templatePath = path.join(process.cwd(), "assets", "exam-builder", "exam-template.docx");
+
 function text(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function escapeXml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function stripXml(value: string) {
+  return value
+    .replace(/<w:tab\/>/g, "\t")
+    .replace(/<w:br\/>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'");
+}
+
+function replaceParagraphText(paragraphXml: string, value: string) {
+  const escapedLines = escapeXml(value)
+    .split(/\r?\n/)
+    .map((line, index) => (index === 0 ? line : `<w:br/>${line}`))
+    .join("");
+
+  return paragraphXml.replace(/<w:r\b[\s\S]*?<\/w:r>/, (runXml) =>
+    runXml.replace(/<w:t[^>]*>[\s\S]*?<\/w:t>/, `<w:t xml:space="preserve">${escapedLines}</w:t>`)
+  );
+}
+
+function buildTemplateParagraph(pPr: string, textValue: string, options?: { bold?: boolean }) {
+  const runProperty = [
+    '<w:rFonts w:ascii="HY신명조" w:eastAsia="HY신명조" w:hint="eastAsia"/>',
+    options?.bold ? "<w:b/>" : "",
+    '<w:sz w:val="18"/>',
+    '<w:lang w:eastAsia="ko-KR"/>',
+  ].join("");
+  const lines = escapeXml(textValue)
+    .split(/\r?\n/)
+    .map((line, index) => (index === 0 ? line : `<w:br/>${line}`))
+    .join("");
+
+  return `<w:p>${pPr}<w:r><w:rPr>${runProperty}</w:rPr><w:t xml:space="preserve">${lines}</w:t></w:r></w:p>`;
+}
+
+function buildProblemText(item: ExamBlueprint["items"][number]) {
+  return [
+    `${item.number}. ${item.problemText || `${item.topic} ${item.problemType} 문항`} [${item.score.toFixed(1)}점]`,
+    item.format === "객관식" ? "①  ②  ③  ④  ⑤" : "답: ______________________________",
+  ].join("\n");
+}
+
+async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
+  const templateBuffer = await fs.readFile(templatePath);
+  const zip = await JSZip.loadAsync(templateBuffer);
+  const documentFile = zip.file("word/document.xml");
+  if (!documentFile) throw new Error("시험지 템플릿의 word/document.xml을 찾을 수 없습니다.");
+
+  const documentXml = await documentFile.async("string");
+  const bodyMatch = documentXml.match(/<w:body>([\s\S]*?)<\/w:body>/);
+  if (!bodyMatch) throw new Error("시험지 템플릿 본문을 읽지 못했습니다.");
+
+  const bodyXml = bodyMatch[1];
+  const sectPr = bodyXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/)?.[0] ?? "";
+  const paragraphs = bodyXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+  const firstQuestionIndex = paragraphs.findIndex((paragraph) => /^\s*1\./.test(stripXml(paragraph)));
+  const preservedParagraphs = firstQuestionIndex >= 0 ? paragraphs.slice(0, firstQuestionIndex) : paragraphs.slice(0, 5);
+  const questionParagraph = firstQuestionIndex >= 0 ? paragraphs[firstQuestionIndex] : paragraphs[paragraphs.length - 1];
+  const questionPPr = questionParagraph?.match(/<w:pPr[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+
+  const patchedIntro = preservedParagraphs.map((paragraph) => {
+    const paragraphText = stripXml(paragraph);
+    if (paragraphText.includes("선택형") && paragraphText.includes("문항")) {
+      return replaceParagraphText(paragraph, `〇 선택형 ${blueprint.multipleChoiceCount}문항, 서술형 ${blueprint.writtenCount}문항입니다.`);
+    }
+    if (paragraphText.includes("시험 범위")) {
+      return replaceParagraphText(paragraph, `〇 시험 범위: ${blueprint.sourceRange}`);
+    }
+    return paragraph;
+  });
+
+  const problemParagraphs = blueprint.items.map((item) =>
+    buildTemplateParagraph(questionPPr, buildProblemText(item), { bold: false })
+  );
+
+  const newBody = [...patchedIntro, ...problemParagraphs, sectPr].join("");
+  const nextDocumentXml = documentXml.replace(/<w:body>[\s\S]*?<\/w:body>/, `<w:body>${newBody}</w:body>`);
+  zip.file("word/document.xml", nextDocumentXml);
+
+  return Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
 }
 
 function buildRows(blueprint: ExamBlueprint, role: FileRole) {
@@ -48,6 +148,14 @@ export async function buildExamDocxBuffer(
   analysis: ReferenceAnalysisResult,
   role: FileRole
 ) {
+  if (role === "exam") {
+    try {
+      return await buildTemplateExamDocxBuffer(blueprint);
+    } catch {
+      // Fall through to the generated DOCX when the local template is unavailable.
+    }
+  }
+
   const headers =
     role === "exam"
       ? ["번호", "형식", "문항", "배점"]

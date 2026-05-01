@@ -70,7 +70,7 @@ export function createBlueprintFromAnalysis(
       id: `item-${Date.now()}-${index + 1}`,
       number: index + 1,
       format: isWritten ? "서술형" : "객관식",
-      referenceLocation: `업로드 자료 ${Math.floor(index / 3) + 1}번`,
+      referenceLocation: `업로드 자료 ${Math.floor(index / 3) + 1} p.${Math.floor(index / 3) + 1} 문항 ${index + 1}`,
       topic: unit,
       problemType: type,
       score: getTargetScore(totalProblems, index),
