@@ -5,7 +5,10 @@ import {
   buildExamPdfBuffer,
   generatedFileDefinitions,
 } from "@/lib/exam-builder/export-files";
-import { generateProblemsWithAI } from "@/lib/exam-builder/problem-generation";
+import {
+  type GenerationReferenceFile,
+  generateProblemsWithAI,
+} from "@/lib/exam-builder/problem-generation";
 import {
   ensureExamBuilderBucket,
   getAdminUserFromRequest,
@@ -41,7 +44,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return Response.json({ error: "설계표와 분석 결과가 필요합니다." }, { status: 400 });
   }
 
-  const generatedBlueprint = await generateProblemsWithAI(blueprint, analysis);
+  const { data: referenceRows } = await supabaseAdmin
+    .from("exam_builder_reference_files")
+    .select("original_name, kind, mime_type, storage_path")
+    .eq("job_id", jobId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
+
+  const referenceFiles: GenerationReferenceFile[] = [];
+
+  for (const row of (referenceRows ?? []).slice(0, 8)) {
+    const { data: blob } = await supabaseAdmin.storage
+      .from("exam-builder")
+      .download(row.storage_path);
+
+    if (!blob) continue;
+
+    const arrayBuffer = await blob.arrayBuffer();
+    referenceFiles.push({
+      name: row.original_name,
+      kind: row.kind,
+      mimeType: row.mime_type || "application/octet-stream",
+      base64: Buffer.from(arrayBuffer).toString("base64"),
+    });
+  }
+
+  const generatedBlueprint = await generateProblemsWithAI(blueprint, analysis, referenceFiles);
 
   await supabaseAdmin
     .from("exam_builder_jobs")

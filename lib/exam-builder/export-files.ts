@@ -24,6 +24,115 @@ function escapeXml(value: unknown) {
     .replace(/'/g, "&apos;");
 }
 
+function normalizeLatex(value: string) {
+  return value
+    .replace(/^\$\$?|\$\$?$/g, "")
+    .replace(/^\\\(|\\\)$/g, "")
+    .replace(/^\\\[|\\\]$/g, "")
+    .replace(/\\left|\\right/g, "")
+    .trim();
+}
+
+function takeBraced(value: string, start: number) {
+  if (value[start] !== "{") return null;
+  let depth = 0;
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === "{") depth += 1;
+    if (char === "}") depth -= 1;
+    if (depth === 0) {
+      return {
+        content: value.slice(start + 1, index),
+        end: index + 1,
+      };
+    }
+  }
+  return null;
+}
+
+function linearMathText(value: string) {
+  return value
+    .replace(/\\to/g, "→")
+    .replace(/\\infty/g, "∞")
+    .replace(/\\cdot/g, "·")
+    .replace(/\\times/g, "×")
+    .replace(/\\leq/g, "≤")
+    .replace(/\\geq/g, "≥")
+    .replace(/\\neq/g, "≠")
+    .replace(/\\pi/g, "π")
+    .replace(/\\theta/g, "θ")
+    .replace(/\\alpha/g, "α")
+    .replace(/\\beta/g, "β")
+    .replace(/\\[a-zA-Z]+/g, "")
+    .replace(/[{}]/g, "")
+    .trim();
+}
+
+function mathComponents(value: string): string {
+  let output = "";
+  let index = 0;
+
+  while (index < value.length) {
+    if (value.startsWith("\\frac", index)) {
+      const numerator = takeBraced(value, index + "\\frac".length);
+      const denominator = numerator ? takeBraced(value, numerator.end) : null;
+      if (numerator && denominator) {
+        output += `<m:f><m:num>${mathComponents(numerator.content)}</m:num><m:den>${mathComponents(denominator.content)}</m:den></m:f>`;
+        index = denominator.end;
+        continue;
+      }
+    }
+
+    if (value.startsWith("\\sqrt", index)) {
+      const radicand = takeBraced(value, index + "\\sqrt".length);
+      if (radicand) {
+        output += `<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>${mathComponents(radicand.content)}</m:e></m:rad>`;
+        index = radicand.end;
+        continue;
+      }
+    }
+
+    const nextSpecial = value.indexOf("\\", index + 1);
+    const raw = nextSpecial === -1 ? value.slice(index) : value.slice(index, nextSpecial);
+    output += `<m:r><m:t>${escapeXml(linearMathText(raw))}</m:t></m:r>`;
+    index = nextSpecial === -1 ? value.length : nextSpecial;
+  }
+
+  return output || `<m:r><m:t>${escapeXml(linearMathText(value))}</m:t></m:r>`;
+}
+
+function mathXml(value: string) {
+  return `<m:oMath>${mathComponents(normalizeLatex(value))}</m:oMath>`;
+}
+
+function splitMathSegments(value: string) {
+  const segments: Array<{ type: "text" | "math"; value: string }> = [];
+  const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]|\\frac\{[\s\S]+?\}\{[\s\S]+?\}|\\sqrt\{[\s\S]+?\})/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(value))) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "text", value: value.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: "math", value: match[0] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < value.length) {
+    segments.push({ type: "text", value: value.slice(lastIndex) });
+  }
+
+  return segments.length ? segments : [{ type: "text", value }];
+}
+
+function textRunXml(value: string, rPr: string) {
+  const lines = escapeXml(value).split(/\r?\n/);
+  return `<w:r>${rPr}${lines
+    .map((line, index) => `${index > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${line}</w:t>`)
+    .join("")}</w:r>`;
+}
+
 function stripXml(value: string) {
   return value
     .replace(/<w:tab\/>/g, "\t")
@@ -37,14 +146,15 @@ function stripXml(value: string) {
 }
 
 function replaceParagraphText(paragraphXml: string, value: string) {
+  const pPr = paragraphXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+  const firstRun = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/)?.[0] ?? "";
+  const rPr = firstRun.match(/<w:rPr[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
   const escapedLines = escapeXml(value)
     .split(/\r?\n/)
     .map((line, index) => (index === 0 ? line : `<w:br/>${line}`))
     .join("");
 
-  return paragraphXml.replace(/<w:r\b[\s\S]*?<\/w:r>/, (runXml) =>
-    runXml.replace(/<w:t[^>]*>[\s\S]*?<\/w:t>/, `<w:t xml:space="preserve">${escapedLines}</w:t>`)
-  );
+  return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapedLines}</w:t></w:r></w:p>`;
 }
 
 function buildTemplateParagraph(pPr: string, textValue: string, options?: { bold?: boolean }) {
@@ -54,19 +164,56 @@ function buildTemplateParagraph(pPr: string, textValue: string, options?: { bold
     '<w:sz w:val="18"/>',
     '<w:lang w:eastAsia="ko-KR"/>',
   ].join("");
-  const lines = escapeXml(textValue)
-    .split(/\r?\n/)
-    .map((line, index) => (index === 0 ? line : `<w:br/>${line}`))
+  const rPr = `<w:rPr>${runProperty}</w:rPr>`;
+  const runs = splitMathSegments(textValue)
+    .map((segment) => (segment.type === "math" ? mathXml(segment.value) : textRunXml(segment.value, rPr)))
     .join("");
 
-  return `<w:p>${pPr}<w:r><w:rPr>${runProperty}</w:rPr><w:t xml:space="preserve">${lines}</w:t></w:r></w:p>`;
+  return `<w:p>${pPr}${runs}</w:p>`;
 }
 
 function buildProblemText(item: ExamBlueprint["items"][number]) {
+  const problemText = item.problemText || `${item.topic} ${item.problemType} 문항`;
+  const hasChoices = /[①②③④⑤]/.test(problemText);
+
   return [
-    `${item.number}. ${item.problemText || `${item.topic} ${item.problemType} 문항`} [${item.score.toFixed(1)}점]`,
-    item.format === "객관식" ? "①  ②  ③  ④  ⑤" : "답: ______________________________",
+    `${item.number}. ${problemText} [${item.score.toFixed(1)}점]`,
+    item.format === "객관식" && !hasChoices ? "①  ②  ③  ④  ⑤" : "",
+    item.format === "서술형" ? "답: ______________________________" : "",
   ].join("\n");
+}
+
+async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
+  for (const headerPath of ["word/header1.xml", "word/header2.xml"]) {
+    const headerFile = zip.file(headerPath);
+    if (!headerFile) continue;
+
+    const headerXml = await headerFile.async("string");
+    const paragraphs = headerXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+    if (!paragraphs.length) continue;
+
+    let usedTitle = false;
+    let usedSubject = false;
+    const patchedParagraphs = paragraphs.map((paragraph) => {
+      const paragraphText = stripXml(paragraph).replace(/\s+/g, " ").trim();
+
+      if (!usedTitle && /문제지|시험지/.test(paragraphText)) {
+        usedTitle = true;
+        return replaceParagraphText(paragraph, blueprint.title);
+      }
+
+      if (!usedSubject && /언어와 매체|수학|미적|확률|기하|고\s*3/.test(paragraphText)) {
+        usedSubject = true;
+        return replaceParagraphText(paragraph, blueprint.subject);
+      }
+
+      return paragraph;
+    });
+
+    let index = 0;
+    const nextHeaderXml = headerXml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => patchedParagraphs[index++] ?? "");
+    zip.file(headerPath, nextHeaderXml);
+  }
 }
 
 async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
@@ -97,6 +244,8 @@ async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
     }
     return paragraph;
   });
+
+  await patchTemplateHeader(zip, blueprint);
 
   const problemParagraphs = blueprint.items.map((item) =>
     buildTemplateParagraph(questionPPr, buildProblemText(item), { bold: false })
