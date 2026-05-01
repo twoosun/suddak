@@ -2,6 +2,7 @@ import katex from "katex";
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
+import { SIMILAR_PROBLEM_COST } from "@/lib/rewards";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { type SimilarProblemMeta } from "@/types/similar";
 
@@ -38,6 +39,12 @@ type SimilarSolutionResult = {
   solution?: string;
 };
 
+type CreditActionRow = {
+  ok: boolean;
+  credits: number;
+  amount: number;
+};
+
 const DEFAULT_WARNING = "변형 문제 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
 const SIMILAR_MODEL = "gpt-4o-mini";
 const SIMILAR_MAX_OUTPUT_TOKENS = 2000;
@@ -59,17 +66,6 @@ async function getUserFromRequest(req: NextRequest) {
   return user;
 }
 
-async function getUserProfile(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ?? { is_admin: false };
-}
-
 async function getHistoryItem(historyId: number, userId: string) {
   const { data, error } = await supabaseAdmin
     .from("problem_history")
@@ -80,6 +76,36 @@ async function getHistoryItem(historyId: number, userId: string) {
 
   if (error) throw error;
   return data;
+}
+
+async function spendSimilarProblemCredits(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("spend_user_credits", {
+    p_user_id: userId,
+    p_amount: SIMILAR_PROBLEM_COST,
+    p_type: "SIMILAR_PROBLEM",
+    p_reason: "similar_problem:generation",
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return (Array.isArray(data) ? data[0] : data) as CreditActionRow | null;
+}
+
+async function refundSimilarProblemCredits(userId: string) {
+  const { data, error } = await supabaseAdmin.rpc("grant_user_credits", {
+    p_user_id: userId,
+    p_amount: SIMILAR_PROBLEM_COST,
+    p_type: "SIMILAR_PROBLEM_REFUND",
+    p_reason: "similar_problem:generation_failed",
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return (Array.isArray(data) ? data[0] : data) as CreditActionRow | null;
 }
 
 function buildDraftPrompt(previousIssues: string[] = []) {
@@ -599,15 +625,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    const profile = await getUserProfile(user.id);
-
-    if (!profile.is_admin) {
-      return NextResponse.json(
-        { error: "유사문제 생성기는 현재 관리자 테스트 중인 기능입니다." },
-        { status: 403 },
-      );
-    }
-
     const body = await req.json();
     const historyId = Number(body.historyId || "");
 
@@ -631,12 +648,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const creditCharge = await spendSimilarProblemCredits(user.id);
+
+    if (!creditCharge) {
+      return NextResponse.json({ error: "딱 차감 결과를 확인하지 못했습니다." }, { status: 500 });
+    }
+
+    if (!creditCharge.ok) {
+      return NextResponse.json(
+        {
+          error: `딱이 부족합니다. 유사문제 생성에는 ${SIMILAR_PROBLEM_COST.toLocaleString("ko-KR")}딱이 필요합니다.`,
+          credits: creditCharge.credits,
+          similarProblemCost: SIMILAR_PROBLEM_COST,
+        },
+        { status: 402 },
+      );
+    }
+
     let parsed: SimilarDraft;
+    let finalCredits = creditCharge.credits;
 
     try {
       parsed = await generateValidatedSimilarProblem(recognizedText, solveResult);
     } catch (error) {
       console.error("[api/similar][POST] generation error:", error);
+      try {
+        const refund = await refundSimilarProblemCredits(user.id);
+        finalCredits = refund?.credits ?? finalCredits + SIMILAR_PROBLEM_COST;
+      } catch (refundError) {
+        console.error("[api/similar][POST] credit refund error:", refundError);
+      }
+
       return NextResponse.json(
         {
           error:
@@ -658,6 +700,8 @@ export async function POST(req: NextRequest) {
         warning: parsed.warning?.trim() || DEFAULT_WARNING,
         meta: normalizeMeta(parsed.meta),
       },
+      credits: finalCredits,
+      chargedAmount: SIMILAR_PROBLEM_COST,
     });
   } catch (error) {
     console.error("[api/similar][POST] error:", error);

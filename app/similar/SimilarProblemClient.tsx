@@ -52,6 +52,12 @@ type GenerationProgress = {
   detail: string;
 };
 
+type CreditsStatus = {
+  credits: number;
+  similarProblemCost: number;
+  canGenerateSimilarProblem: boolean;
+};
+
 const GENERATION_PROGRESS_STEPS: GenerationProgress[] = [
   { value: 8, label: "요청 준비", detail: "원본 문제와 참고 풀이를 정리하고 있습니다." },
   { value: 28, label: "초안 생성", detail: "변형 조건을 반영해 새 문항 초안을 만드는 중입니다." },
@@ -231,6 +237,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   const [isDark, setIsDark] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [creditsStatus, setCreditsStatus] = useState<CreditsStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -251,6 +258,8 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const exportRootRef = useRef<HTMLDivElement | null>(null);
   const generationTimerRef = useRef<number[]>([]);
+
+  const formatCredits = (value: number) => value.toLocaleString("ko-KR");
 
   const sourceLabel = useMemo(() => {
     if (source === "history") return "히스토리에서 가져온 문제를 바탕으로 생성합니다.";
@@ -330,6 +339,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
         if (!session?.access_token) {
           setIsAdmin(false);
+          setCreditsStatus(null);
           setSourceItem(null);
           setMessage("로그인이 필요합니다.");
           return;
@@ -342,6 +352,24 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
         });
         const usageData = await usageRes.json();
         setIsAdmin(Boolean(usageData?.isAdmin));
+
+        const creditsRes = await fetch("/api/credits", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        });
+        const creditsData = await creditsRes.json();
+
+        if (creditsRes.ok) {
+          setCreditsStatus({
+            credits: Number(creditsData.credits ?? 0),
+            similarProblemCost: Number(creditsData.similarProblemCost ?? 200),
+            canGenerateSimilarProblem: Boolean(creditsData.canGenerateSimilarProblem),
+          });
+        } else {
+          setCreditsStatus(null);
+        }
 
         if (!historyId) {
           setSourceItem(null);
@@ -365,12 +393,17 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
         setSourceItem(sourceData.item ?? null);
 
-        if (!usageData?.isAdmin) {
-          setMessage("현재는 관리자 계정에서만 유사문제 생성 테스트가 가능합니다.");
+        if (creditsRes.ok && !creditsData?.canGenerateSimilarProblem) {
+          setMessage(
+            `딱이 부족합니다. 유사문제 생성에는 ${Number(
+              creditsData.similarProblemCost ?? 200,
+            ).toLocaleString("ko-KR")}딱이 필요합니다.`,
+          );
         }
       } catch {
         setSourceItem(null);
         setIsAdmin(false);
+        setCreditsStatus(null);
         setMessage("페이지를 불러오는 중 오류가 발생했습니다.");
       } finally {
         setLoading(false);
@@ -419,8 +452,10 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
       return;
     }
 
-    if (!isAdmin) {
-      setMessage("현재는 관리자 계정에서만 유사문제 생성이 가능합니다.");
+    if (creditsStatus && !creditsStatus.canGenerateSimilarProblem) {
+      setMessage(
+        `딱이 부족합니다. 유사문제 생성에는 ${formatCredits(creditsStatus.similarProblemCost)}딱이 필요합니다.`,
+      );
       return;
     }
 
@@ -452,8 +487,24 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
       if (!res.ok) {
         finishGenerationProgress(false);
+        if (typeof data?.credits === "number") {
+          setCreditsStatus((current) => ({
+            credits: data.credits,
+            similarProblemCost: Number(data.similarProblemCost ?? current?.similarProblemCost ?? 200),
+            canGenerateSimilarProblem:
+              data.credits >= Number(data.similarProblemCost ?? current?.similarProblemCost ?? 200),
+          }));
+        }
         setMessage(data?.error || "유사문제 생성에 실패했습니다.");
         return;
+      }
+
+      if (typeof data?.credits === "number") {
+        setCreditsStatus((current) => ({
+          credits: data.credits,
+          similarProblemCost: current?.similarProblemCost ?? Number(data.chargedAmount ?? 200),
+          canGenerateSimilarProblem: data.credits >= (current?.similarProblemCost ?? Number(data.chargedAmount ?? 200)),
+        }));
       }
 
       const nextResult = (data.result ?? null) as SimilarResult | null;
@@ -590,7 +641,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                 <span className="suddak-badge">유사문제 생성기</span>
                 <span className="suddak-badge">History Save</span>
-                {!isAdmin && <span className="suddak-badge">관리자 테스트 전용</span>}
+                <span className="suddak-badge">1회 {formatCredits(creditsStatus?.similarProblemCost ?? 200)}딱</span>
               </div>
             </div>
 
@@ -654,15 +705,19 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
                 padding: "16px",
                 display: "grid",
                 gap: "10px",
-                borderColor: isAdmin ? "var(--success-border)" : "var(--border)",
-                background: isAdmin ? "var(--success-soft)" : "var(--soft)",
+                borderColor: creditsStatus?.canGenerateSimilarProblem ? "var(--success-border)" : "var(--border)",
+                background: creditsStatus?.canGenerateSimilarProblem ? "var(--success-soft)" : "var(--soft)",
               }}
             >
-              <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>현재 상태</div>
+              <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>딱 잔액</div>
               <div style={{ fontWeight: 900 }}>
-                {isAdmin
-                  ? "관리자 계정으로 생성과 export 테스트가 가능합니다."
-                  : "현재는 관리자 계정에서만 유사문제 생성 테스트가 가능합니다."}
+                {creditsStatus
+                  ? `보유 ${formatCredits(creditsStatus.credits)}딱 · 유사문제 1회 ${formatCredits(
+                      creditsStatus.similarProblemCost,
+                    )}딱`
+                  : isLoggedIn
+                    ? "딱 잔액을 확인하는 중입니다."
+                    : "로그인하면 딱 잔액을 확인할 수 있습니다."}
               </div>
               <div style={{ color: "var(--muted)", lineHeight: 1.7 }}>{sourceLabel}</div>
             </div>
@@ -672,11 +727,16 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <button
                 type="button"
-                className={`suddak-btn ${isAdmin ? "suddak-btn-primary" : "suddak-btn-ghost"}`}
+                className="suddak-btn suddak-btn-primary"
                 onClick={handleGenerate}
-                disabled={generating || loading || !sourceItem}
+                disabled={
+                  generating ||
+                  loading ||
+                  !sourceItem ||
+                  Boolean(creditsStatus && !creditsStatus.canGenerateSimilarProblem)
+                }
               >
-                {generating ? "유사문제 생성 중..." : isAdmin ? "유사문제 생성" : "관리자 전용"}
+                {generating ? "유사문제 생성 중..." : "유사문제 생성"}
               </button>
 
               <Link href="/history" className="suddak-btn suddak-btn-ghost">
@@ -940,9 +1000,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
               </div>
             ) : (
               <div className="suddak-card-soft" style={{ padding: "16px", color: "var(--muted)" }}>
-                {isAdmin
-                  ? "유사문제를 생성하면 결과와 export 옵션이 여기에 나타납니다."
-                  : "현재는 일반 계정에서 결과 생성이 비활성화되어 있습니다."}
+                유사문제를 생성하면 결과와 export 옵션이 여기에 나타납니다.
               </div>
             )}
           </SectionCard>

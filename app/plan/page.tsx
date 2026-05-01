@@ -15,6 +15,7 @@ type UserProfileRow = {
   grade: string | null;
   is_approved: boolean | null;
   is_admin: boolean | null;
+  credits: number | null;
 };
 
 const planFeatures = [
@@ -35,6 +36,7 @@ export default function PlanPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [email, setEmail] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -46,6 +48,7 @@ export default function PlanPage() {
         setIsLoggedIn(false);
         setIsAdmin(false);
         setEmail("");
+        setCredits(null);
         setLoading(false);
         return;
       }
@@ -55,7 +58,7 @@ export default function PlanPage() {
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("id, email, full_name, grade, is_approved, is_admin")
+        .select("id, email, full_name, grade, is_approved, is_admin, credits")
         .eq("id", userId)
         .maybeSingle<UserProfileRow>();
 
@@ -69,6 +72,7 @@ export default function PlanPage() {
       }
 
       setIsAdmin(Boolean(data?.is_admin));
+      setCredits(Number(data?.credits ?? 0));
       setLoading(false);
     };
 
@@ -85,6 +89,7 @@ export default function PlanPage() {
         setIsLoggedIn(false);
         setIsAdmin(false);
         setEmail("");
+        setCredits(null);
         setLoading(false);
       }
     };
@@ -118,6 +123,8 @@ export default function PlanPage() {
     : isLoggedIn
     ? `로그인 계정: ${email}`
     : "로그인하지 않은 상태입니다.";
+
+  const creditsLabel = credits === null ? "-" : `${credits.toLocaleString("ko-KR")}딱`;
 
   const heroEyebrow = useMemo(
     () => (isAdmin ? "관리자 플랜 활성화" : "플랜 안내"),
@@ -153,6 +160,9 @@ export default function PlanPage() {
             >
               현재 상태: {statusLabel}
             </div>
+            <div className="plan-status-badge plan-status-badge-neutral">
+              보유 딱: {isLoggedIn ? creditsLabel : "로그인 필요"}
+            </div>
 
             <p className="plan-status-text">{statusDescription}</p>
 
@@ -169,12 +179,10 @@ export default function PlanPage() {
           <aside className="plan-highlight-card">
             <div className="plan-highlight-label">빠른 안내</div>
             <div className="plan-highlight-value">
-              {isAdmin ? "관리자 Only" : "일반 플랜 사용 중"}
+              {isLoggedIn ? creditsLabel : "딱 확인 가능"}
             </div>
             <p className="plan-highlight-text">
-              {isAdmin
-                ? "추론, 생성, 시각화 기능을 더 넓게 활용할 수 있습니다."
-                : "운영 정책에 따라 관리자 전환 안내가 열리면 신청할 수 있습니다."}
+              딱은 유사문제 생성에 사용됩니다. 유사문제 1회 생성 비용은 200딱입니다.
             </p>
 
             <div className="plan-metric-grid">
@@ -183,8 +191,8 @@ export default function PlanPage() {
                 <strong>상향</strong>
               </div>
               <div className="plan-metric-item">
-                <span className="plan-metric-kicker">생성</span>
-                <strong>확장</strong>
+                <span className="plan-metric-kicker">유사문제</span>
+                <strong>200딱</strong>
               </div>
               <div className="plan-metric-item">
                 <span className="plan-metric-kicker">제한</span>
