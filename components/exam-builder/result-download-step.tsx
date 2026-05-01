@@ -1,12 +1,16 @@
+"use client";
+
 import { Download, Edit3, Eye, LockKeyhole, Send } from "lucide-react";
 
 import type { ExamBlueprint, GeneratedExamFile, ReferenceAnalysisResult } from "@/lib/exam-builder/types";
-import { publishToNaesin } from "@/lib/exam-builder/utils";
+import { getSessionWithRecovery } from "@/lib/supabase";
 
 type Props = {
   files: GeneratedExamFile[];
   blueprint: ExamBlueprint;
   analysis: ReferenceAnalysisResult;
+  jobId: string | null;
+  examSetId: string | null;
   onEditBlueprint: () => void;
 };
 
@@ -14,10 +18,24 @@ export default function ResultDownloadStep({
   files,
   blueprint,
   analysis,
+  jobId,
+  examSetId,
   onEditBlueprint,
 }: Props) {
-  const handlePublish = () => {
-    publishToNaesin();
+  const handlePublish = async (publish: boolean) => {
+    if (!jobId || !examSetId) return;
+
+    const session = await getSessionWithRecovery();
+    if (!session?.access_token) return;
+
+    await fetch(`/api/admin/exam-builder/jobs/${jobId}/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ examSetId, publish }),
+    });
   };
 
   return (
@@ -37,11 +55,21 @@ export default function ResultDownloadStep({
       </div>
 
       <div className="exam-builder-action-row">
-        <button type="button" className="suddak-btn suddak-btn-primary" onClick={handlePublish}>
+        <button
+          type="button"
+          className="suddak-btn suddak-btn-primary"
+          onClick={() => handlePublish(true)}
+          disabled={!jobId || !examSetId}
+        >
           <Send size={16} />
           내신딱딱에 게시
         </button>
-        <button type="button" className="suddak-btn suddak-btn-ghost">
+        <button
+          type="button"
+          className="suddak-btn suddak-btn-ghost"
+          onClick={() => handlePublish(false)}
+          disabled={!jobId || !examSetId}
+        >
           <LockKeyhole size={16} />
           비공개 저장
         </button>

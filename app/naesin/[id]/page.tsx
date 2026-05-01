@@ -5,19 +5,15 @@ import { notFound } from "next/navigation";
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
 import NaesinHeader from "@/components/naesin/naesin-header";
-import { getNaesinExamSet, naesinExamSets } from "@/lib/naesin/mock-data";
+import { fetchPublishedNaesinExamSet } from "@/lib/naesin/data";
 
 type Props = {
   params: Promise<{ id: string }>;
 };
 
-export function generateStaticParams() {
-  return naesinExamSets.map((set) => ({ id: set.id }));
-}
-
 export default async function NaesinDetailPage({ params }: Props) {
   const { id } = await params;
-  const examSet = getNaesinExamSet(id);
+  const examSet = await fetchPublishedNaesinExamSet(id);
 
   if (!examSet) notFound();
 

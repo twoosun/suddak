@@ -14,7 +14,6 @@ import ResultDownloadStep from "@/components/exam-builder/result-download-step";
 import { generationSteps, mockReferenceFiles } from "@/lib/exam-builder/mock-data";
 import {
   analyzeReferenceFile,
-  createExamFiles,
   createInitialBlueprint,
   getGenerationProgress,
   normalizeBlueprintNumbers,
@@ -64,6 +63,9 @@ export default function ExamBuilderPage() {
   const [step, setStep] = useState<ExamBuilderStep>("upload");
   const [referenceKind, setReferenceKind] = useState<ReferenceFileKind>("수능특강");
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>(mockReferenceFiles);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [examSetId, setExamSetId] = useState<string | null>(null);
+  const [busyMessage, setBusyMessage] = useState("");
   const [analysis, setAnalysis] = useState<ReferenceAnalysisResult | null>(null);
   const [blueprint, setBlueprint] = useState<ExamBlueprint | null>(null);
   const [job, setJob] = useState<ExamGenerationJob | null>(null);
@@ -128,17 +130,6 @@ export default function ExamBuilderPage() {
     return () => window.clearInterval(timer);
   }, [job]);
 
-  useEffect(() => {
-    if (!job || job.status !== "completed" || !blueprint) return;
-
-    const timer = window.setTimeout(() => {
-      setGeneratedFiles(createExamFiles(blueprint));
-      setStep("result");
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [job, blueprint]);
-
   const stepIndex = steps.findIndex((item) => item.id === step);
   const validation = useMemo(
     () =>
@@ -153,8 +144,34 @@ export default function ExamBuilderPage() {
     return `${(size / 1024 / 1024).toFixed(1)}MB`;
   };
 
-  const handleFilesSelected = (selectedFiles: FileList | null) => {
+  const getAccessToken = async () => {
+    const session = await getSessionWithRecovery();
+    return session?.access_token ?? null;
+  };
+
+  const ensureJob = async () => {
+    if (jobId) return jobId;
+
+    const token = await getAccessToken();
+    if (!token) throw new Error("로그인이 필요합니다.");
+
+    const res = await fetch("/api/admin/exam-builder/jobs", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "제작 작업을 만들지 못했습니다.");
+
+    setJobId(data.job.id);
+    return data.job.id as string;
+  };
+
+  const handleFilesSelected = async (selectedFiles: FileList | null) => {
     if (!selectedFiles?.length) return;
+
+    setBusyMessage("파일을 업로드하는 중입니다.");
 
     const uploadedFiles = Array.from(selectedFiles).map((file, index) => ({
       id: `upload-${Date.now()}-${index}`,
@@ -165,19 +182,59 @@ export default function ExamBuilderPage() {
       file,
     }));
 
-    setReferenceFiles((files) => [
-      ...files,
-      ...uploadedFiles,
-    ]);
+    setReferenceFiles((files) => [...files, ...uploadedFiles]);
+
+    try {
+      const nextJobId = await ensureJob();
+      const token = await getAccessToken();
+      if (!token) throw new Error("로그인이 필요합니다.");
+
+      const formData = new FormData();
+      formData.append("kind", referenceKind);
+      Array.from(selectedFiles).forEach((file) => {
+        formData.append("files", file);
+      });
+
+      const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/references`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "파일 업로드에 실패했습니다.");
+
+      setBusyMessage("업로드가 완료되었습니다.");
+    } catch (error) {
+      setBusyMessage(error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.");
+    }
   };
 
-  const handleAnalyze = () => {
-    const nextFiles = referenceFiles.map((file) => ({ ...file, status: "분석 완료" as const }));
-    const nextAnalysis = analyzeReferenceFile(nextFiles);
+  const handleAnalyze = async () => {
+    try {
+      setBusyMessage("업로드 파일을 분석하는 중입니다.");
+      const nextJobId = await ensureJob();
+      const token = await getAccessToken();
+      if (!token) throw new Error("로그인이 필요합니다.");
 
-    setReferenceFiles(nextFiles);
-    setAnalysis(nextAnalysis);
-    setStep("analysis");
+      const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/analyze`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "분석에 실패했습니다.");
+
+      setReferenceFiles(data.files ?? referenceFiles.map((file) => ({ ...file, status: "분석 완료" as const })));
+      setAnalysis(data.analysis);
+      setBlueprint(data.blueprint);
+      setBusyMessage("분석이 완료되었습니다.");
+      setStep("analysis");
+    } catch (error) {
+      setBusyMessage(error instanceof Error ? error.message : "분석 중 오류가 발생했습니다.");
+    }
   };
 
   const handleCreateBlueprint = () => {
@@ -229,11 +286,50 @@ export default function ExamBuilderPage() {
     setBlueprint(createInitialBlueprint(nextAnalysis));
   };
 
-  const handleStartGeneration = () => {
+  const handleStartGeneration = async () => {
     if (!blueprint || !validation.isValid) return;
     setGeneratedFiles([]);
-    setJob(startGenerationJob());
+    const localJob = startGenerationJob();
+    setJob(localJob);
     setStep("generation");
+
+    try {
+      setBusyMessage("시험지 파일을 생성하는 중입니다.");
+      const nextJobId = await ensureJob();
+      const token = await getAccessToken();
+      if (!token || !analysis) throw new Error("생성에 필요한 정보가 부족합니다.");
+
+      const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ blueprint, analysis }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "파일 생성에 실패했습니다.");
+
+      setExamSetId(data.examSetId);
+      setGeneratedFiles(data.files ?? []);
+      setJob({
+        ...localJob,
+        progress: 100,
+        currentStepId: "export",
+        status: "completed",
+      });
+      setBusyMessage("파일 생성이 완료되었습니다.");
+      setStep("result");
+    } catch (error) {
+      setBusyMessage(error instanceof Error ? error.message : "파일 생성 중 오류가 발생했습니다.");
+      setJob({
+        ...localJob,
+        status: "completed",
+        progress: 100,
+        currentStepId: "export",
+      });
+      setStep("blueprint");
+    }
   };
 
   const renderContent = () => {
@@ -278,6 +374,8 @@ export default function ExamBuilderPage() {
           files={generatedFiles}
           blueprint={blueprint}
           analysis={analysis}
+          jobId={jobId}
+          examSetId={examSetId}
           onEditBlueprint={() => setStep("blueprint")}
         />
       );
@@ -359,7 +457,7 @@ export default function ExamBuilderPage() {
 
         <SectionCard
           title={steps[stepIndex]?.label ?? "참고 파일 업로드"}
-          description="실제 OCR/API 연결 전 단계라 분석과 생성은 mock 데이터와 setInterval 진행률로 동작합니다."
+          description={busyMessage || "업로드 파일은 Supabase Storage에 저장되고, 생성 결과는 DOCX/PDF 파일로 만들어집니다."}
         >
           {renderContent()}
         </SectionCard>

@@ -3,9 +3,10 @@ import { Archive, Download, FileCheck2, Layers3 } from "lucide-react";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
+import ExamSetCard from "@/components/naesin/exam-set-card";
 import NaesinHeader from "@/components/naesin/naesin-header";
 import SubjectFilter from "@/components/naesin/subject-filter";
-import { filterNaesinExamSets, naesinExamSets } from "@/lib/naesin/mock-data";
+import { fetchPublishedNaesinExamSets } from "@/lib/naesin/data";
 import type { NaesinSubject } from "@/lib/naesin/types";
 
 type Props = {
@@ -30,8 +31,12 @@ function readSubject(value: string | string[] | undefined): NaesinSubject {
 export default async function NaesinPage({ searchParams }: Props) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const selectedSubject = readSubject(resolvedSearchParams.subject);
-  const examSets = filterNaesinExamSets(selectedSubject);
-  const publicSetCount = naesinExamSets.filter((set) => set.publishStatus === "공개").length;
+  const allExamSets = await fetchPublishedNaesinExamSets();
+  const examSets =
+    selectedSubject === "all"
+      ? allExamSets
+      : allExamSets.filter((set) => set.subject === selectedSubject);
+  const publicSetCount = allExamSets.length;
 
   return (
     <PageContainer topPadding={18} bottomPadding={56}>
@@ -53,7 +58,7 @@ export default async function NaesinPage({ searchParams }: Props) {
               <span>공개 자료</span>
             </div>
             <div>
-              <strong>{naesinExamSets.length}</strong>
+              <strong>{allExamSets.length}</strong>
               <span>제작 세트</span>
             </div>
             <div>
@@ -94,7 +99,13 @@ export default async function NaesinPage({ searchParams }: Props) {
             <div className="suddak-card-soft naesin-empty-state">
               공개 대기 중입니다. 예상기출, 동형모의고사, 단원별 문제 세트는 게시 후 이곳에 정리됩니다.
             </div>
-          ) : null}
+          ) : (
+            <div className="naesin-exam-list">
+              {examSets.map((examSet) => (
+                <ExamSetCard key={examSet.id} examSet={examSet} />
+              ))}
+            </div>
+          )}
         </SectionCard>
       </div>
     </PageContainer>
