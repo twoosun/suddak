@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+const EXAM_BUILDER_BUCKET = "exam-builder";
+
 export async function getAdminUserFromRequest(req: NextRequest): Promise<User | null> {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -25,6 +27,24 @@ export async function getAdminUserFromRequest(req: NextRequest): Promise<User | 
 
   if (profileError || !profile?.is_admin) return null;
   return user;
+}
+
+export async function ensureExamBuilderBucket() {
+  const { data: bucket, error: getError } = await supabaseAdmin.storage.getBucket(EXAM_BUILDER_BUCKET);
+
+  if (bucket) return;
+
+  if (getError && !/not found/i.test(getError.message)) {
+    throw new Error(`Storage 버킷 확인 실패: ${getError.message}`);
+  }
+
+  const { error: createError } = await supabaseAdmin.storage.createBucket(EXAM_BUILDER_BUCKET, {
+    public: false,
+  });
+
+  if (createError && !/already exists/i.test(createError.message)) {
+    throw new Error(`Storage 버킷 생성 실패: ${createError.message}`);
+  }
 }
 
 export function sanitizeStorageName(value: string) {
