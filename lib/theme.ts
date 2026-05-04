@@ -5,8 +5,8 @@ const THEME_KEY = "theme";
 
 /* # 2. 현재 테마 읽기 */
 export function getStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") return "light";
-  return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+  if (typeof window === "undefined") return "dark";
+  return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
 }
 
 /* # 3. DOM 반영 */

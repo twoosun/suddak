@@ -21,6 +21,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      url: "https://suddak.vercel.app/updates",
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.6,
+    },
+    {
       url: "https://suddak.vercel.app/login",
       lastModified: new Date(),
       changeFrequency: "monthly",

@@ -18,17 +18,6 @@ type NotificationItem = {
   created_at: string;
 };
 
-type RewardType = "daily" | "friday_double" | "saturday_weekly";
-
-type DailyRewardStatus = {
-  canClaim: boolean;
-  claimedToday: boolean;
-  credits: number;
-  rewardAmount: number;
-  rewardType: RewardType;
-  label: string;
-};
-
 type Props = {
   isDark: boolean;
 };
@@ -54,10 +43,6 @@ export default function NotificationBellPopup({ isDark }: Props) {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [rewardLoading, setRewardLoading] = useState(false);
-  const [rewardClaiming, setRewardClaiming] = useState(false);
-  const [rewardStatus, setRewardStatus] = useState<DailyRewardStatus | null>(null);
-  const [rewardMessage, setRewardMessage] = useState("");
 
   const theme = useMemo(
     () => ({
@@ -75,8 +60,6 @@ export default function NotificationBellPopup({ isDark }: Props) {
       unreadBorder: "rgba(59,130,246,0.28)",
       badgeBg: "#ef4444",
       badgeText: "#ffffff",
-      rewardBg: isDark ? "rgba(96,165,250,0.12)" : "rgba(49,87,200,0.08)",
-      rewardBorder: isDark ? "rgba(96,165,250,0.28)" : "rgba(49,87,200,0.16)",
     }),
     [isDark],
   );
@@ -114,56 +97,17 @@ export default function NotificationBellPopup({ isDark }: Props) {
     }
   };
 
-  const loadRewardStatus = async () => {
-    try {
-      setRewardLoading(true);
-
-      const session = await getSessionWithRecovery();
-
-      if (!session?.access_token) {
-        setRewardStatus(null);
-        setRewardMessage("");
-        return;
-      }
-
-      const res = await fetch("/api/daily-reward", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        cache: "no-store",
-      });
-      const data = (await res.json()) as DailyRewardStatus | { error?: string };
-
-      if (!res.ok) {
-        setRewardStatus(null);
-        setRewardMessage("error" in data && typeof data.error === "string" ? data.error : "");
-        return;
-      }
-
-      setRewardStatus(data as DailyRewardStatus);
-    } catch {
-      setRewardStatus(null);
-    } finally {
-      setRewardLoading(false);
-    }
-  };
-
   useEffect(() => {
     void loadNotifications();
-    void loadRewardStatus();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
       void loadNotifications();
-      void loadRewardStatus();
     });
 
     const notificationInterval = window.setInterval(() => {
       void loadNotifications();
-    }, 30000);
-    const rewardInterval = window.setInterval(() => {
-      void loadRewardStatus();
     }, 30000);
 
     const handleOutside = (e: MouseEvent) => {
@@ -178,7 +122,6 @@ export default function NotificationBellPopup({ isDark }: Props) {
     return () => {
       subscription.unsubscribe();
       window.clearInterval(notificationInterval);
-      window.clearInterval(rewardInterval);
       document.removeEventListener("mousedown", handleOutside);
     };
   }, []);
@@ -259,88 +202,7 @@ export default function NotificationBellPopup({ isDark }: Props) {
     }
   };
 
-  const handleClaimReward = async () => {
-    try {
-      setRewardClaiming(true);
-      setRewardMessage("");
-
-      const session = await getSessionWithRecovery();
-
-      if (!session?.access_token) {
-        setRewardStatus(null);
-        setRewardMessage("로그인이 필요합니다.");
-        return;
-      }
-
-      const res = await fetch("/api/daily-reward", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      const data = (await res.json()) as
-        | {
-            ok: true;
-            credits: number;
-            amount: number;
-            rewardType: RewardType;
-            label: string;
-          }
-        | (DailyRewardStatus & { ok?: false; error?: string });
-
-      if (!res.ok) {
-        if (res.status === 409) {
-          const conflictData = data as DailyRewardStatus;
-          setRewardStatus({
-            canClaim: false,
-            claimedToday: true,
-            credits: conflictData.credits,
-            rewardAmount: conflictData.rewardAmount,
-            rewardType: conflictData.rewardType,
-            label: conflictData.label,
-          });
-          setRewardMessage("오늘 리워드를 이미 받았어요.");
-          return;
-        }
-
-        setRewardMessage(
-          "error" in data && typeof data.error === "string"
-            ? data.error
-            : "리워드 지급에 실패했습니다.",
-        );
-        return;
-      }
-
-      const successData = data as {
-        ok: true;
-        credits: number;
-        amount: number;
-        rewardType: RewardType;
-        label: string;
-      };
-      setRewardStatus({
-        canClaim: false,
-        claimedToday: true,
-        credits: successData.credits,
-        rewardAmount: successData.amount,
-        rewardType: successData.rewardType,
-        label: successData.label,
-      });
-      setRewardMessage("오늘의 리워드를 받았어요.");
-    } catch {
-      setRewardMessage("리워드 지급 중 오류가 발생했습니다.");
-    } finally {
-      setRewardClaiming(false);
-    }
-  };
-
-  const showAlertDot = unreadCount > 0 || Boolean(rewardStatus?.canClaim);
-  const rewardButtonLabel = rewardStatus
-    ? rewardStatus.claimedToday
-      ? "오늘 수령 완료"
-      : `${rewardStatus.rewardAmount.toLocaleString("ko-KR")}딱 받기`
-    : "리워드 확인 중";
+  const showAlertDot = unreadCount > 0;
 
   return (
     <div ref={boxRef} style={{ position: "relative", flexShrink: 0 }}>
@@ -352,7 +214,6 @@ export default function NotificationBellPopup({ isDark }: Props) {
 
           if (!open) {
             void loadNotifications();
-            void loadRewardStatus();
           }
         }}
         aria-label="알림"
@@ -460,7 +321,7 @@ export default function NotificationBellPopup({ isDark }: Props) {
                 알림
               </div>
               <div style={{ fontSize: "12px", color: theme.muted, marginTop: "2px" }}>
-                읽지 않은 알림 {unreadCount}개{rewardStatus?.canClaim ? " · 오늘 리워드 가능" : ""}
+                읽지 않은 알림 {unreadCount}개
               </div>
             </div>
 
@@ -485,90 +346,6 @@ export default function NotificationBellPopup({ isDark }: Props) {
           </div>
 
           <div style={{ maxHeight: "420px", overflowY: "auto", padding: "8px" }}>
-            {rewardStatus && (
-              <div
-                style={{
-                  marginBottom: "8px",
-                  border: `1px solid ${theme.rewardBorder}`,
-                  background: theme.rewardBg,
-                  borderRadius: "14px",
-                  padding: "12px",
-                  display: "grid",
-                  gap: "10px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 900, fontSize: "14px", color: theme.buttonText }}>
-                      오늘의 리워드
-                    </div>
-                    <div style={{ fontSize: "12px", color: theme.muted, marginTop: "3px" }}>
-                      보유 딱 {rewardStatus.credits.toLocaleString("ko-KR")}딱
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      minHeight: "28px",
-                      padding: "0 10px",
-                      borderRadius: "999px",
-                      border: `1px solid ${theme.menuBorder}`,
-                      fontSize: "12px",
-                      fontWeight: 800,
-                      color: theme.buttonText,
-                      background: isDark ? "rgba(15,23,42,0.55)" : "#ffffff",
-                    }}
-                  >
-                    {rewardStatus.label}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: "13px", color: theme.muted, lineHeight: 1.6 }}>
-                  {rewardStatus.claimedToday
-                    ? "오늘 리워드를 받았어요."
-                    : `지금 ${rewardStatus.rewardAmount.toLocaleString("ko-KR")}딱을 받을 수 있어요.`}
-                </div>
-
-                {rewardMessage && (
-                  <div style={{ fontSize: "12px", color: theme.muted, lineHeight: 1.6 }}>
-                    {rewardMessage}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => void handleClaimReward()}
-                  disabled={rewardLoading || rewardClaiming || !rewardStatus.canClaim}
-                  style={{
-                    width: "100%",
-                    border: "none",
-                    borderRadius: "12px",
-                    minHeight: "40px",
-                    background:
-                      rewardStatus.canClaim && !rewardClaiming ? "#ef4444" : theme.buttonBorder,
-                    color: "#ffffff",
-                    fontSize: "13px",
-                    fontWeight: 900,
-                    cursor:
-                      rewardLoading || rewardClaiming || !rewardStatus.canClaim
-                        ? "default"
-                        : "pointer",
-                    opacity: rewardLoading ? 0.7 : 1,
-                  }}
-                >
-                  {rewardClaiming ? "지급 중.." : rewardButtonLabel}
-                </button>
-              </div>
-            )}
-
             {loading ? (
               <div
                 style={{

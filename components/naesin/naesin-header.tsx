@@ -15,7 +15,7 @@ export default function NaesinHeader({ compact = false }: Props) {
         <div>
           <div className="naesin-brand-title">내신딱딱</div>
           <div className="naesin-brand-subtitle">
-            시험 범위에 맞춰 딱 필요한 문제만 모았습니다.
+            시험 범위에 맞춰 필요한 문제와 자료를 빠르게 모아보세요.
           </div>
         </div>
       </Link>
@@ -28,7 +28,7 @@ export default function NaesinHeader({ compact = false }: Props) {
           </Link>
           <Link href="/admin/exam-builder" className="suddak-btn suddak-btn-primary">
             <Wrench size={16} />
-            제작기
+            시험지 생성
           </Link>
         </div>
       )}

@@ -6,6 +6,7 @@ type Props = {
   previewUrl: string | null;
   onFileSelect: (file: File, source: "upload" | "camera") => void;
   disabled?: boolean;
+  compact?: boolean;
 };
 
 type CropSelection = {
@@ -19,141 +20,53 @@ export default function FileDropzone({
   previewUrl,
   onFileSelect,
   disabled = false,
+  compact = false,
 }: Props) {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const draftImageRef = useRef<HTMLImageElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
   const [dragging, setDragging] = useState(false);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [draftSource, setDraftSource] = useState<"upload" | "camera">("upload");
   const [draftPreviewUrl, setDraftPreviewUrl] = useState<string | null>(null);
-  const [cropping, setCropping] = useState(false);
-  const [detectingSelection, setDetectingSelection] = useState(false);
-  const [hasSuggestedSelection, setHasSuggestedSelection] = useState(false);
   const [selection, setSelection] = useState<CropSelection | null>(null);
   const [draftSelection, setDraftSelection] = useState<CropSelection | null>(null);
   const [pointerStart, setPointerStart] = useState<{ x: number; y: number } | null>(null);
+  const [cropping, setCropping] = useState(false);
 
   useEffect(() => {
     return () => {
-      if (draftPreviewUrl) {
-        URL.revokeObjectURL(draftPreviewUrl);
-      }
+      if (draftPreviewUrl) URL.revokeObjectURL(draftPreviewUrl);
     };
   }, [draftPreviewUrl]);
 
   const resetDraft = () => {
-    if (draftPreviewUrl) {
-      URL.revokeObjectURL(draftPreviewUrl);
-    }
-
+    if (draftPreviewUrl) URL.revokeObjectURL(draftPreviewUrl);
     setDraftFile(null);
     setDraftSource("upload");
     setDraftPreviewUrl(null);
-    setCropping(false);
-    setDetectingSelection(false);
-    setHasSuggestedSelection(false);
     setSelection(null);
     setDraftSelection(null);
     setPointerStart(null);
+    setCropping(false);
   };
 
-  const suggestSelectionFromImage = async (file: File) => {
-    const bitmap = await createImageBitmap(file);
-    const maxWidth = 320;
-    const scale = Math.min(1, maxWidth / bitmap.width);
-
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return null;
-
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    let minX = canvas.width;
-    let minY = canvas.height;
-    let maxX = -1;
-    let maxY = -1;
-
-    for (let y = 0; y < canvas.height; y += 1) {
-      for (let x = 0; x < canvas.width; x += 1) {
-        const index = (y * canvas.width + x) * 4;
-        const r = data[index];
-        const g = data[index + 1];
-        const b = data[index + 2];
-        const brightness = r * 0.299 + g * 0.587 + b * 0.114;
-
-        if (brightness < 210) {
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
-        }
-      }
-    }
-
-    if (maxX <= minX || maxY <= minY) {
-      return null;
-    }
-
-    const boxWidth = maxX - minX;
-    const boxHeight = maxY - minY;
-
-    if (boxWidth < canvas.width * 0.2 || boxHeight < canvas.height * 0.2) {
-      return null;
-    }
-
-    const marginX = Math.round(boxWidth * 0.08);
-    const marginY = Math.round(boxHeight * 0.08);
-    const left = Math.max(0, minX - marginX);
-    const top = Math.max(0, minY - marginY);
-    const right = Math.min(canvas.width, maxX + marginX);
-    const bottom = Math.min(canvas.height, maxY + marginY);
-
-    return {
-      x: (left / canvas.width) * 100,
-      y: (top / canvas.height) * 100,
-      width: ((right - left) / canvas.width) * 100,
-      height: ((bottom - top) / canvas.height) * 100,
-    } satisfies CropSelection;
-  };
-
-  const loadDraftFile = async (file?: File | null, source: "upload" | "camera" = "upload") => {
+  const loadDraftFile = (file?: File | null, source: "upload" | "camera" = "upload") => {
     if (!file || disabled) return;
 
-    if (draftPreviewUrl) {
-      URL.revokeObjectURL(draftPreviewUrl);
-    }
+    if (draftPreviewUrl) URL.revokeObjectURL(draftPreviewUrl);
 
     setDraftFile(file);
     setDraftSource(source);
     setDraftPreviewUrl(URL.createObjectURL(file));
-    setCropping(false);
-    setDetectingSelection(source === "camera");
-    setHasSuggestedSelection(false);
     setSelection(null);
     setDraftSelection(null);
     setPointerStart(null);
-
-    if (source === "camera") {
-      try {
-        const suggestedSelection = await suggestSelectionFromImage(file);
-        if (suggestedSelection) {
-          setSelection(suggestedSelection);
-          setHasSuggestedSelection(true);
-        }
-      } finally {
-        setDetectingSelection(false);
-      }
-    }
   };
 
   const getRelativePoint = (clientX: number, clientY: number) => {
-    const image = draftImageRef.current;
+    const image = imageRef.current;
     if (!image) return null;
 
     const rect = image.getBoundingClientRect();
@@ -167,23 +80,15 @@ export default function FileDropzone({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled || !draftFile) return;
-
     const point = getRelativePoint(event.clientX, event.clientY);
     if (!point) return;
 
-    setHasSuggestedSelection(false);
     setPointerStart(point);
-    setDraftSelection({
-      x: point.x,
-      y: point.y,
-      width: 0,
-      height: 0,
-    });
+    setDraftSelection({ x: point.x, y: point.y, width: 0, height: 0 });
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!pointerStart) return;
-
     const point = getRelativePoint(event.clientX, event.clientY);
     if (!point) return;
 
@@ -196,25 +101,15 @@ export default function FileDropzone({
   };
 
   const finalizeSelection = () => {
-    if (!draftSelection) {
-      setPointerStart(null);
-      return;
-    }
-
-    if (draftSelection.width < 2 || draftSelection.height < 2) {
-      setSelection(null);
-    } else {
+    if (draftSelection && draftSelection.width >= 2 && draftSelection.height >= 2) {
       setSelection(draftSelection);
     }
-
     setDraftSelection(null);
     setPointerStart(null);
   };
 
   const createCroppedFile = async (file: File) => {
-    if (!selection) {
-      return file;
-    }
+    if (!selection) return file;
 
     const bitmap = await createImageBitmap(file);
     const sourceX = Math.max(0, Math.round((bitmap.width * selection.x) / 100));
@@ -227,9 +122,7 @@ export default function FileDropzone({
     canvas.height = sourceHeight;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("크롭용 캔버스를 만들지 못했습니다.");
-    }
+    if (!ctx) throw new Error("이미지를 자를 수 없어요.");
 
     ctx.drawImage(
       bitmap,
@@ -240,17 +133,15 @@ export default function FileDropzone({
       0,
       0,
       sourceWidth,
-      sourceHeight
+      sourceHeight,
     );
 
     const outputType = file.type || "image/jpeg";
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, outputType, 0.95)
+      canvas.toBlob(resolve, outputType, 0.95),
     );
 
-    if (!blob) {
-      throw new Error("자른 이미지를 만들지 못했습니다.");
-    }
+    if (!blob) throw new Error("잘라낸 이미지를 만들 수 없어요.");
 
     return new File([blob], file.name, {
       type: outputType,
@@ -258,14 +149,14 @@ export default function FileDropzone({
     });
   };
 
-  const handleUseOriginal = () => {
+  const useOriginal = () => {
     if (!draftFile) return;
     onFileSelect(draftFile, draftSource);
     resetDraft();
   };
 
-  const handleApplyCrop = async () => {
-    if (!draftFile || cropping || !selection) return;
+  const applyCrop = async () => {
+    if (!draftFile || !selection || cropping) return;
 
     try {
       setCropping(true);
@@ -281,7 +172,9 @@ export default function FileDropzone({
 
   return (
     <div
-      className={`suddak-card-soft home-dropzone ${dragging ? "suddak-dropzone-active" : ""}`}
+      className={`suddak-card-soft home-dropzone ${compact ? "home-dropzone-compact" : ""} ${
+        dragging ? "suddak-dropzone-active" : ""
+      }`}
       style={{
         padding: "18px",
         borderStyle: "dashed",
@@ -290,15 +183,15 @@ export default function FileDropzone({
       onClick={() => {
         if (!disabled && !draftFile) uploadInputRef.current?.click();
       }}
-      onDragOver={(e) => {
-        e.preventDefault();
+      onDragOver={(event) => {
+        event.preventDefault();
         if (!disabled) setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
+      onDrop={(event) => {
+        event.preventDefault();
         setDragging(false);
-        void loadDraftFile(e.dataTransfer.files?.[0], "upload");
+        loadDraftFile(event.dataTransfer.files?.[0], "upload");
       }}
     >
       <input
@@ -306,7 +199,7 @@ export default function FileDropzone({
         type="file"
         accept="image/*"
         hidden
-        onChange={(e) => void loadDraftFile(e.target.files?.[0], "upload")}
+        onChange={(event) => loadDraftFile(event.target.files?.[0], "upload")}
       />
       <input
         ref={cameraInputRef}
@@ -314,79 +207,57 @@ export default function FileDropzone({
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => void loadDraftFile(e.target.files?.[0], "camera")}
+        onChange={(event) => loadDraftFile(event.target.files?.[0], "camera")}
       />
 
-      <div className="home-dropzone-content">
-        <div
-          style={{
-            fontSize: "18px",
-            fontWeight: 900,
-            letterSpacing: "-0.03em",
-          }}
-        >
-          문제 사진 업로드 또는 바로 촬영
-        </div>
-
-        <div className="home-dropzone-inline-badge">
-          모바일에서는 카메라로 바로 찍을 수 있어
-        </div>
-
-        <div
-          style={{
-            color: "var(--muted)",
-            fontSize: "14px",
-            lineHeight: 1.7,
-          }}
-        >
-          클릭하거나 이미지를 끌어다 놓아 업로드해.
-          모바일에서는 버튼을 누르면 사진 업로드와 카메라 촬영을 각각 따로 쓸 수 있어.
-        </div>
-
-        <div className="home-dropzone-cta">
-          <button
-            type="button"
-            className="suddak-btn suddak-btn-primary"
-            onClick={(e) => {
-              e.stopPropagation();
-              uploadInputRef.current?.click();
-            }}
-            style={{
-              width: "min(100%, 320px)",
-            }}
-          >
-            사진 업로드
-          </button>
-
-          <button
-            type="button"
-            className="suddak-btn suddak-btn-ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              cameraInputRef.current?.click();
-            }}
-            style={{
-              width: "min(100%, 320px)",
-            }}
-          >
-            바로 촬영
-          </button>
-        </div>
-      </div>
-
-      {draftPreviewUrl && draftFile ? (
-        <div className="home-crop-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="home-crop-guide">
-            사진 위를 손가락이나 마우스로 직접 드래그해서 문제 영역을 잡아줘.
-          </div>
-
-          {(detectingSelection || hasSuggestedSelection) && (
-            <div className="home-crop-hint">
-              {detectingSelection
-                ? "촬영본에서 문제 영역을 자동 추천하는 중이야."
-                : "촬영본이라 문제 영역을 먼저 추천해뒀어. 마음에 안 들면 바로 다시 드래그해줘."}
+      {!draftPreviewUrl && (
+        <div className={`home-dropzone-content ${compact ? "home-dropzone-content-compact" : ""}`}>
+          <div style={{ fontSize: "18px", fontWeight: 900 }}>문제 사진 업로드 또는 바로 촬영</div>
+          {!compact && (
+            <>
+              <div className="home-dropzone-inline-badge">사진을 올린 뒤 문제 영역만 자를 수 있어요</div>
+              <div style={{ color: "var(--muted)", fontSize: "14px", lineHeight: 1.7 }}>
+                클릭하거나 이미지를 끌어다 놓으세요. 모바일에서는 촬영 버튼으로 바로 찍을 수 있어요.
+              </div>
+            </>
+          )}
+          {compact && (
+            <div style={{ color: "#71717a", fontSize: "14px", lineHeight: 1.6 }}>
+              궁금한 문제 사진을 올리거나 파일을 끌어오세요.
             </div>
           )}
+          <div className="home-dropzone-cta">
+            <button
+              type="button"
+              className="suddak-btn suddak-btn-primary"
+              onClick={(event) => {
+                event.stopPropagation();
+                uploadInputRef.current?.click();
+              }}
+              style={{ width: "min(100%, 280px)" }}
+            >
+              사진 업로드
+            </button>
+            <button
+              type="button"
+              className="suddak-btn suddak-btn-ghost"
+              onClick={(event) => {
+                event.stopPropagation();
+                cameraInputRef.current?.click();
+              }}
+              style={{ width: "min(100%, 280px)" }}
+            >
+              바로 촬영
+            </button>
+          </div>
+        </div>
+      )}
+
+      {draftPreviewUrl && draftFile ? (
+        <div className="home-crop-panel" onClick={(event) => event.stopPropagation()}>
+          <div className="home-crop-guide">
+            이미지에서 문제 부분을 드래그해 선택하세요. 자르지 않고 원본 그대로 사용할 수도 있어요.
+          </div>
 
           <div
             className="home-dropzone-preview home-dropzone-preview-crop"
@@ -397,9 +268,9 @@ export default function FileDropzone({
             onPointerLeave={finalizeSelection}
           >
             <img
-              ref={draftImageRef}
+              ref={imageRef}
               src={draftPreviewUrl}
-              alt="자르기 미리보기"
+              alt="자를 영역 미리보기"
               draggable={false}
               style={{
                 display: "block",
@@ -424,36 +295,25 @@ export default function FileDropzone({
           </div>
 
           <div className="home-crop-actions">
-            <button
-              type="button"
-              className="suddak-btn suddak-btn-ghost"
-              onClick={handleUseOriginal}
-              disabled={cropping}
-            >
-              원본 그대로 사용
+            <button type="button" className="suddak-btn suddak-btn-ghost" onClick={useOriginal} disabled={cropping}>
+              원본 사용
             </button>
-
             <button
               type="button"
               className="suddak-btn suddak-btn-primary"
-              onClick={handleApplyCrop}
+              onClick={applyCrop}
               disabled={cropping || !selection}
             >
-              {cropping ? "자르는 중.." : "자르고 사용"}
+              {cropping ? "자르는 중..." : "자르고 사용"}
             </button>
-
             <button
               type="button"
               className="suddak-btn suddak-btn-ghost"
-              onClick={() => {
-                setHasSuggestedSelection(false);
-                setSelection(null);
-              }}
+              onClick={() => setSelection(null)}
               disabled={cropping || !selection}
             >
               선택 초기화
             </button>
-
             <button
               type="button"
               className="suddak-btn suddak-btn-ghost"

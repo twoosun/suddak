@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "수딱 | Suddak | AI 수학 문제 도우미",
+  title: "수딱 | SUDDAK | AI 수학 문제 풀이",
   description:
-    "문제 사진을 먼저 읽고, 인식 결과를 바탕으로 정확하게 풀이해주는 AI 수학 문제 도우미 수딱",
+    "문제 사진을 읽고, 풀이와 유사문제, 시험지 생성, 내신 학습까지 이어주는 AI 학습 도구 수딱",
 };
 
 export default function RootLayout({
@@ -22,8 +22,9 @@ export default function RootLayout({
               (function () {
                 try {
                   var saved = localStorage.getItem("theme");
-                  var isDark = saved === "dark";
+                  var isDark = saved !== "light";
                   document.documentElement.classList.toggle("dark", isDark);
+                  document.documentElement.style.colorScheme = isDark ? "dark" : "light";
                 } catch (e) {}
               })();
             `,

@@ -65,6 +65,44 @@ const GENERATION_PROGRESS_STEPS: GenerationProgress[] = [
   { value: 82, label: "최종 보정", detail: "표현과 포맷을 다듬고 export 가능한 형태로 정리하고 있습니다." },
 ];
 
+function normalizeHistoryItem(row: Record<string, unknown>): SimilarSourceItem | null {
+  const id = Number(row.id);
+  const actionType = row.action_type === "solve" ? "solve" : "read";
+  const recognizedText = typeof row.recognized_text === "string" ? row.recognized_text : "";
+
+  if (!id || !recognizedText.trim()) {
+    return null;
+  }
+
+  return {
+    id,
+    actionType,
+    recognizedText,
+    solveResult: typeof row.solve_result === "string" ? row.solve_result : "",
+    createdAt: typeof row.created_at === "string" ? row.created_at : "",
+  };
+}
+
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function buildHistoryOptionLabel(item: SimilarSourceItem) {
+  const typeLabel = item.actionType === "solve" ? "풀이" : "인식";
+  const preview = item.recognizedText.replace(/\s+/g, " ").trim().slice(0, 42);
+  const dateLabel = formatHistoryDate(item.createdAt);
+
+  return [`#${item.id}`, typeLabel, dateLabel, preview].filter(Boolean).join(" · ");
+}
+
 async function captureExportPages(root: HTMLDivElement) {
   const { waitForExportReady } = await import("@/lib/similar-export");
   await waitForExportReady(root);
@@ -253,6 +291,9 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   const [sheetExamDate, setSheetExamDate] = useState("");
   const [sheetRound, setSheetRound] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(historyId);
+  const [historyItems, setHistoryItems] = useState<SimilarSourceItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [sourceItem, setSourceItem] = useState<SimilarSourceItem | null>(null);
   const [result, setResult] = useState<SimilarResult | null>(null);
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
@@ -261,11 +302,15 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
   const formatCredits = (value: number) => value.toLocaleString("ko-KR");
 
+  useEffect(() => {
+    setSelectedHistoryId(historyId);
+  }, [historyId]);
+
   const sourceLabel = useMemo(() => {
-    if (source === "history") return "히스토리에서 가져온 문제를 바탕으로 생성합니다.";
+    if (source === "history" || selectedHistoryId) return "히스토리에서 가져온 문제를 바탕으로 생성합니다.";
     if (source === "solve") return "풀이 결과 화면에서 가져온 문제를 바탕으로 생성합니다.";
     return "유사문제 생성 화면입니다.";
-  }, [source]);
+  }, [selectedHistoryId, source]);
 
   const exportPayload = useMemo<SimilarExportPayload | null>(() => {
     if (!result) return null;
@@ -326,6 +371,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
     const load = async () => {
       setLoading(true);
+      setHistoryLoading(true);
       setMessage("");
       setResult(null);
       setGenerationProgress(null);
@@ -344,6 +390,21 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
           setMessage("로그인이 필요합니다.");
           return;
         }
+
+        const historyRes = await fetch("/api/history", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        });
+        const historyData = (await historyRes.json()) as { items?: Record<string, unknown>[]; error?: string };
+        const nextHistoryItems = historyRes.ok
+          ? (historyData.items ?? [])
+              .map(normalizeHistoryItem)
+              .filter((item): item is SimilarSourceItem => Boolean(item))
+          : [];
+
+        setHistoryItems(nextHistoryItems);
 
         const usageRes = await fetch("/api/usage", {
           headers: {
@@ -371,13 +432,37 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
           setCreditsStatus(null);
         }
 
-        if (!historyId) {
-          setSourceItem(null);
-          setMessage("유효한 원본 기록이 없습니다.");
+        if (!selectedHistoryId) {
+          const latestHistoryItem = nextHistoryItems[0] ?? null;
+
+          setSourceItem(latestHistoryItem);
+
+          if (latestHistoryItem) {
+            setSelectedHistoryId(latestHistoryItem.id);
+            window.history.replaceState(
+              null,
+              "",
+              `/similar?historyId=${latestHistoryItem.id}&source=history`,
+            );
+            if (creditsRes.ok && !creditsData?.canGenerateSimilarProblem) {
+              setMessage(
+                `딱이 부족합니다. 유사문제 생성에는 ${Number(
+                  creditsData.similarProblemCost ?? 200,
+                ).toLocaleString("ko-KR")}딱이 필요합니다.`,
+              );
+            }
+          } else {
+            setMessage(
+              historyRes.ok
+                ? "유사문제를 만들 히스토리 기록이 없습니다."
+                : historyData.error || "히스토리 기록을 불러오지 못했습니다.",
+            );
+          }
+
           return;
         }
 
-        const sourceRes = await fetch(`/api/similar?historyId=${historyId}`, {
+        const sourceRes = await fetch(`/api/similar?historyId=${selectedHistoryId}`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
@@ -407,11 +492,12 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
         setMessage("페이지를 불러오는 중 오류가 발생했습니다.");
       } finally {
         setLoading(false);
+        setHistoryLoading(false);
       }
     };
 
     void load();
-  }, [historyId, mounted]);
+  }, [mounted, selectedHistoryId]);
 
   const clearGenerationProgressTimers = () => {
     generationTimerRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -441,13 +527,36 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     );
   };
 
+  const handleSelectHistory = (nextValue: string) => {
+    const nextHistoryId = Number(nextValue);
+
+    if (!nextHistoryId || Number.isNaN(nextHistoryId)) {
+      setSelectedHistoryId(null);
+      setSourceItem(null);
+      setResult(null);
+      setMessage("히스토리에서 원본 문제를 선택해 주세요.");
+      window.history.replaceState(null, "", "/similar");
+      return;
+    }
+
+    const nextSourceItem = historyItems.find((item) => item.id === nextHistoryId) ?? null;
+    setSelectedHistoryId(nextHistoryId);
+    setSourceItem(nextSourceItem);
+    setResult(null);
+    setGenerationProgress(null);
+    setMessage("");
+    window.history.replaceState(null, "", `/similar?historyId=${nextHistoryId}&source=history`);
+  };
+
   const handleGenerate = async () => {
     if (!isLoggedIn) {
       setMessage("로그인이 필요합니다.");
       return;
     }
 
-    if (!historyId) {
+    const activeHistoryId = sourceItem?.id ?? selectedHistoryId;
+
+    if (!activeHistoryId) {
       setMessage("원본 기록을 찾을 수 없습니다.");
       return;
     }
@@ -481,7 +590,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ historyId }),
+        body: JSON.stringify({ historyId: activeHistoryId }),
       });
       const data = await res.json();
 
@@ -512,7 +621,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
 
       if (nextResult) {
         saveSimilarHistoryItem({
-          sourceHistoryId: sourceItem?.id ?? historyId,
+          sourceHistoryId: sourceItem?.id ?? activeHistoryId,
           sourceActionType: sourceItem?.actionType ?? null,
           sourceProblem: sourceItem?.recognizedText ?? "",
           result: nextResult,
@@ -720,6 +829,34 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
                     : "로그인하면 딱 잔액을 확인할 수 있습니다."}
               </div>
               <div style={{ color: "var(--muted)", lineHeight: 1.7 }}>{sourceLabel}</div>
+            </div>
+
+            <div style={{ display: "grid", gap: "8px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--muted)" }}>
+                히스토리에서 원본 가져오기
+              </div>
+              <select
+                className="suddak-select"
+                value={sourceItem?.id ?? selectedHistoryId ?? ""}
+                onChange={(event) => handleSelectHistory(event.target.value)}
+                disabled={historyLoading || generating || exporting || historyItems.length === 0}
+              >
+                <option value="">
+                  {historyLoading
+                    ? "히스토리 불러오는 중"
+                    : historyItems.length
+                      ? "히스토리 선택"
+                      : "불러올 히스토리가 없습니다"}
+                </option>
+                {historyItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {buildHistoryOptionLabel(item)}
+                  </option>
+                ))}
+              </select>
+              <div style={{ color: "var(--muted)", fontSize: "13px", lineHeight: 1.7 }}>
+                최근 히스토리 50개 중 문제 인식 텍스트가 있는 기록을 바로 가져옵니다.
+              </div>
             </div>
 
             <LayoutStyleSelector value={layoutStyle} onChange={setLayoutStyle} disabled={exporting} />

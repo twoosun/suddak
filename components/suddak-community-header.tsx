@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import MoreMenu from "@/components/MoreMenu";
 import { getStoredTheme, toggleTheme } from "@/lib/theme";
 
@@ -9,41 +9,30 @@ type Props = {
   current?: "home" | "community";
 };
 
-export default function SuddakCommunityHeader({
-  current = "community",
-}: Props) {
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    setIsDark(getStoredTheme() === "dark");
-  }, []);
+export default function SuddakCommunityHeader({ current = "community" }: Props) {
+  const [isDark, setIsDark] = useState(() => getStoredTheme() === "dark");
 
   const theme = useMemo(
     () => ({
-      cardBorder: isDark ? "#253041" : "#e5e7eb",
-      headerBg: isDark ? "rgba(17,24,39,0.88)" : "rgba(255,255,255,0.9)",
+      border: isDark ? "rgba(255,255,255,0.12)" : "#e5e7eb",
+      headerBg: isDark ? "rgba(17,17,17,0.88)" : "rgba(255,255,255,0.9)",
       text: isDark ? "#f8fafc" : "#111827",
-      subText: isDark ? "#93c5fd" : "#3157c8",
-      subtleButtonBg: isDark ? "#0f172a" : "#ffffff",
-      subtleButtonBorder: isDark ? "#374151" : "#d1d5db",
-      subtleButtonText: isDark ? "#f9fafb" : "#111827",
-      primary: "#3157c8",
-      logoBorder: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)",
-      logoShadow: isDark
-        ? "0 8px 20px rgba(0,0,0,0.30)"
-        : "0 8px 20px rgba(37,99,235,0.14)",
+      subText: "#a78bfa",
+      buttonBg: isDark ? "#181818" : "#ffffff",
+      buttonText: isDark ? "#f8fafc" : "#111827",
+      primary: "#8b5cf6",
     }),
-    [isDark]
+    [isDark],
   );
 
   const navButtonStyle: React.CSSProperties = {
     minHeight: "36px",
     padding: "8px 13px",
     borderRadius: "999px",
-    border: `1px solid ${theme.subtleButtonBorder}`,
-    backgroundColor: theme.subtleButtonBg,
-    color: theme.subtleButtonText,
-    fontWeight: 800,
+    border: `1px solid ${theme.border}`,
+    backgroundColor: theme.buttonBg,
+    color: theme.buttonText,
+    fontWeight: 850,
     fontSize: "13px",
     textDecoration: "none",
     display: "inline-flex",
@@ -65,18 +54,12 @@ export default function SuddakCommunityHeader({
         position: "sticky",
         top: 0,
         zIndex: 20,
-        borderBottom: `1px solid ${theme.cardBorder}`,
+        borderBottom: `1px solid ${theme.border}`,
         backgroundColor: theme.headerBg,
-        backdropFilter: "blur(12px)",
+        backdropFilter: "blur(14px)",
       }}
     >
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          padding: "12px 12px 10px",
-        }}
-      >
+      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "12px" }}>
         <div
           style={{
             display: "flex",
@@ -87,109 +70,56 @@ export default function SuddakCommunityHeader({
         >
           <Link
             href="/"
-            aria-label="메인 화면으로 이동"
+            aria-label="수딱 홈으로 이동"
             style={{
-              textDecoration: "none",
               minWidth: 0,
               flex: "1 1 auto",
               display: "flex",
               alignItems: "center",
               gap: "12px",
+              textDecoration: "none",
             }}
           >
-            <div
+            <img
+              src="/logo.png"
+              alt=""
               style={{
-                width: "46px",
-                height: "46px",
-                borderRadius: "14px",
-                overflow: "hidden",
-                flexShrink: 0,
-                border: `1px solid ${theme.logoBorder}`,
-                boxShadow: theme.logoShadow,
-                backgroundColor: isDark ? "#0f172a" : "#ffffff",
+                width: "42px",
+                height: "42px",
+                borderRadius: "10px",
+                objectFit: "cover",
+                border: `1px solid ${theme.border}`,
               }}
-            >
-              <img
-                src="/logo.png"
-                alt="수딱 로고"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            </div>
-
+            />
             <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 950,
-                  letterSpacing: "-0.06em",
-                  lineHeight: 0.95,
-                  color: theme.text,
-                }}
-              >
+              <div style={{ fontSize: "25px", fontWeight: 950, lineHeight: 1, color: theme.text }}>
                 수딱
               </div>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  color: theme.subText,
-                  marginTop: "4px",
-                  lineHeight: 1.1,
-                }}
-              >
+              <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 850, color: theme.subText }}>
                 Community
               </div>
             </div>
           </Link>
 
-          <div
-            style={{
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <MoreMenu
-              isDark={isDark}
-              onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
-              themeLabel={isDark ? "주간모드" : "야간모드"}
-              redirectAfterLogout="/login"
-            />
-          </div>
+          <MoreMenu
+            isDark={isDark}
+            onToggleTheme={() => setIsDark(toggleTheme() === "dark")}
+            themeLabel={isDark ? "라이트 모드" : "다크 모드"}
+            redirectAfterLogout="/login"
+          />
         </div>
 
-        <div
-          style={{
-            marginTop: "10px",
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link
-            href="/"
-            style={{
-              ...navButtonStyle,
-              ...(current === "home" ? activeStyle : {}),
-            }}
-          >
-            홈
+        <nav style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Link href="/" style={{ ...navButtonStyle, ...(current === "home" ? activeStyle : {}) }}>
+            문제풀이
           </Link>
           <Link
             href="/community"
-            style={{
-              ...navButtonStyle,
-              ...(current === "community" ? activeStyle : {}),
-            }}
+            style={{ ...navButtonStyle, ...(current === "community" ? activeStyle : {}) }}
           >
             커뮤니티
           </Link>
-        </div>
+        </nav>
       </div>
     </header>
   );

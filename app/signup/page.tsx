@@ -186,7 +186,7 @@ export default function SignupPage() {
     return {
       page: {
         minHeight: "100vh",
-        background: isDark ? "#0f172a" : "#f3f4f6",
+        background: isDark ? "#111111" : "#f7f5ff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -196,9 +196,9 @@ export default function SignupPage() {
       card: {
         width: "100%",
         maxWidth: "460px",
-        background: isDark ? "#111827" : "#ffffff",
-        border: `1px solid ${isDark ? "#374151" : "#d1d5db"}`,
-        borderRadius: "24px",
+        background: isDark ? "#181818" : "#ffffff",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#ddd6fe"}`,
+        borderRadius: "8px",
         padding: "28px 20px",
         boxShadow: isDark
           ? "0 16px 40px rgba(0,0,0,0.35)"
@@ -231,7 +231,7 @@ export default function SignupPage() {
         padding: "10px 14px",
         borderRadius: "14px",
         border: `1px solid ${isDark ? "#4b5563" : "#d1d5db"}`,
-        background: isDark ? "#1f2937" : "#ffffff",
+        background: isDark ? "#1f1f1f" : "#ffffff",
         color: isDark ? "#f9fafb" : "#111827",
         fontWeight: 800,
         cursor: "pointer",
@@ -241,11 +241,11 @@ export default function SignupPage() {
       notice: {
         marginTop: "14px",
         marginBottom: "14px",
-        borderRadius: "16px",
+        borderRadius: "8px",
         padding: "14px 16px",
-        background: isDark ? "#172554" : "#eef2ff",
-        border: `1px solid ${isDark ? "#3730a3" : "#c7d2fe"}`,
-        color: isDark ? "#c7d2fe" : "#475569",
+        background: isDark ? "rgba(139, 92, 246, 0.14)" : "#f3efff",
+        border: `1px solid ${isDark ? "rgba(139, 92, 246, 0.36)" : "#ddd6fe"}`,
+        color: isDark ? "#ddd6fe" : "#5b21b6",
         fontSize: "14px",
         lineHeight: 1.7,
       } as React.CSSProperties,
@@ -254,8 +254,8 @@ export default function SignupPage() {
         width: "100%",
         height: "54px",
         borderRadius: "14px",
-        border: `1px solid ${isDark ? "#4b5563" : "#cbd5e1"}`,
-        background: isDark ? "#0f172a" : "#f8fafc",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "#ddd6fe"}`,
+        background: isDark ? "#101010" : "#fbfaff",
         color: isDark ? "#f9fafb" : "#111827",
         padding: "0 16px",
         fontSize: "16px",
@@ -280,8 +280,8 @@ export default function SignupPage() {
       captchaWrap: {
         minHeight: "78px",
         borderRadius: "14px",
-        border: `1px solid ${isDark ? "#4b5563" : "#d1d5db"}`,
-        background: isDark ? "#0f172a" : "#ffffff",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "#ddd6fe"}`,
+        background: isDark ? "#101010" : "#ffffff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -294,12 +294,13 @@ export default function SignupPage() {
       submit: {
         width: "100%",
         height: "52px",
-        borderRadius: "14px",
+        borderRadius: "999px",
         border: "none",
-        background: "#3659c9",
+        background: "#8b5cf6",
         color: "#ffffff",
         fontSize: "18px",
         fontWeight: 800,
+        boxShadow: "0 12px 26px rgba(139, 92, 246, 0.24)",
       } as React.CSSProperties,
 
       message: {
@@ -320,7 +321,7 @@ export default function SignupPage() {
       bottomLink: {
         display: "inline-block",
         marginTop: "18px",
-        color: isDark ? "#cbd5e1" : "#475569",
+        color: isDark ? "#c4b5fd" : "#7c3aed",
         fontSize: "15px",
         textDecoration: "none",
       } as React.CSSProperties,

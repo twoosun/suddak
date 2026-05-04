@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -404,25 +403,31 @@ export default function HistoryPage() {
         >
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
             <div
+              aria-hidden="true"
               style={{
-                position: "relative",
                 width: "48px",
                 height: "48px",
-                borderRadius: "15px",
-                overflow: "hidden",
-                border: "1px solid var(--border)",
-                background: "var(--card)",
+                borderRadius: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #8b5cf6, #a78bfa)",
+                color: "#ffffff",
+                fontSize: "18px",
+                fontWeight: 950,
+                letterSpacing: 0,
                 flexShrink: 0,
+                boxShadow: "0 12px 26px rgba(139, 92, 246, 0.24)",
               }}
             >
-              <Image src="/logo.png" alt="수닥 로고" fill sizes="48px" style={{ objectFit: "cover" }} />
+              S
             </div>
             <div>
               <div
                 style={{
                   fontSize: "clamp(1.6rem, 4vw, 2.4rem)",
                   fontWeight: 950,
-                  letterSpacing: "-0.06em",
+                  letterSpacing: 0,
                   lineHeight: 0.95,
                 }}
               >

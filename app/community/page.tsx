@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import CurrencyRewardPopup from "@/components/CurrencyRewardPopup";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
 
 import { getStoredTheme, initTheme, toggleTheme } from "@/lib/theme";
@@ -250,7 +251,8 @@ export default function CommunityPage() {
             <Link href="/community/write" className="suddak-btn suddak-btn-primary">
               글쓰기
             </Link>
-<NotificationBellPopup isDark={isDark} />
+            <CurrencyRewardPopup isDark={isDark} />
+            <NotificationBellPopup isDark={isDark} />
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
             </div>
