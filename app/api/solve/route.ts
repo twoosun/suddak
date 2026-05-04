@@ -73,6 +73,15 @@ type ParsedSolveResult = {
   graph_spec: GraphSpec | null;
 };
 
+type SolverIdeaSeed = {
+  subject: string | null;
+  unit: string | null;
+  key_idea: string | null;
+  solver_hint: string | null;
+  trap_point: string | null;
+  common_mistake: string | null;
+};
+
 type ParsedSolveResultInput = Partial<ParsedSolveResult> & {
   subject?: string;
   confidence?: string;
@@ -284,6 +293,34 @@ async function getUserProfile(userId: string) {
 
   if (error) throw error;
   return data ?? { is_admin: false };
+}
+
+async function getApprovedSolverIdeaSeeds() {
+  const { data, error } = await supabaseAdmin
+    .from("problem_idea_seeds")
+    .select("subject, unit, key_idea, solver_hint, trap_point, common_mistake")
+    .eq("use_for_solving", true)
+    .order("quality_score", { ascending: false })
+    .limit(3);
+
+  if (error) {
+    console.error("[solve] solver seed lookup failed:", error);
+    return [] as SolverIdeaSeed[];
+  }
+
+  return (data ?? []) as SolverIdeaSeed[];
+}
+
+function buildSolverIdeaSeedContext(seeds: SolverIdeaSeed[]) {
+  if (seeds.length === 0) return "";
+
+  return [
+    "다음은 이 단원에서 자주 등장하는 풀이 발상 데이터이다.",
+    "현재 문제의 조건과 일치할 때만 참고하고, 억지로 적용하지 마라.",
+    "정답은 반드시 현재 문제의 조건으로 독립적으로 검증하라.",
+    "아래 데이터는 원본 문제 전문이 아니라 검수된 추상화 힌트다.",
+    JSON.stringify(seeds, null, 2),
+  ].join("\n");
 }
 
 function isNewAccount(createdAt?: string | null) {
@@ -789,6 +826,8 @@ export async function POST(req: Request) {
 
       const solveModel = profile.is_admin ? "gpt-5.4-mini" : "gpt-4o-mini";
       const solveMaxTokens = profile.is_admin ? 1800 : 1200;
+      const solverIdeaSeeds = await getApprovedSolverIdeaSeeds();
+      const solverIdeaSeedContext = buildSolverIdeaSeedContext(solverIdeaSeeds);
 
       const response = await client.responses.create({
         model: solveModel,
@@ -852,6 +891,14 @@ export async function POST(req: Request) {
                   "11. is_valid=true일 때만 final_answer를 확정적으로 작성하라.",
                   "12. 수식은 문자열 안에서 $...$ 또는 $$...$$ 형식으로 써라.",
                   "13. graphRequested가 false면 graph_needed=false, graph_spec=null이어야 한다.",
+                  "",
+                  solverIdeaSeedContext
+                    ? [
+                        "[검수된 딱씨앗 풀이 발상 참고 데이터]",
+                        solverIdeaSeedContext,
+                        "주의: 위 데이터는 참고 발상일 뿐이다. 현재 문제 조건을 최우선으로 독립적으로 풀어라.",
+                      ].join("\n")
+                    : "",
                   "",
                   "출력 JSON 형식:",
                   "{",
