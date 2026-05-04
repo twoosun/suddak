@@ -215,7 +215,7 @@ export default function CommunityPage() {
                   lineHeight: 0.95,
                 }}
               >
-                커뮤니티
+                SuddakHub
               </div>
               <div
                 style={{
@@ -225,7 +225,7 @@ export default function CommunityPage() {
                   marginTop: "4px",
                 }}
               >
-                목록 · 제목 / 작성자 / 시간 / 좋아요 / 댓글
+                문제, 풀이, 공부 이야기가 연결되는 수딱 커뮤니티
               </div>
             </div>
           </Link>
@@ -303,7 +303,7 @@ export default function CommunityPage() {
 
       {/* # 8. 검색 / 필터 */}
       <SectionCard
-        title="게시글 찾기"
+        title="SuddakHub 글 찾기"
         description="제목, 내용, 문제 텍스트까지 검색 가능해."
         style={{ marginBottom: "18px" }}
       >
@@ -343,8 +343,8 @@ export default function CommunityPage() {
 
       {/* # 9. 게시글 목록 */}
       <SectionCard
-        title="게시글 목록"
-        description="목록에서는 핵심 정보만 간단히 보이고, 상세로 들어가면 댓글과 대댓글까지 볼 수 있어."
+        title="SuddakHub 목록"
+        description="목록에서는 핵심 정보만 간단히 보이고, 상세로 들어가면 댓글과 딱픽까지 볼 수 있어."
       >
         {loading ? (
           <div className="suddak-card-soft" style={{ padding: "18px", color: "var(--muted)" }}>

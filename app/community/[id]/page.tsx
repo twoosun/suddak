@@ -489,7 +489,7 @@ export default function CommunityDetailPage() {
                   lineHeight: 0.95,
                 }}
               >
-                게시글 상세
+                SuddakHub
               </div>
               <div
                 style={{
@@ -499,7 +499,7 @@ export default function CommunityDetailPage() {
                   marginTop: "4px",
                 }}
               >
-                좋아요 · 댓글 · 대댓글 지원
+                문제, 풀이, 공부 이야기가 연결되는 수딱 커뮤니티
               </div>
             </div>
           </Link>
@@ -526,7 +526,7 @@ export default function CommunityDetailPage() {
             </Link>
 
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
-              커뮤니티
+              SuddakHub
             </Link>
 
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
@@ -918,7 +918,7 @@ export default function CommunityDetailPage() {
               }}
             >
               <Link href="/community" className="suddak-btn suddak-btn-ghost">
-                커뮤니티 목록
+                SuddakHub 목록
               </Link>
 
               <Link href={`/profile/${post.user_id}`} className="suddak-btn suddak-btn-ghost">

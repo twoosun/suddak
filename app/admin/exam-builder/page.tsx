@@ -89,7 +89,7 @@ export default function ExamBuilderPage() {
       if (!session?.access_token) {
         if (!alive) return;
         setIsAdmin(false);
-        setAuthMessage("로그인한 관리자 계정만 접근할 수 있습니다.");
+        setAuthMessage("동형시험지 제작 기능은 관리자만 사용할 수 있습니다.");
         setAuthChecked(true);
         return;
       }
@@ -108,7 +108,7 @@ export default function ExamBuilderPage() {
         setAuthMessage(
           data?.isAdmin
             ? "관리자 권한이 확인되었습니다."
-            : "관리자 권한이 없어 접근할 수 없습니다."
+            : "동형시험지 제작 기능은 관리자만 사용할 수 있습니다."
         );
         setAuthChecked(true);
       } catch {
@@ -492,13 +492,38 @@ export default function ExamBuilderPage() {
   if (!isAdmin) {
     return (
       <PageContainer topPadding={18} bottomPadding={56}>
-        <div className="suddak-card exam-builder-access-card">
-          <ShieldAlert size={28} />
-          <h1>접근 불가</h1>
-          <p>{authMessage}</p>
-          <Link href="/" className="suddak-btn suddak-btn-primary">
-            수딱으로 돌아가기
-          </Link>
+        <div className="exam-builder-page">
+          <header className="suddak-card exam-builder-header">
+            <Link href="/" className="suddak-btn suddak-btn-ghost">
+              <ChevronLeft size={18} />
+              홈으로
+            </Link>
+            <div>
+              <span className="exam-builder-eyebrow">동형시험지</span>
+              <h1>동형시험지 제작</h1>
+              <p>기존 시험지의 형식과 출제 흐름을 분석해 비슷한 구조의 시험지를 제작하는 기능입니다.</p>
+            </div>
+            <span className="suddak-badge">
+              <ShieldAlert size={14} />
+              관리자 전용 기능
+            </span>
+          </header>
+
+          <div className="suddak-card exam-builder-access-card">
+            <ShieldAlert size={28} />
+            <h1>관리자 전용 기능</h1>
+            <p>
+              현재 동형시험지 제작 기능은 안정적인 품질 관리를 위해 관리자만 사용할 수 있습니다. 일반 유저 공개는 추후
+              제공될 예정입니다.
+            </p>
+            <button
+              type="button"
+              className="suddak-btn suddak-btn-ghost"
+              onClick={() => alert("현재 동형시험지 제작은 관리자만 사용할 수 있습니다.")}
+            >
+              관리자 전용 기능
+            </button>
+          </div>
         </div>
       </PageContainer>
     );

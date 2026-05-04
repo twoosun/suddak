@@ -19,7 +19,7 @@ function formatFileSize(size: number) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const user = await getAdminUserFromRequest(req);
-  if (!user) return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
+  if (!user) return Response.json({ error: "동형시험지 제작 기능은 관리자만 사용할 수 있습니다." }, { status: 403 });
 
   const { jobId } = await params;
   const { data: rows, error: fileError } = await supabaseAdmin

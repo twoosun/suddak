@@ -195,7 +195,7 @@ export default function CommunityWritePage() {
                   marginTop: "4px",
                 }}
               >
-                Community Write · 자유글 / 문제글 작성
+                SuddakHub Write · 자유글 / 문제글 작성
               </div>
             </div>
           </Link>
@@ -217,7 +217,7 @@ export default function CommunityWritePage() {
               기록
             </Link>
             <Link href="/community" className="suddak-btn suddak-btn-ghost">
-              커뮤니티
+              SuddakHub
             </Link>
             <div style={{ minWidth: "120px", flex: "1 1 120px" }}>
               <ThemeToggleButton mobileFull={false} />
@@ -251,7 +251,7 @@ export default function CommunityWritePage() {
 
       {/* # 8. 작성 폼 */}
       <SectionCard
-        title="게시글 작성"
+        title="SuddakHub 글 작성"
         description="자유글은 의견이나 질문을, 문제글은 인식된 문제와 풀이를 함께 올릴 수 있어."
       >
         <div style={{ display: "grid", gap: "14px" }}>

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   BarChart3,
   BookOpen,
   CheckCircle2,
+  ClipboardList,
   FileText,
   History,
   PenLine,
@@ -14,11 +15,12 @@ import {
   ScanSearch,
   Send,
   Settings,
-  Sparkles,
+  Sprout,
 } from "lucide-react";
 
 import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
 import FileDropzone from "@/components/home/FileDropzone";
+import FormulaHelperModal from "@/components/home/FormulaHelperModal";
 import OcrPreprocessPanel from "@/components/home/OcrPreprocessPanel";
 import MoreMenu from "@/components/MoreMenu";
 import CurrencyRewardPopup from "@/components/CurrencyRewardPopup";
@@ -131,12 +133,12 @@ const confidenceLabelMap: Record<SolveMeta["confidence"], string> = {
 };
 
 const featureLinks = [
-  { href: "/", label: "문제풀이", icon: Sparkles },
   { href: "/history", label: "기록실", icon: History },
-  { href: "/similar", label: "유사문제 생성기", icon: ScanSearch },
-  { href: "/admin/exam-builder", label: "시험지 생성", icon: FileText },
+  { href: "/similar", label: "유사문제", icon: ScanSearch },
+  { href: "/review-test", label: "복습시험지", icon: ClipboardList },
+  { href: "/admin/exam-builder", label: "동형시험지", icon: FileText },
   { href: "/naesin", label: "내신딱딱", icon: BookOpen },
-  { href: "/community", label: "커뮤니티", icon: BarChart3, badge: "HOT!" },
+  { href: "/training", label: "딱씨앗 충전소", icon: Sprout, badge: "BETA" },
 ];
 
 function extractAnswerSection(markdown: string) {
@@ -212,6 +214,9 @@ export default function HomePage() {
   const [showAdvancedAdjust, setShowAdvancedAdjust] = useState(false);
 
   const [recognizedText, setRecognizedText] = useState("");
+  const recognizedTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [formulaHelperOpen, setFormulaHelperOpen] = useState(false);
+  const [formulaSelection, setFormulaSelection] = useState({ start: 0, end: 0, text: "" });
   const [solveResult, setSolveResult] = useState("");
   const [solveMeta, setSolveMeta] = useState<SolveMeta | null>(null);
   const [graphSpec, setGraphSpec] = useState<GraphSpec | null>(null);
@@ -505,6 +510,37 @@ export default function HomePage() {
     }
   };
 
+  const openFormulaHelper = () => {
+    const textarea = recognizedTextareaRef.current;
+    const start = textarea?.selectionStart ?? recognizedText.length;
+    const end = textarea?.selectionEnd ?? start;
+    setFormulaSelection({
+      start,
+      end,
+      text: recognizedText.slice(start, end),
+    });
+    setFormulaHelperOpen(true);
+  };
+
+  const insertFormula = (formula: string) => {
+    if (!formula) {
+      setFormulaHelperOpen(false);
+      return;
+    }
+
+    const { start, end } = formulaSelection;
+    const nextText = `${recognizedText.slice(0, start)}${formula}${recognizedText.slice(end)}`;
+    const nextCursor = start + formula.length;
+    setRecognizedText(nextText);
+    setFormulaHelperOpen(false);
+
+    window.requestAnimationFrame(() => {
+      const textarea = recognizedTextareaRef.current;
+      textarea?.focus();
+      textarea?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
   const parsedSolveResult = solveResult ? extractAnswerSection(solveResult) : { answer: "", body: "" };
   const answerText = solveMeta?.finalAnswer?.trim() || parsedSolveResult.answer;
   const explanationText = solveMeta?.conciseSolution?.trim() || parsedSolveResult.body || solveResult;
@@ -547,6 +583,10 @@ export default function HomePage() {
         </Link>
 
         <div className="questi-top-actions">
+          <Link href="/community" className="questi-shub-button" aria-label="SuddakHub로 이동">
+            <img src="/shub-logo.png" alt="SHub" className="questi-shub-logo" />
+            <span className="questi-shub-hot">HOT</span>
+          </Link>
           <CurrencyRewardPopup isDark={isDark} />
           <NotificationBellPopup isDark={isDark} />
           <MoreMenu
@@ -703,11 +743,23 @@ export default function HomePage() {
           </div>
 
           <textarea
+            ref={recognizedTextareaRef}
             className="questi-textarea questi-recognition-textarea"
             value={recognizedText}
             onChange={(event) => setRecognizedText(event.target.value)}
             placeholder="문제 인식 결과가 여기에 표시됩니다. 직접 문제를 입력해도 됩니다."
           />
+
+          <div className="questi-action-row">
+            <button
+              type="button"
+              className="questi-formula-button"
+              onClick={openFormulaHelper}
+            >
+              <PenLine size={18} />
+              수식 수정
+            </button>
+          </div>
         </section>
 
         <section className="questi-workflow-panel">
@@ -731,14 +783,6 @@ export default function HomePage() {
                   그래프 요청
                 </label>
               )}
-              <button
-                type="button"
-                className="questi-formula-button"
-                onClick={() => setRecognizedText((value) => `${value}${value ? "\n" : ""}$ $`)}
-              >
-                <PenLine size={18} />
-                수식
-              </button>
             </div>
 
             <button
@@ -806,6 +850,16 @@ export default function HomePage() {
           {graphSpec && <GraphPreview graph={graphSpec} />}
         </section>
       )}
+
+      {formulaHelperOpen ? (
+        <FormulaHelperModal
+          key={`${formulaSelection.start}-${formulaSelection.end}-${formulaSelection.text}`}
+          open={formulaHelperOpen}
+          initialValue={formulaSelection.text}
+          onClose={() => setFormulaHelperOpen(false)}
+          onConfirm={insertFormula}
+        />
+      ) : null}
     </main>
   );
 }

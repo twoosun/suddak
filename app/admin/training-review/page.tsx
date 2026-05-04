@@ -39,7 +39,9 @@ export default function AdminTrainingReviewPage() {
     });
     const data = await res.json();
 
-    if (!res.ok) throw new Error(data?.error || "검수 목록을 불러오지 못했습니다.");
+    if (!res.ok) {
+      throw new Error(res.status === 403 ? "관리자만 접근할 수 있는 페이지입니다." : data?.error || "검수 목록을 불러오지 못했습니다.");
+    }
 
     const nextSets = (data.sets ?? []) as TrainingSetWithItems[];
     setSets(nextSets);

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const user = await getAdminUserFromRequest(req);
-  if (!user) return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
+  if (!user) return Response.json({ error: "동형시험지 제작 기능은 관리자만 사용할 수 있습니다." }, { status: 403 });
 
   const { data, error } = await supabaseAdmin
     .from("exam_builder_jobs")

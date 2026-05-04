@@ -93,10 +93,10 @@ export default function SuddakCommunityHeader({ current = "community" }: Props) 
             />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: "25px", fontWeight: 950, lineHeight: 1, color: theme.text }}>
-                수딱
+                SuddakHub
               </div>
               <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 850, color: theme.subText }}>
-                Community
+                문제, 풀이, 공부 이야기가 연결되는 수딱 커뮤니티
               </div>
             </div>
           </Link>
@@ -117,7 +117,7 @@ export default function SuddakCommunityHeader({ current = "community" }: Props) 
             href="/community"
             style={{ ...navButtonStyle, ...(current === "community" ? activeStyle : {}) }}
           >
-            커뮤니티
+            SuddakHub
           </Link>
         </nav>
       </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createNotification } from "@/lib/server/notifications";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserFromAuthHeader, isAdminUser } from "@/lib/training/auth";
 import { calculateUploadReward } from "@/lib/training/constants";
@@ -49,18 +50,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/admin/training-
       return NextResponse.json({ error: "승인된 문항이 없어 지급할 리워드가 없습니다." }, { status: 400 });
     }
 
-    const { data: creditData, error: creditError } = await supabaseAdmin.rpc("grant_user_credits", {
-      p_user_id: set.user_id,
-      p_amount: reward,
-      p_type: "UPLOAD_REWARD",
-      p_reason: `training_upload:${id}`,
-    });
-
-    if (creditError) throw creditError;
-
-    const credit = (Array.isArray(creditData) ? creditData[0] : creditData) as CreditActionRow | null;
-
-    const { error: updateError } = await supabaseAdmin
+    const { data: lockedSet, error: lockError } = await supabaseAdmin
       .from("training_upload_sets")
       .update({
         approved_problem_count: approvedCount,
@@ -69,9 +59,45 @@ export async function POST(req: Request, ctx: RouteContext<"/api/admin/training-
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
-      .eq("reward_paid", false);
+      .eq("reward_paid", false)
+      .select("id")
+      .maybeSingle();
 
-    if (updateError) throw updateError;
+    if (lockError) throw lockError;
+    if (!lockedSet) {
+      return NextResponse.json({ error: "이미 리워드가 지급된 세트입니다." }, { status: 409 });
+    }
+
+    const { data: creditData, error: creditError } = await supabaseAdmin.rpc("grant_user_credits", {
+      p_user_id: set.user_id,
+      p_amount: reward,
+      p_type: "UPLOAD_REWARD",
+      p_reason: `training_upload:${id}`,
+    });
+
+    if (creditError) {
+      await supabaseAdmin
+        .from("training_upload_sets")
+        .update({
+          reward_paid: false,
+          final_reward: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      throw creditError;
+    }
+
+    const credit = (Array.isArray(creditData) ? creditData[0] : creditData) as CreditActionRow | null;
+
+    await createNotification({
+      userId: set.user_id,
+      actorUserId: user.id,
+      type: "training_reward",
+      title: "딱이 충전되었어요",
+      body: `딱씨앗 충전소에 업로드한 자료가 검수되어 ${reward.toLocaleString("ko-KR")}딱이 충전되었습니다.`,
+      targetUrl: `/training/${id}`,
+      dedupeByTargetUrl: true,
+    });
 
     return NextResponse.json({ approvedCount, reward, credits: credit?.credits ?? null });
   } catch (error) {

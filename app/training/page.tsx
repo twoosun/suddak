@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrainCircuit, History, UploadCloud } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
@@ -17,8 +17,35 @@ export default function TrainingPage() {
   const [problemFile, setProblemFile] = useState<File | null>(null);
   const [solutionFile, setSolutionFile] = useState<File | null>(null);
   const [agreed, setAgreed] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/usage", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const data = await res.json();
+        setIsAdmin(Boolean(res.ok && data?.isAdmin));
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    void checkAdmin();
+  }, []);
 
   const handleSubmit = async () => {
     setMessage("");
@@ -78,18 +105,30 @@ export default function TrainingPage() {
           <Link href="/" className="suddak-btn suddak-btn-ghost">
             홈
           </Link>
-          <Link href="/training/history" className="suddak-btn suddak-btn-ghost">
-            <History size={18} />내 분석 기록
-          </Link>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            {isAdmin ? (
+              <Link href="/admin/training-review" className="suddak-btn suddak-btn-primary">
+                딱씨앗 승인 관리
+              </Link>
+            ) : null}
+            <Link href="/training/history" className="suddak-btn suddak-btn-ghost">
+              <History size={18} />내 분석 기록
+            </Link>
+          </div>
         </div>
         <div>
           <h1 style={{ fontSize: "clamp(2rem, 6vw, 3.2rem)", lineHeight: 1, margin: 0, fontWeight: 950 }}>
-            딱씨앗 학습소
+            딱씨앗 충전소
           </h1>
           <p style={{ color: "var(--muted)", lineHeight: 1.8, maxWidth: "760px", fontWeight: 700 }}>
             문제지와 해설지를 함께 업로드하면 수딱이 문항의 핵심 개념과 풀이 발상을 분석합니다. 분석된 정보는
-            유사문제 생성과 문풀 정확도 향상에 활용될 수 있습니다.
+            유사문제 생성과 문풀 정확도 향상에 활용될 수 있습니다. 관리자의 승인 이후 소정의 딱이 지급됩니다.
           </p>
+          {isAdmin ? (
+            <p style={{ color: "var(--primary)", lineHeight: 1.7, fontWeight: 850, marginTop: "10px" }}>
+              업로드된 문제지·해설지 분석 결과를 검수하고 딱 리워드를 지급합니다.
+            </p>
+          ) : null}
         </div>
       </header>
 
