@@ -43,7 +43,7 @@ export const mockAnalysisResult: ReferenceAnalysisResult = {
 };
 
 export const mockExamBlueprint: ExamBlueprint = {
-  title: "송도고형 수학Ⅰ 1학기 중간 예상기출",
+  title: "학교 맞춤형 수학Ⅰ 1학기 중간 예상기출",
   subject: "수학Ⅰ",
   totalProblems: 6,
   multipleChoiceCount: 4,

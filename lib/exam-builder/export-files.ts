@@ -1,7 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { AlignmentType, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import {
+  AlignmentType,
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx";
 import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 
@@ -10,6 +20,25 @@ import type { ExamBlueprint, ReferenceAnalysisResult } from "./types";
 type FileRole = "exam" | "solution" | "analysis";
 
 const templatePath = path.join(process.cwd(), "assets", "exam-builder", "exam-template.docx");
+const koreanFontCandidates =
+  process.platform === "win32"
+    ? [
+        "C:\\Windows\\Fonts\\malgun.ttf",
+        "C:\\Windows\\Fonts\\malgunbd.ttf",
+        "C:\\Windows\\Fonts\\batang.ttc",
+      ]
+    : process.platform === "darwin"
+      ? [
+          "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+          "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+        ]
+      : [
+          "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+          "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+          "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        ];
+
+let koreanPdfFontBase64: string | null | undefined;
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -24,115 +53,6 @@ function escapeXml(value: unknown) {
     .replace(/'/g, "&apos;");
 }
 
-function normalizeLatex(value: string) {
-  return value
-    .replace(/^\$\$?|\$\$?$/g, "")
-    .replace(/^\\\(|\\\)$/g, "")
-    .replace(/^\\\[|\\\]$/g, "")
-    .replace(/\\left|\\right/g, "")
-    .trim();
-}
-
-function takeBraced(value: string, start: number) {
-  if (value[start] !== "{") return null;
-  let depth = 0;
-  for (let index = start; index < value.length; index += 1) {
-    const char = value[index];
-    if (char === "{") depth += 1;
-    if (char === "}") depth -= 1;
-    if (depth === 0) {
-      return {
-        content: value.slice(start + 1, index),
-        end: index + 1,
-      };
-    }
-  }
-  return null;
-}
-
-function linearMathText(value: string) {
-  return value
-    .replace(/\\to/g, "→")
-    .replace(/\\infty/g, "∞")
-    .replace(/\\cdot/g, "·")
-    .replace(/\\times/g, "×")
-    .replace(/\\leq/g, "≤")
-    .replace(/\\geq/g, "≥")
-    .replace(/\\neq/g, "≠")
-    .replace(/\\pi/g, "π")
-    .replace(/\\theta/g, "θ")
-    .replace(/\\alpha/g, "α")
-    .replace(/\\beta/g, "β")
-    .replace(/\\[a-zA-Z]+/g, "")
-    .replace(/[{}]/g, "")
-    .trim();
-}
-
-function mathComponents(value: string): string {
-  let output = "";
-  let index = 0;
-
-  while (index < value.length) {
-    if (value.startsWith("\\frac", index)) {
-      const numerator = takeBraced(value, index + "\\frac".length);
-      const denominator = numerator ? takeBraced(value, numerator.end) : null;
-      if (numerator && denominator) {
-        output += `<m:f><m:num>${mathComponents(numerator.content)}</m:num><m:den>${mathComponents(denominator.content)}</m:den></m:f>`;
-        index = denominator.end;
-        continue;
-      }
-    }
-
-    if (value.startsWith("\\sqrt", index)) {
-      const radicand = takeBraced(value, index + "\\sqrt".length);
-      if (radicand) {
-        output += `<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>${mathComponents(radicand.content)}</m:e></m:rad>`;
-        index = radicand.end;
-        continue;
-      }
-    }
-
-    const nextSpecial = value.indexOf("\\", index + 1);
-    const raw = nextSpecial === -1 ? value.slice(index) : value.slice(index, nextSpecial);
-    output += `<m:r><m:t>${escapeXml(linearMathText(raw))}</m:t></m:r>`;
-    index = nextSpecial === -1 ? value.length : nextSpecial;
-  }
-
-  return output || `<m:r><m:t>${escapeXml(linearMathText(value))}</m:t></m:r>`;
-}
-
-function mathXml(value: string) {
-  return `<m:oMath>${mathComponents(normalizeLatex(value))}</m:oMath>`;
-}
-
-function splitMathSegments(value: string) {
-  const segments: Array<{ type: "text" | "math"; value: string }> = [];
-  const pattern = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]|\\frac\{[\s\S]+?\}\{[\s\S]+?\}|\\sqrt\{[\s\S]+?\})/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(value))) {
-    if (match.index > lastIndex) {
-      segments.push({ type: "text", value: value.slice(lastIndex, match.index) });
-    }
-    segments.push({ type: "math", value: match[0] });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < value.length) {
-    segments.push({ type: "text", value: value.slice(lastIndex) });
-  }
-
-  return segments.length ? segments : [{ type: "text", value }];
-}
-
-function textRunXml(value: string, rPr: string) {
-  const lines = escapeXml(value).split(/\r?\n/);
-  return `<w:r>${rPr}${lines
-    .map((line, index) => `${index > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${line}</w:t>`)
-    .join("")}</w:r>`;
-}
-
 function stripXml(value: string) {
   return value
     .replace(/<w:tab\/>/g, "\t")
@@ -145,117 +65,99 @@ function stripXml(value: string) {
     .replace(/&apos;/g, "'");
 }
 
-function replaceParagraphText(paragraphXml: string, value: string) {
-  const pPr = paragraphXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
-  const firstRun = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/)?.[0] ?? "";
-  const rPr = firstRun.match(/<w:rPr[\s\S]*?<\/w:rPr>/)?.[0] ?? "";
-  const escapedLines = escapeXml(value)
-    .split(/\r?\n/)
-    .map((line, index) => (index === 0 ? line : `<w:br/>${line}`))
-    .join("");
-
-  return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapedLines}</w:t></w:r></w:p>`;
+function getParagraphProperties(paragraphXml: string) {
+  return paragraphXml.match(/<w:pPr[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
 }
 
-function buildTemplateParagraph(pPr: string, textValue: string, options?: { bold?: boolean }) {
-  const runProperty = [
-    '<w:rFonts w:ascii="HY신명조" w:eastAsia="HY신명조" w:hint="eastAsia"/>',
-    options?.bold ? "<w:b/>" : "",
-    '<w:sz w:val="18"/>',
-    '<w:lang w:eastAsia="ko-KR"/>',
-  ].join("");
-  const rPr = `<w:rPr>${runProperty}</w:rPr>`;
-  const runs = splitMathSegments(textValue)
-    .map((segment) => (segment.type === "math" ? mathXml(segment.value) : textRunXml(segment.value, rPr)))
+function getRunProperties(paragraphXml: string) {
+  return paragraphXml.match(/<w:rPr[\s\S]*?<\/w:rPr>/)?.[0] ?? '<w:rPr><w:lang w:eastAsia="ko-KR"/></w:rPr>';
+}
+
+function replaceParagraphText(paragraphXml: string, value: string) {
+  const pPr = getParagraphProperties(paragraphXml);
+  const rPr = getRunProperties(paragraphXml);
+  const runs = escapeXml(value)
+    .split(/\r?\n/)
+    .map((line, index) => `<w:r>${rPr}${index > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${line}</w:t></w:r>`)
     .join("");
 
   return `<w:p>${pPr}${runs}</w:p>`;
 }
 
+function buildTemplateParagraph(pPr: string, rPr: string, value: string) {
+  const runs = escapeXml(value)
+    .split(/\r?\n/)
+    .map((line, index) => `<w:r>${rPr}${index > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${line}</w:t></w:r>`)
+    .join("");
+
+  return `<w:p>${pPr}${runs}</w:p>`;
+}
+
+function replaceParagraphs(xml: string, replacements: Map<number, string>) {
+  let index = 0;
+  return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const replacement = replacements.get(index);
+    index += 1;
+    return replacement ?? paragraph;
+  });
+}
+
+function setTwoColumnSeparator(sectPr: string) {
+  if (/<w:cols\b[^>]*\bw:sep=/.test(sectPr)) return sectPr;
+  return sectPr.replace(/<w:cols\b([^>]*)\/>/, "<w:cols$1 w:sep=\"1\"/>");
+}
+
+function formatExamDate(date = new Date()) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
+function getProblemCountLine(blueprint: ExamBlueprint) {
+  if (blueprint.writtenCount > 0) {
+    return `〇 선택형 ${blueprint.multipleChoiceCount}문항, 서술형 ${blueprint.writtenCount}문항입니다.`;
+  }
+
+  return `〇 선택형 ${blueprint.totalProblems}문항입니다.`;
+}
+
 function buildProblemText(item: ExamBlueprint["items"][number]) {
   const problemText = item.problemText || `${item.topic} ${item.problemType} 문항`;
-  const hasChoices = /[①②③④⑤]/.test(problemText);
+  const numbered = new RegExp(`^\\s*${item.number}\\s*[.)]`).test(problemText);
+  const score = Number(item.score || 0).toFixed(1).replace(/\.0$/, "");
+  const scoreText = score === "0" ? "" : ` [${score}점]`;
 
-  return [
-    `${item.number}. ${problemText} [${item.score.toFixed(1)}점]`,
-    item.format === "객관식" && !hasChoices ? "①  ②  ③  ④  ⑤" : "",
-    item.format === "서술형" ? "답: ______________________________" : "",
-  ].join("\n");
+  return numbered ? `${problemText}${scoreText}` : `${item.number}. ${problemText}${scoreText}`;
 }
 
-async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
-  for (const headerPath of ["word/header1.xml", "word/header2.xml"]) {
-    const headerFile = zip.file(headerPath);
-    if (!headerFile) continue;
+async function readKoreanPdfFont() {
+  if (koreanPdfFontBase64 !== undefined) return koreanPdfFontBase64;
 
-    const headerXml = await headerFile.async("string");
-    const paragraphs = headerXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
-    if (!paragraphs.length) continue;
-
-    let usedTitle = false;
-    let usedSubject = false;
-    const patchedParagraphs = paragraphs.map((paragraph) => {
-      const paragraphText = stripXml(paragraph).replace(/\s+/g, " ").trim();
-
-      if (!usedTitle && /문제지|시험지/.test(paragraphText)) {
-        usedTitle = true;
-        return replaceParagraphText(paragraph, blueprint.title);
-      }
-
-      if (!usedSubject && /언어와 매체|수학|미적|확률|기하|고\s*3/.test(paragraphText)) {
-        usedSubject = true;
-        return replaceParagraphText(paragraph, blueprint.subject);
-      }
-
-      return paragraph;
-    });
-
-    let index = 0;
-    const nextHeaderXml = headerXml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, () => patchedParagraphs[index++] ?? "");
-    zip.file(headerPath, nextHeaderXml);
+  for (const fontPath of koreanFontCandidates) {
+    try {
+      koreanPdfFontBase64 = (await fs.readFile(fontPath)).toString("base64");
+      return koreanPdfFontBase64;
+    } catch {}
   }
+
+  koreanPdfFontBase64 = null;
+  return null;
 }
 
-async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
-  const templateBuffer = await fs.readFile(templatePath);
-  const zip = await JSZip.loadAsync(templateBuffer);
-  const documentFile = zip.file("word/document.xml");
-  if (!documentFile) throw new Error("시험지 템플릿의 word/document.xml을 찾을 수 없습니다.");
+async function setPdfFont(pdf: jsPDF) {
+  const fontBase64 = await readKoreanPdfFont();
 
-  const documentXml = await documentFile.async("string");
-  const bodyMatch = documentXml.match(/<w:body>([\s\S]*?)<\/w:body>/);
-  if (!bodyMatch) throw new Error("시험지 템플릿 본문을 읽지 못했습니다.");
+  if (!fontBase64) {
+    pdf.setFont("helvetica", "normal");
+    return;
+  }
 
-  const bodyXml = bodyMatch[1];
-  const sectPr = bodyXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/)?.[0] ?? "";
-  const paragraphs = bodyXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
-  const firstQuestionIndex = paragraphs.findIndex((paragraph) => /^\s*1\./.test(stripXml(paragraph)));
-  const preservedParagraphs = firstQuestionIndex >= 0 ? paragraphs.slice(0, firstQuestionIndex) : paragraphs.slice(0, 5);
-  const questionParagraph = firstQuestionIndex >= 0 ? paragraphs[firstQuestionIndex] : paragraphs[paragraphs.length - 1];
-  const questionPPr = questionParagraph?.match(/<w:pPr[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
-
-  const patchedIntro = preservedParagraphs.map((paragraph) => {
-    const paragraphText = stripXml(paragraph);
-    if (paragraphText.includes("선택형") && paragraphText.includes("문항")) {
-      return replaceParagraphText(paragraph, `〇 선택형 ${blueprint.multipleChoiceCount}문항, 서술형 ${blueprint.writtenCount}문항입니다.`);
-    }
-    if (paragraphText.includes("시험 범위")) {
-      return replaceParagraphText(paragraph, `〇 시험 범위: ${blueprint.sourceRange}`);
-    }
-    return paragraph;
-  });
-
-  await patchTemplateHeader(zip, blueprint);
-
-  const problemParagraphs = blueprint.items.map((item) =>
-    buildTemplateParagraph(questionPPr, buildProblemText(item), { bold: false })
-  );
-
-  const newBody = [...patchedIntro, ...problemParagraphs, sectPr].join("");
-  const nextDocumentXml = documentXml.replace(/<w:body>[\s\S]*?<\/w:body>/, `<w:body>${newBody}</w:body>`);
-  zip.file("word/document.xml", nextDocumentXml);
-
-  return Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+  pdf.addFileToVFS("korean.ttf", fontBase64);
+  pdf.addFont("korean.ttf", "Korean", "normal");
+  pdf.setFont("Korean", "normal");
 }
 
 function buildRows(blueprint: ExamBlueprint, role: FileRole) {
@@ -264,7 +166,7 @@ function buildRows(blueprint: ExamBlueprint, role: FileRole) {
       `${item.number}`,
       item.format,
       item.problemText || `${item.topic} ${item.problemType} 문항`,
-      `${item.score.toFixed(1)}점`,
+      `${Number(item.score || 0).toFixed(1).replace(/\.0$/, "")}점`,
     ]);
   }
 
@@ -287,30 +189,88 @@ function buildRows(blueprint: ExamBlueprint, role: FileRole) {
 }
 
 function getTitle(blueprint: ExamBlueprint, role: FileRole) {
-  if (role === "exam") return `${blueprint.title} - 시험지`;
-  if (role === "solution") return `${blueprint.title} - 정답 및 해설`;
-  return `${blueprint.title} - 출제 분석표`;
+  if (role === "exam") return `${blueprint.title} 문제지`;
+  if (role === "solution") return `${blueprint.title} 정답 및 해설`;
+  return `${blueprint.title} 출제 분석표`;
+}
+
+async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
+  const header2 = zip.file("word/header2.xml");
+  if (!header2) return;
+
+  const headerXml = await header2.async("string");
+  const paragraphs = headerXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+  const replacements = new Map<number, string>();
+
+  if (paragraphs[3]) replacements.set(3, replaceParagraphText(paragraphs[3], `${blueprint.title} 문제지`));
+  if (paragraphs[4]) replacements.set(4, replaceParagraphText(paragraphs[4], `( 고 3 ) ${blueprint.subject}`));
+  if (paragraphs[5]) {
+    replacements.set(
+      5,
+      replaceParagraphText(paragraphs[5], `${formatExamDate()} 1교시 실시  \t                                                                 과목코드: 01                SUDDAK`),
+    );
+  }
+
+  zip.file("word/header2.xml", replaceParagraphs(headerXml, replacements));
+}
+
+async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
+  const templateBuffer = await fs.readFile(templatePath);
+  const zip = await JSZip.loadAsync(templateBuffer);
+  const documentFile = zip.file("word/document.xml");
+  if (!documentFile) throw new Error("시험지 템플릿의 word/document.xml을 찾을 수 없습니다.");
+
+  const documentXml = await documentFile.async("string");
+  const bodyMatch = documentXml.match(/<w:body>([\s\S]*?)<\/w:body>/);
+  if (!bodyMatch) throw new Error("시험지 템플릿 본문을 읽지 못했습니다.");
+
+  const bodyXml = bodyMatch[1];
+  const sectPr = setTwoColumnSeparator(bodyXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/)?.[0] ?? "");
+  const paragraphs = bodyXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+  const firstQuestionIndex = paragraphs.findIndex((paragraph) => /^\s*1[.)]/.test(stripXml(paragraph).trim()));
+  const introEnd = firstQuestionIndex >= 0 ? firstQuestionIndex : Math.min(6, paragraphs.length);
+  const introParagraphs = paragraphs.slice(0, introEnd);
+  const questionParagraph = firstQuestionIndex >= 0 ? paragraphs[firstQuestionIndex] : paragraphs[paragraphs.length - 1];
+  const questionPPr = getParagraphProperties(questionParagraph);
+  const questionRPr = getRunProperties(questionParagraph);
+  const blankParagraph = paragraphs.find((paragraph) => !stripXml(paragraph).trim()) ?? "<w:p/>";
+
+  const patchedIntro = introParagraphs.map((paragraph) => {
+    const paragraphText = stripXml(paragraph);
+    if (paragraphText.includes("선택형") && paragraphText.includes("문항")) {
+      return replaceParagraphText(paragraph, getProblemCountLine(blueprint));
+    }
+    if (paragraphText.includes("시험 범위")) {
+      return replaceParagraphText(paragraph, `〇 시험 범위: ${blueprint.sourceRange}`);
+    }
+    return paragraph;
+  });
+
+  await patchTemplateHeader(zip, blueprint);
+
+  const problemParagraphs = blueprint.items.flatMap((item) => [
+    buildTemplateParagraph(questionPPr, questionRPr, buildProblemText(item)),
+    blankParagraph,
+  ]);
+
+  const newBody = [...patchedIntro, blankParagraph, ...problemParagraphs, sectPr].join("");
+  const nextDocumentXml = documentXml.replace(/<w:body>[\s\S]*?<\/w:body>/, `<w:body>${newBody}</w:body>`);
+  zip.file("word/document.xml", nextDocumentXml);
+
+  return Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
 }
 
 export async function buildExamDocxBuffer(
   blueprint: ExamBlueprint,
   analysis: ReferenceAnalysisResult,
-  role: FileRole
+  role: FileRole,
 ) {
-  if (role === "exam") {
-    try {
-      return await buildTemplateExamDocxBuffer(blueprint);
-    } catch {
-      // Fall through to the generated DOCX when the local template is unavailable.
-    }
-  }
+  if (role === "exam") return buildTemplateExamDocxBuffer(blueprint);
 
   const headers =
-    role === "exam"
-      ? ["번호", "형식", "문항", "배점"]
-      : role === "solution"
-        ? ["번호", "정답", "해설"]
-        : ["번호", "참고 위치", "주제", "난이도", "변형강도", "출제 의도"];
+    role === "solution"
+      ? ["번호", "정답", "해설"]
+      : ["번호", "참고 위치", "주제", "난이도", "변형 강도", "출제 의도"];
 
   const rows = [headers, ...buildRows(blueprint, role)].map(
     (row) =>
@@ -320,9 +280,9 @@ export async function buildExamDocxBuffer(
             new TableCell({
               width: { size: Math.floor(100 / row.length), type: WidthType.PERCENTAGE },
               children: [new Paragraph({ text: cell })],
-            })
+            }),
         ),
-      })
+      }),
   );
 
   const document = new Document({
@@ -348,28 +308,104 @@ export async function buildExamDocxBuffer(
   return Buffer.from(await Packer.toBuffer(document));
 }
 
-export function buildExamPdfBuffer(
+function addPdfHeader(pdf: jsPDF, blueprint: ExamBlueprint) {
+  pdf.setFontSize(18);
+  pdf.text(`${blueprint.title} 문제지`, 297.5, 48, { align: "center" });
+  pdf.setFontSize(11);
+  pdf.text(`( 고 3 ) ${blueprint.subject}`, 297.5, 68, { align: "center" });
+  pdf.setFontSize(9);
+  pdf.text(`${formatExamDate()} 1교시 실시`, 42, 86);
+  pdf.text("과목코드: 01                SUDDAK", 430, 86);
+  pdf.setLineWidth(0.6);
+  pdf.line(42, 96, 553, 96);
+}
+
+function addPdfExamPageDecorations(pdf: jsPDF) {
+  pdf.setLineWidth(0.4);
+  pdf.line(297.5, 118, 297.5, 790);
+}
+
+function writeWrapped(pdf: jsPDF, value: string, x: number, y: number, width: number) {
+  const lines = pdf.splitTextToSize(value, width) as string[];
+  pdf.text(lines, x, y);
+  return y + lines.length * 12;
+}
+
+async function buildTemplateExamPdfBuffer(blueprint: ExamBlueprint) {
+  const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  await setPdfFont(pdf);
+
+  const columnWidth = 232;
+  const leftX = 42;
+  const rightX = 322;
+  const topY = 118;
+  const bottomY = 790;
+  let column = 0;
+  let y = topY;
+
+  addPdfHeader(pdf, blueprint);
+  addPdfExamPageDecorations(pdf);
+  pdf.setFontSize(8.5);
+  [
+    "〇 답안지의 해당란에 성명, 반, 번호 등을 정확히 쓰시오.",
+    "〇 문항에 따라 배점이 다르니 각 물음의 끝에 표시된 배점을 참고하시오.",
+    getProblemCountLine(blueprint),
+    `〇 시험 범위: ${blueprint.sourceRange}`,
+  ].forEach((line) => {
+    y = writeWrapped(pdf, line, leftX, y, columnWidth);
+  });
+  y += 8;
+
+  pdf.setFontSize(9);
+  blueprint.items.forEach((item) => {
+    const x = column === 0 ? leftX : rightX;
+    const textBlock = buildProblemText(item);
+    const lines = pdf.splitTextToSize(textBlock, columnWidth) as string[];
+    const nextY = y + lines.length * 12 + 12;
+
+    if (nextY > bottomY) {
+      if (column === 0) {
+        column = 1;
+        y = topY;
+      } else {
+        pdf.addPage();
+        addPdfHeader(pdf, blueprint);
+        addPdfExamPageDecorations(pdf);
+        column = 0;
+        y = topY;
+      }
+    }
+
+    pdf.text(lines, x, y);
+    y += lines.length * 12 + 12;
+  });
+
+  return Buffer.from(pdf.output("arraybuffer"));
+}
+
+export async function buildExamPdfBuffer(
   blueprint: ExamBlueprint,
   analysis: ReferenceAnalysisResult,
-  role: FileRole
+  role: FileRole,
 ) {
+  if (role === "exam") return buildTemplateExamPdfBuffer(blueprint);
+
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  await setPdfFont(pdf);
   const margin = 42;
   let y = margin;
 
-  pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
   pdf.text(getTitle(blueprint, role), margin, y);
   y += 28;
 
-  pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
   [
-    `Subject: ${blueprint.subject}`,
-    `Range: ${blueprint.sourceRange}`,
-    `Problems: ${blueprint.totalProblems}`,
-    `References: ${blueprint.referenceSummary}`,
-    `Units: ${analysis.majorUnits.join(", ")}`,
+    `과목: ${blueprint.subject}`,
+    `범위: ${blueprint.sourceRange}`,
+    `문항 수: ${blueprint.totalProblems}`,
+    `참고 자료: ${blueprint.referenceSummary}`,
+    `주요 단원: ${analysis.majorUnits.join(", ")}`,
   ].forEach((line) => {
     pdf.text(line, margin, y);
     y += 16;
@@ -378,7 +414,7 @@ export function buildExamPdfBuffer(
   y += 12;
   buildRows(blueprint, role).forEach((row) => {
     const line = row.map(text).join(" | ");
-    const wrapped = pdf.splitTextToSize(line, 510);
+    const wrapped = pdf.splitTextToSize(line, 510) as string[];
     if (y + wrapped.length * 13 > 790) {
       pdf.addPage();
       y = margin;

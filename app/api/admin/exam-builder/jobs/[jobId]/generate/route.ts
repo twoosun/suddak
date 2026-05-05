@@ -118,7 +118,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const buffer =
       definition.format === "DOCX"
         ? await buildExamDocxBuffer(generatedBlueprint, analysis, definition.role)
-        : buildExamPdfBuffer(generatedBlueprint, analysis, definition.role);
+        : await buildExamPdfBuffer(generatedBlueprint, analysis, definition.role);
     const extension = definition.format.toLowerCase();
     const path = `generated/${user.id}/${examSet.id}/${baseName}-${definition.role}.${extension}`;
 
