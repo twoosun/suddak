@@ -31,6 +31,22 @@ type GenerateBody = {
   analysis?: ReferenceAnalysisResult;
 };
 
+function normalizeSubject(value: string) {
+  const subject = String(value || "")
+    .trim()
+    .replace(/^수학\s*[([]\s*/u, "")
+    .replace(/\s*[\])]\s*$/u, "")
+    .replace(/^수학\s*[-:]\s*/u, "")
+    .replace(/^수학\s*/u, "");
+
+  if (/미적/u.test(subject)) return "미적분";
+  if (/확률|통계/u.test(subject)) return "확률과 통계";
+  if (/공통/u.test(subject)) return "공통수학";
+  if (/수학\s*I|수학Ⅰ|수학1/u.test(subject)) return "수학Ⅰ";
+  if (/수학\s*II|수학Ⅱ|수학2/u.test(subject)) return "수학Ⅱ";
+  return subject || "수학";
+}
+
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const user = await getAdminUserFromRequest(req);
   if (!user) return Response.json({ error: "동형시험지 제작 기능은 관리자만 사용할 수 있습니다." }, { status: 403 });
@@ -70,6 +86,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const generatedBlueprint = await generateProblemsWithAI(blueprint, analysis, referenceFiles);
+  generatedBlueprint.subject = normalizeSubject(generatedBlueprint.subject);
 
   await supabaseAdmin
     .from("exam_builder_jobs")

@@ -116,6 +116,21 @@ function formatExamDate(date = new Date()) {
   }).format(date);
 }
 
+function normalizeSubject(value: string) {
+  const subject = text(value)
+    .replace(/^수학\s*[([]\s*/u, "")
+    .replace(/\s*[\])]\s*$/u, "")
+    .replace(/^수학\s*[-:]\s*/u, "")
+    .replace(/^수학\s*/u, "");
+
+  if (/미적/u.test(subject)) return "미적분";
+  if (/확률|통계/u.test(subject)) return "확률과 통계";
+  if (/공통/u.test(subject)) return "공통수학";
+  if (/수학\s*I|수학Ⅰ|수학1/u.test(subject)) return "수학Ⅰ";
+  if (/수학\s*II|수학Ⅱ|수학2/u.test(subject)) return "수학Ⅱ";
+  return subject || "수학";
+}
+
 function getProblemCountLine(blueprint: ExamBlueprint) {
   if (blueprint.writtenCount > 0) {
     return `〇 선택형 ${blueprint.multipleChoiceCount}문항, 서술형 ${blueprint.writtenCount}문항입니다.`;
@@ -124,8 +139,40 @@ function getProblemCountLine(blueprint: ExamBlueprint) {
   return `〇 선택형 ${blueprint.totalProblems}문항입니다.`;
 }
 
+function normalizePlainMath(value: string) {
+  return value
+    .replace(/\\\(/g, "")
+    .replace(/\\\)/g, "")
+    .replace(/\\\[/g, "")
+    .replace(/\\\]/g, "")
+    .replace(/\$\$/g, "")
+    .replace(/\$/g, "")
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "($1)/($2)")
+    .replace(/\\sqrt\s*\{([^{}]+)\}/g, "√($1)")
+    .replace(/\\lim_\{([^{}]+)\}/g, "lim $1")
+    .replace(/\\lim/g, "lim")
+    .replace(/\\to/g, "→")
+    .replace(/\\infty/g, "∞")
+    .replace(/\\cdot/g, "·")
+    .replace(/\\times/g, "×")
+    .replace(/\\leq/g, "≤")
+    .replace(/\\geq/g, "≥")
+    .replace(/\\neq/g, "≠")
+    .replace(/\\pi/g, "π")
+    .replace(/\\theta/g, "θ")
+    .replace(/\\alpha/g, "α")
+    .replace(/\\beta/g, "β")
+    .replace(/\\left/g, "")
+    .replace(/\\right/g, "")
+    .replace(/\\,/g, " ")
+    .replace(/\\([a-zA-Z]+)/g, "$1")
+    .replace(/\{([^{}]+)\}/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function buildProblemText(item: ExamBlueprint["items"][number]) {
-  const problemText = item.problemText || `${item.topic} ${item.problemType} 문항`;
+  const problemText = normalizePlainMath(item.problemText || `${item.topic} ${item.problemType} 문항`);
   const numbered = new RegExp(`^\\s*${item.number}\\s*[.)]`).test(problemText);
   const score = Number(item.score || 0).toFixed(1).replace(/\.0$/, "");
   const scoreText = score === "0" ? "" : ` [${score}점]`;
@@ -189,12 +236,30 @@ function buildRows(blueprint: ExamBlueprint, role: FileRole) {
 }
 
 function getTitle(blueprint: ExamBlueprint, role: FileRole) {
-  if (role === "exam") return `${blueprint.title} 문제지`;
+  if (role === "exam") return `${getExamTitle(blueprint)} 문제지`;
   if (role === "solution") return `${blueprint.title} 정답 및 해설`;
   return `${blueprint.title} 출제 분석표`;
 }
 
+function getExamTitle(blueprint: ExamBlueprint) {
+  const subject = normalizeSubject(blueprint.subject);
+  return text(blueprint.title)
+    .replace(/수학\s*[\[(]\s*미적분\s*[\])]/gu, subject)
+    .replace(/수학\s*[\[(]\s*확률과\s*통계\s*[\])]/gu, subject)
+    .replace(/수학\s*[\[(]\s*공통수학\s*[\])]/gu, subject)
+    .replace(/^수학\s+/u, `${subject} `);
+}
+
 async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
+  const subject = normalizeSubject(blueprint.subject);
+  const title = getExamTitle(blueprint);
+
+  const header1 = zip.file("word/header1.xml");
+  if (header1) {
+    const headerXml = await header1.async("string");
+    zip.file("word/header1.xml", headerXml.replace(/언어와 매체/g, escapeXml(subject)));
+  }
+
   const header2 = zip.file("word/header2.xml");
   if (!header2) return;
 
@@ -202,8 +267,8 @@ async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
   const paragraphs = headerXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
   const replacements = new Map<number, string>();
 
-  if (paragraphs[3]) replacements.set(3, replaceParagraphText(paragraphs[3], `${blueprint.title} 문제지`));
-  if (paragraphs[4]) replacements.set(4, replaceParagraphText(paragraphs[4], `( 고 3 ) ${blueprint.subject}`));
+  if (paragraphs[3]) replacements.set(3, replaceParagraphText(paragraphs[3], `${title} 문제지`));
+  if (paragraphs[4]) replacements.set(4, replaceParagraphText(paragraphs[4], `( 고 3 ) ${subject}`));
   if (paragraphs[5]) {
     replacements.set(
       5,
@@ -212,6 +277,18 @@ async function patchTemplateHeader(zip: JSZip, blueprint: ExamBlueprint) {
   }
 
   zip.file("word/header2.xml", replaceParagraphs(headerXml, replacements));
+}
+
+async function patchTemplateFooters(zip: JSZip, blueprint: ExamBlueprint) {
+  const subject = normalizeSubject(blueprint.subject);
+
+  for (const footerPath of ["word/footer1.xml", "word/footer2.xml"]) {
+    const footer = zip.file(footerPath);
+    if (!footer) continue;
+
+    const footerXml = await footer.async("string");
+    zip.file(footerPath, footerXml.replace(/언어와 매체/g, escapeXml(subject)));
+  }
 }
 
 async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
@@ -237,7 +314,7 @@ async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
 
   const patchedIntro = introParagraphs.map((paragraph) => {
     const paragraphText = stripXml(paragraph);
-    if (paragraphText.includes("선택형") && paragraphText.includes("문항")) {
+    if (/선택형\s*\d+\s*문항|서술형\s*\d+\s*문항/u.test(paragraphText)) {
       return replaceParagraphText(paragraph, getProblemCountLine(blueprint));
     }
     if (paragraphText.includes("시험 범위")) {
@@ -247,6 +324,7 @@ async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
   });
 
   await patchTemplateHeader(zip, blueprint);
+  await patchTemplateFooters(zip, blueprint);
 
   const problemParagraphs = blueprint.items.flatMap((item) => [
     buildTemplateParagraph(questionPPr, questionRPr, buildProblemText(item)),
@@ -309,10 +387,13 @@ export async function buildExamDocxBuffer(
 }
 
 function addPdfHeader(pdf: jsPDF, blueprint: ExamBlueprint) {
+  const subject = normalizeSubject(blueprint.subject);
+  const title = getExamTitle(blueprint);
+
   pdf.setFontSize(18);
-  pdf.text(`${blueprint.title} 문제지`, 297.5, 48, { align: "center" });
+  pdf.text(`${title} 문제지`, 297.5, 48, { align: "center" });
   pdf.setFontSize(11);
-  pdf.text(`( 고 3 ) ${blueprint.subject}`, 297.5, 68, { align: "center" });
+  pdf.text(`( 고 3 ) ${subject}`, 297.5, 68, { align: "center" });
   pdf.setFontSize(9);
   pdf.text(`${formatExamDate()} 1교시 실시`, 42, 86);
   pdf.text("과목코드: 01                SUDDAK", 430, 86);
