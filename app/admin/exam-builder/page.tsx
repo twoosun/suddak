@@ -47,6 +47,47 @@ type UploadedReferenceRow = {
   file_size: number;
 };
 
+type ApiResponse = {
+  error?: string;
+  isAdmin?: boolean;
+  job?: {
+    id: string;
+    status?: string;
+    progress?: number;
+    current_step?: string;
+  };
+  files?: UploadedReferenceRow[] | ReferenceFile[] | GeneratedExamFile[];
+  analysis?: ReferenceAnalysisResult;
+  blueprint?: ExamBlueprint;
+  examSetId?: string;
+};
+
+function fallbackApiError(res: Response, text: string) {
+  const trimmed = text.trim();
+
+  if (res.status === 413 || /^Request Ent/i.test(trimmed)) {
+    return "업로드 요청 용량이 너무 큽니다. 파일 수를 줄이거나 PDF 용량을 낮춘 뒤 다시 시도해 주세요.";
+  }
+
+  return trimmed.slice(0, 200) || `요청에 실패했습니다. (${res.status})`;
+}
+
+async function readApiResponse(res: Response): Promise<ApiResponse> {
+  const text = await res.text();
+
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text) as ApiResponse;
+  } catch {
+    if (!res.ok) {
+      return { error: fallbackApiError(res, text) };
+    }
+
+    throw new Error(`서버 응답을 해석하지 못했습니다: ${text.slice(0, 200)}`);
+  }
+}
+
 function createEmptyItem(number: number): BlueprintItem {
   return {
     id: `item-${Date.now()}-${number}`,
@@ -99,7 +140,7 @@ export default function ExamBuilderPage() {
           },
           cache: "no-store",
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
 
         if (!alive) return;
         setIsAdmin(Boolean(data?.isAdmin));
@@ -139,7 +180,7 @@ export default function ExamBuilderPage() {
             Authorization: `Bearer ${token}`,
           },
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         const row = data?.job;
         if (!alive || !res.ok || !row) return;
 
@@ -207,11 +248,12 @@ export default function ExamBuilderPage() {
         Authorization: `Bearer ${token}`,
       },
     });
-    const data = await res.json();
+    const data = await readApiResponse(res);
     if (!res.ok) throw new Error(data?.error || "제작 작업을 만들지 못했습니다.");
+    if (!data.job?.id) throw new Error("제작 작업 응답이 올바르지 않습니다.");
 
     setJobId(data.job.id);
-    return data.job.id as string;
+    return data.job.id;
   };
 
   const handleFilesSelected = async (selectedFiles: FileList | null) => {
@@ -250,10 +292,10 @@ export default function ExamBuilderPage() {
         },
         body: formData,
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data?.error || "파일 업로드에 실패했습니다.");
 
-      const persistedFiles = mapUploadedReferences(data.files ?? []);
+      const persistedFiles = mapUploadedReferences((data.files ?? []) as UploadedReferenceRow[]);
       const pendingIds = new Set(pendingFiles.map((file) => file.id));
       setReferenceFiles((files) => [
         ...files.filter((file) => !pendingIds.has(file.id)),
@@ -313,8 +355,9 @@ export default function ExamBuilderPage() {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data?.error || "분석에 실패했습니다.");
+      if (!data.analysis || !data.blueprint) throw new Error("분석 응답이 올바르지 않습니다.");
 
       setReferenceFiles(
         data.files
@@ -420,12 +463,13 @@ export default function ExamBuilderPage() {
         signal: controller.signal,
       });
       window.clearTimeout(timeoutId);
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data?.error || "파일 생성에 실패했습니다.");
+      if (!data.examSetId) throw new Error("파일 생성 응답이 올바르지 않습니다.");
 
       setExamSetId(data.examSetId);
       if (data.blueprint) setBlueprint(data.blueprint);
-      setGeneratedFiles(data.files ?? []);
+      setGeneratedFiles((data.files ?? []) as GeneratedExamFile[]);
       setJob({
         ...localJob,
         progress: 100,

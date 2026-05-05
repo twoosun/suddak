@@ -8,7 +8,27 @@ import { useEffect, useState } from "react";
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
 import { supabase } from "@/lib/supabase";
-import { TRAINING_MAX_ITEMS, TRAINING_SUBJECTS } from "@/lib/training/constants";
+import { TRAINING_MAX_FILE_SIZE, TRAINING_MAX_ITEMS, TRAINING_SUBJECTS } from "@/lib/training/constants";
+
+async function readApiResponse(res: Response): Promise<{ error?: string; setId?: string }> {
+  const text = await res.text();
+
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text) as { error?: string; setId?: string };
+  } catch {
+    if (!res.ok) {
+      const fallback =
+        res.status === 413
+          ? "업로드 파일 용량이 너무 큽니다. 문제지와 해설지를 각각 20MB 이하로 줄여 다시 시도해 주세요."
+          : text.slice(0, 200);
+      return { error: fallback };
+    }
+
+    throw new Error(`서버 응답을 해석하지 못했습니다: ${text.slice(0, 200)}`);
+  }
+}
 
 export default function TrainingPage() {
   const router = useRouter();
@@ -56,6 +76,13 @@ export default function TrainingPage() {
     if (!solutionFile) return setMessage("해설지 파일을 업로드해 주세요.");
     if (!agreed) return setMessage("업로드 자료 활용 안내에 동의해 주세요.");
 
+    if (
+      (problemFile && problemFile.size > TRAINING_MAX_FILE_SIZE) ||
+      (solutionFile && solutionFile.size > TRAINING_MAX_FILE_SIZE)
+    ) {
+      return setMessage("문제지와 해설지 파일은 각각 20MB 이하로 업로드해 주세요.");
+    }
+
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -84,7 +111,7 @@ export default function TrainingPage() {
         },
         body: formData,
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
 
       if (!res.ok) {
         throw new Error(data?.error || "분석 요청에 실패했습니다.");
