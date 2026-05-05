@@ -358,7 +358,7 @@ export default function BlueprintEditorStep({
         disabled={!validation.isValid}
       >
         <WandSparkles size={16} />
-        변형 문제 세트 생성
+        변형문제 세트 생성
       </button>
     </div>
   );

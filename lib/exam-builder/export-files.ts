@@ -84,13 +84,27 @@ function replaceParagraphText(paragraphXml: string, value: string) {
   return `<w:p>${pPr}${runs}</w:p>`;
 }
 
-function buildTemplateParagraph(pPr: string, rPr: string, value: string) {
+function withProblemParagraphLayout(pPr: string, spacingAfterTwips: number) {
+  const layout = `<w:keepLines/><w:spacing w:after="${spacingAfterTwips}" w:line="276" w:lineRule="auto"/>`;
+
+  if (!pPr) return `<w:pPr>${layout}</w:pPr>`;
+  if (/<w:keepLines\/>/.test(pPr)) {
+    return pPr.replace(/<w:spacing\b[^>]*\/>/, "").replace("</w:pPr>", `${layout.replace("<w:keepLines/>", "")}</w:pPr>`);
+  }
+
+  return pPr.replace(/<w:spacing\b[^>]*\/>/, "").replace("</w:pPr>", `${layout}</w:pPr>`);
+}
+
+function buildTemplateParagraph(pPr: string, rPr: string, value: string, options?: { keepTogether?: boolean; spacingAfterTwips?: number }) {
+  const nextPPr = options?.keepTogether
+    ? withProblemParagraphLayout(pPr, options.spacingAfterTwips ?? 360)
+    : pPr;
   const runs = escapeXml(value)
     .split(/\r?\n/)
     .map((line, index) => `<w:r>${rPr}${index > 0 ? "<w:br/>" : ""}<w:t xml:space="preserve">${line}</w:t></w:r>`)
     .join("");
 
-  return `<w:p>${pPr}${runs}</w:p>`;
+  return `<w:p>${nextPPr}${runs}</w:p>`;
 }
 
 function replaceParagraphs(xml: string, replacements: Map<number, string>) {
@@ -178,6 +192,41 @@ function buildProblemText(item: ExamBlueprint["items"][number]) {
   const scoreText = score === "0" ? "" : ` [${score}점]`;
 
   return numbered ? `${problemText}${scoreText}` : `${item.number}. ${problemText}${scoreText}`;
+}
+
+function estimateProblemWeight(item: ExamBlueprint["items"][number]) {
+  const body = normalizePlainMath(item.problemText || "");
+  const difficulty = String(item.difficulty || "");
+  const type = `${item.format} ${item.problemType}`.toLowerCase();
+  let weight = Math.ceil(body.length / 90);
+
+  if (item.format === "서술형") weight += 2;
+  if (/고난도|상/u.test(difficulty)) weight += difficulty === "고난도" ? 3 : 1;
+  if (/증명|추론|그래프|도표|그림|복합/u.test(type)) weight += 2;
+  if (/\$\$|\\frac|\\lim|\\sum|\\int|\\sqrt/u.test(item.problemText || "")) weight += 1;
+
+  return Math.max(2, Math.min(10, weight));
+}
+
+function getCalculationSpaceLines(item: ExamBlueprint["items"][number]) {
+  const weight = estimateProblemWeight(item);
+  if (weight >= 8) return 13;
+  if (weight >= 6) return 10;
+  if (weight >= 4) return 7;
+  return 4;
+}
+
+function getProblemSpacingTwips(item: ExamBlueprint["items"][number]) {
+  const weight = estimateProblemWeight(item);
+  if (weight >= 8) return 980;
+  if (weight >= 6) return 760;
+  if (weight >= 4) return 560;
+  return 360;
+}
+
+function buildProblemBlockText(item: ExamBlueprint["items"][number]) {
+  const spaceLines = Array.from({ length: getCalculationSpaceLines(item) }, () => "").join("\n");
+  return `${buildProblemText(item)}\n${spaceLines}`;
 }
 
 async function readKoreanPdfFont() {
@@ -326,10 +375,12 @@ async function buildTemplateExamDocxBuffer(blueprint: ExamBlueprint) {
   await patchTemplateHeader(zip, blueprint);
   await patchTemplateFooters(zip, blueprint);
 
-  const problemParagraphs = blueprint.items.flatMap((item) => [
-    buildTemplateParagraph(questionPPr, questionRPr, buildProblemText(item)),
-    blankParagraph,
-  ]);
+  const problemParagraphs = blueprint.items.map((item) =>
+    buildTemplateParagraph(questionPPr, questionRPr, buildProblemBlockText(item), {
+      keepTogether: true,
+      spacingAfterTwips: getProblemSpacingTwips(item),
+    }),
+  );
 
   const newBody = [...patchedIntro, blankParagraph, ...problemParagraphs, sectPr].join("");
   const nextDocumentXml = documentXml.replace(/<w:body>[\s\S]*?<\/w:body>/, `<w:body>${newBody}</w:body>`);

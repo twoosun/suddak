@@ -16,18 +16,17 @@ const basic = "기본" as DifficultyLevel;
 const medium = "중간" as DifficultyLevel;
 const high = "상" as DifficultyLevel;
 const hard = "고난도" as DifficultyLevel;
-const lowTransform = "낮음" as TransformStrength;
 const midTransform = "중간" as TransformStrength;
 const highTransform = "높음" as TransformStrength;
 
 export const referenceFileKinds: ReferenceFileKind[] = [
   "수능특강",
   "수능완성",
-  "평가원 교육청 기출",
+  "평가원 기출",
   "학교 기출",
   "학교 프린트",
   "직접 제작 자료",
-] as ReferenceFileKind[];
+];
 
 export const mockReferenceFiles: ReferenceFile[] = [];
 
@@ -41,13 +40,13 @@ export const mockAnalysisResult: ReferenceAnalysisResult = {
     "단순 수치 변경보다 문항 구조 보존과 난도 유지가 중요합니다.",
   ],
   difficultyDistribution: {
-    [basic]: 5,
-    [medium]: 9,
-    [high]: 6,
-    [hard]: 2,
-  } as Record<DifficultyLevel, number>,
+    기본: 5,
+    중간: 9,
+    상: 6,
+    고난도: 2,
+  },
   transformablePoints: [
-    "원본의 발문 방식과 조건 순서를 유지합니다.",
+    "원본의 발문 방식과 조건 제시 순서를 유지합니다.",
     "핵심 수치와 문자만 최소한으로 변경합니다.",
     "보기 개수와 정답 도출 구조를 유지합니다.",
   ],
@@ -70,7 +69,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-1",
       number: 1,
       format: multipleChoice,
-      referenceLocation: "업로드 자료 1번",
+      referenceLocation: "업로드 자료 p.추정 문항 1",
       topic: "수열의 극한",
       problemType: "조건 해석",
       score: 3,
@@ -82,19 +81,19 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-2",
       number: 2,
       format: multipleChoice,
-      referenceLocation: "업로드 자료 2번",
+      referenceLocation: "업로드 자료 p.추정 문항 2",
       topic: "함수의 극한",
       problemType: "계산형",
       score: 3.5,
       difficulty: medium,
       transformStrength: highTransform,
-      intent: "원본과 같은 풀이 단계로 극한 조건을 해석하게 합니다.",
+      intent: "원본과 같은 단계로 극한 조건을 해석하게 합니다.",
     },
     {
       id: "item-3",
       number: 3,
       format: multipleChoice,
-      referenceLocation: "업로드 자료 3번",
+      referenceLocation: "업로드 자료 p.추정 문항 3",
       topic: "미분",
       problemType: "그래프 추론",
       score: 4,
@@ -106,7 +105,7 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-4",
       number: 4,
       format: multipleChoice,
-      referenceLocation: "업로드 자료 4번",
+      referenceLocation: "업로드 자료 p.추정 문항 4",
       topic: "미분",
       problemType: "복합 계산",
       score: 4.5,
@@ -118,19 +117,19 @@ export const mockExamBlueprint: ExamBlueprint = {
       id: "item-5",
       number: 5,
       format: written,
-      referenceLocation: "업로드 자료 5번",
+      referenceLocation: "업로드 자료 p.추정 문항 5",
       topic: "함수의 극한",
       problemType: "서술형",
       score: 6.5,
       difficulty: high,
       transformStrength: highTransform,
-      intent: "채점 가능한 풀이 단계를 원본과 비슷하게 구성합니다.",
+      intent: "채점 가능한 풀이 단계가 원본과 비슷하게 드러나도록 구성합니다.",
     },
     {
       id: "item-6",
       number: 6,
       format: written,
-      referenceLocation: "업로드 자료 6번",
+      referenceLocation: "업로드 자료 p.추정 문항 6",
       topic: "미분",
       problemType: "고난도 추론",
       score: 7,
@@ -141,10 +140,8 @@ export const mockExamBlueprint: ExamBlueprint = {
   ],
 };
 
-void lowTransform;
-
 export const generationSteps: GenerationStep[] = [
-  { id: "references", label: "원본 자료 정밀 확인" },
+  { id: "references", label: "원본 자료 확인" },
   { id: "draft", label: "문항별 동형문항 생성" },
   { id: "check", label: "문항별 구조 검수" },
   { id: "solution", label: "정답 및 해설 정리" },

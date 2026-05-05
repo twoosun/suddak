@@ -88,13 +88,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/admin/training-
     }
 
     const credit = (Array.isArray(creditData) ? creditData[0] : creditData) as CreditActionRow | null;
+    const title = "딱씨앗 자료가 승인되었습니다";
+    const body = `${set.title || "제출 자료"} 승인으로 ${reward.toLocaleString("ko-KR")}딱이 지급되었습니다.`;
 
     await createNotification({
       userId: set.user_id,
-      actorUserId: user.id,
+      actorUserId: null,
       type: "training_reward",
-      title: "딱이 충전되었어요",
-      body: `딱씨앗 충전소에 업로드한 자료가 검수되어 ${reward.toLocaleString("ko-KR")}딱이 충전되었습니다.`,
+      title,
+      body,
       targetUrl: `/training/${id}`,
       dedupeByTargetUrl: true,
     });

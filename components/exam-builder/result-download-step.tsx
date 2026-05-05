@@ -121,7 +121,7 @@ export default function ResultDownloadStep({
           <div>
             <dt>변형 강도 분포</dt>
             <dd>
-              {["낮음", "중간", "높음"]
+              {(["낮음", "중간", "높음"] as const)
                 .map(
                   (strength) =>
                     `${strength} ${
@@ -136,12 +136,12 @@ export default function ResultDownloadStep({
             <dd>{blueprint.items.map((item) => `${item.number}번 ${item.intent}`).join(" / ")}</dd>
           </div>
           <div>
-            <dt>원문 유사도 점검</dt>
-            <dd>문장, 수치, 조건 배열, 선지 표현의 직접 복제를 피하고 고위험 문항은 재생성 권장.</dd>
+            <dt>원문 유사도 평가</dt>
+            <dd>문장, 수치, 조건 배열, 선지 표현의 직접 복제를 피하고 고위험 문항은 재생성을 권장합니다.</dd>
           </div>
           <div>
             <dt>교육과정 적합성</dt>
-            <dd>{blueprint.subject} 범위의 개념과 성취기준 안에서 구성된 mock 검토 결과입니다.</dd>
+            <dd>{blueprint.subject} 범위의 개념과 성취기준 안에서 구성된 검토 결과입니다.</dd>
           </div>
         </dl>
       </section>

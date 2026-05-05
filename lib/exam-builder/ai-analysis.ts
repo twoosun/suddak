@@ -177,7 +177,7 @@ function normalizeAiResult(value: AiAnalysisResult): AiAnalysisResult {
 
   return {
     analysis: {
-      detectedSubject: String(value.analysis.detectedSubject || "수학Ⅰ"),
+      detectedSubject: String(value.analysis.detectedSubject || "수학"),
       majorUnits: value.analysis.majorUnits?.length ? value.analysis.majorUnits : ["내신 대비"],
       detectedProblemCount: Math.max(1, Math.round(value.analysis.detectedProblemCount || items.length)),
       majorTypes: value.analysis.majorTypes?.length ? value.analysis.majorTypes : ["내신형"],
@@ -201,7 +201,7 @@ function normalizeAiResult(value: AiAnalysisResult): AiAnalysisResult {
     blueprint: {
       ...value.blueprint,
       title: String(value.blueprint.title || "내신딱딱 예상기출"),
-      subject: String(value.blueprint.subject || value.analysis.detectedSubject || "수학Ⅰ"),
+      subject: String(value.blueprint.subject || value.analysis.detectedSubject || "수학"),
       totalProblems: items.length,
       multipleChoiceCount,
       writtenCount,
@@ -240,13 +240,13 @@ export async function analyzeReferenceFilesWithAI(
       text: [
         "업로드된 내신 대비 참고 자료를 분석해서 출제 분석 결과와 출제 설계표 초안을 만들어라.",
         "중요 원칙:",
-        "- 원문 복제 금지. 생성될 문항은 문장, 수치, 조건 배열, 선지 표현을 그대로 따라 하면 안 된다.",
+        "- 100% 동일하게 생성하는 것은 금지한다. 다만 동형문항의 의의상 원본과 유사할 수 있고, 풀이 구조와 난도는 유사하게 유지해야 한다.",
         "- 숫자만 바꾼 변형이 아니라 같은 개념과 풀이 아이디어를 새 문항으로 재구성해야 한다.",
         "- 참고 위치는 반드시 '업로드 자료 [파일명] p.[쪽번호] 문항 [번호]' 형태로 작성한다.",
         "- 쪽번호나 문항번호를 확정할 수 없으면 추정값을 쓰되 'p.추정' 또는 '문항 추정'처럼 표시한다.",
         "- blueprint.items 개수는 blueprint.totalProblems와 같아야 한다.",
-        "- 객관식 수와 서술형 수의 합은 totalProblems와 같아야 한다.",
-        "- 배점은 소수점 한 자리까지 허용한다.",
+        "- 객관식 문항 수와 서술형 문항 수의 합은 totalProblems와 같아야 한다.",
+        "- 배점은 소수 한 자리까지 허용한다.",
         "",
         "파일 목록:",
         files.map((file, index) => `${index + 1}. ${file.name} (${file.kind}, ${file.mimeType})`).join("\n"),

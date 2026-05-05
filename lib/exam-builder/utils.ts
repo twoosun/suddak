@@ -36,8 +36,8 @@ export function createInitialBlueprint(
   return createBlueprintFromAnalysis(analysis, Math.min(20, Math.max(6, analysis.detectedProblemCount || 20)));
 }
 
-function pickFrom<T>(values: T[], index: number, fallback: T): T {
-  return values.length ? values[index % values.length] : fallback;
+function pickFrom<T>(values: T[] | undefined, index: number, fallback: T): T {
+  return values?.length ? values[index % values.length] : fallback;
 }
 
 function getTargetScore(totalProblems: number, index: number) {
@@ -72,7 +72,7 @@ export function createBlueprintFromAnalysis(
       number: index + 1,
       format: isWritten ? "서술형" : "객관식",
       referenceLocation: pickFrom(
-        analysis.sourceReferences ?? [],
+        analysis.sourceReferences,
         index,
         `업로드 자료 ${Math.floor(index / 3) + 1} p.${Math.floor(index / 3) + 1} 문항 ${index + 1}`
       ),
@@ -81,7 +81,7 @@ export function createBlueprintFromAnalysis(
       score: getTargetScore(totalProblems, index),
       difficulty: difficultyPlan[index % difficultyPlan.length],
       transformStrength: transformPlan[index % transformPlan.length],
-      intent: `${transformPoint}을(를) 평가하도록 구성합니다.`,
+      intent: `${transformPoint}을 평가하도록 구성합니다.`,
     };
   });
 
@@ -116,7 +116,7 @@ export function validateBlueprint(blueprint: ExamBlueprint): BlueprintValidation
   }
 
   if (totalScore <= 0) {
-    errors.push("배점 총합이 0보다 커야 합니다.");
+    errors.push("배점 총합은 0보다 커야 합니다.");
   }
 
   blueprint.items.forEach((item) => {
@@ -143,7 +143,7 @@ export function startGenerationJob(): ExamGenerationJob {
   return {
     id: `mock-job-${Date.now()}`,
     progress: 0,
-    currentStepId: generationSteps[0]?.id ?? "validate",
+    currentStepId: generationSteps[0]?.id ?? "references",
     status: "running",
   };
 }

@@ -65,7 +65,7 @@ function createEmptyItem(number: number): BlueprintItem {
 export default function ExamBuilderPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [authMessage, setAuthMessage] = useState("愿由ъ옄 沅뚰븳???뺤씤?섎뒗 以묒엯?덈떎.");
+  const [authMessage, setAuthMessage] = useState("관리자 권한을 확인하는 중입니다.");
 
   const [step, setStep] = useState<ExamBuilderStep>("upload");
   const [referenceKind, setReferenceKind] = useState<ReferenceFileKind>("수능특강" as ReferenceFileKind);
@@ -87,7 +87,7 @@ export default function ExamBuilderPage() {
       if (!session?.access_token) {
         if (!alive) return;
         setIsAdmin(false);
-        setAuthMessage("?숉삎?쒗뿕吏 ?쒖옉 湲곕뒫? 愿由ъ옄留??ъ슜?????덉뒿?덈떎.");
+        setAuthMessage("동형시험지 제작 기능은 관리자만 사용할 수 있습니다.");
         setAuthChecked(true);
         return;
       }
@@ -105,14 +105,14 @@ export default function ExamBuilderPage() {
         setIsAdmin(Boolean(data?.isAdmin));
         setAuthMessage(
           data?.isAdmin
-            ? "愿由ъ옄 沅뚰븳???뺤씤?섏뿀?듬땲??"
-            : "?숉삎?쒗뿕吏 ?쒖옉 湲곕뒫? 愿由ъ옄留??ъ슜?????덉뒿?덈떎."
+            ? "관리자 권한을 확인했습니다."
+            : "동형시험지 제작 기능은 관리자만 사용할 수 있습니다."
         );
         setAuthChecked(true);
       } catch {
         if (!alive) return;
         setIsAdmin(false);
-        setAuthMessage("愿由ъ옄 沅뚰븳 ?뺤씤 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
+        setAuthMessage("관리자 권한 확인 중 오류가 발생했습니다.");
         setAuthChecked(true);
       }
     };
@@ -143,12 +143,15 @@ export default function ExamBuilderPage() {
         const row = data?.job;
         if (!alive || !res.ok || !row) return;
 
-        setJob({
+        setJob((current) => ({
           id: row.id,
           progress: Number(row.progress) || 0,
           currentStepId: String(row.current_step || "draft"),
           status: row.status === "completed" ? "completed" : "running",
-        });
+          startedAt: current?.startedAt ?? Date.now(),
+          totalProblems: current?.totalProblems ?? blueprint?.items.length ?? blueprint?.totalProblems ?? undefined,
+          estimatedSecondsPerProblem: current?.estimatedSecondsPerProblem ?? 55,
+        }));
       } catch {}
     };
 
@@ -159,14 +162,14 @@ export default function ExamBuilderPage() {
       alive = false;
       window.clearInterval(timer);
     };
-  }, [jobId, step]);
+  }, [blueprint?.items.length, blueprint?.totalProblems, jobId, step]);
 
   const stepIndex = steps.findIndex((item) => item.id === step);
   const validation = useMemo(
     () =>
       blueprint
         ? validateBlueprint(blueprint)
-        : { isValid: false, errors: ["?ㅺ퀎?쒓? ?꾩쭅 ?놁뒿?덈떎."], warnings: [], totalScore: 0 },
+        : { isValid: false, errors: ["설계표가 아직 없습니다."], warnings: [], totalScore: 0 },
     [blueprint]
   );
 
@@ -196,7 +199,7 @@ export default function ExamBuilderPage() {
     if (jobId) return jobId;
 
     const token = await getAccessToken();
-    if (!token) throw new Error("濡쒓렇?몄씠 ?꾩슂?⑸땲??");
+    if (!token) throw new Error("로그인이 필요합니다.");
 
     const res = await fetch("/api/admin/exam-builder/jobs", {
       method: "POST",
@@ -205,7 +208,7 @@ export default function ExamBuilderPage() {
       },
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || "?쒖옉 ?묒뾽??留뚮뱾吏 紐삵뻽?듬땲??");
+    if (!res.ok) throw new Error(data?.error || "제작 작업을 만들지 못했습니다.");
 
     setJobId(data.job.id);
     return data.job.id as string;
@@ -215,7 +218,7 @@ export default function ExamBuilderPage() {
     if (!selectedFiles?.length) return;
 
     const selectedFileArray = Array.from(selectedFiles);
-    setBusyMessage("?뚯씪???낅줈?쒗븯??以묒엯?덈떎.");
+    setBusyMessage("파일을 업로드하는 중입니다.");
     const uploadBatchId = Date.now();
 
     const pendingFiles = selectedFileArray.map((file, index) => ({
@@ -232,7 +235,7 @@ export default function ExamBuilderPage() {
     try {
       const nextJobId = await ensureJob();
       const token = await getAccessToken();
-      if (!token) throw new Error("濡쒓렇?몄씠 ?꾩슂?⑸땲??");
+      if (!token) throw new Error("로그인이 필요합니다.");
 
       const formData = new FormData();
       formData.append("kind", referenceKind);
@@ -248,7 +251,7 @@ export default function ExamBuilderPage() {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "?뚯씪 ?낅줈?쒖뿉 ?ㅽ뙣?덉뒿?덈떎.");
+      if (!res.ok) throw new Error(data?.error || "파일 업로드에 실패했습니다.");
 
       const persistedFiles = mapUploadedReferences(data.files ?? []);
       const pendingIds = new Set(pendingFiles.map((file) => file.id));
@@ -256,9 +259,9 @@ export default function ExamBuilderPage() {
         ...files.filter((file) => !pendingIds.has(file.id)),
         ...persistedFiles,
       ]);
-      setBusyMessage("?낅줈?쒓? ?꾨즺?섏뿀?듬땲??");
+      setBusyMessage("업로드가 완료되었습니다.");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "?뚯씪 ?낅줈??以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.";
+      const errorMessage = error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.";
       const pendingIds = new Set(pendingFiles.map((file) => file.id));
       setReferenceFiles((files) =>
         files.map((file) =>
@@ -271,7 +274,7 @@ export default function ExamBuilderPage() {
             : file
         )
       );
-      setBusyMessage(`${errorMessage} ?쒕쾭 ????놁씠 mock 遺꾩꽍??吏꾪뻾?????덉뒿?덈떎.`);
+      setBusyMessage(`${errorMessage} 서버 저장 없이 현재 브라우저 세션의 파일로 mock 분석을 진행할 수 있습니다.`);
     }
   };
 
@@ -292,17 +295,17 @@ export default function ExamBuilderPage() {
         );
         setAnalysis(nextAnalysis);
         setBlueprint(createInitialBlueprint(nextAnalysis));
-        setBusyMessage("?쒕쾭 ?낅줈?쒓? ?ㅽ뙣??釉뚮씪?곗? ?몄뀡 ?뚯씪濡?mock 遺꾩꽍???꾨즺?덉뒿?덈떎.");
+        setBusyMessage("서버 업로드가 실패해 브라우저 세션 파일로 mock 분석을 완료했습니다.");
         setStep("analysis");
         return;
       }
 
-      if (!hasPersistedFiles) throw new Error("?쒕쾭????λ맂 李멸퀬 ?뚯씪???놁뒿?덈떎. ?뚯씪 ?낅줈?쒕? ?ㅼ떆 ?쒕룄??二쇱꽭??");
+      if (!hasPersistedFiles) throw new Error("서버에 저장된 참고 파일이 없습니다. 파일 업로드를 다시 시도해 주세요.");
 
-      setBusyMessage("?낅줈???뚯씪??遺꾩꽍?섎뒗 以묒엯?덈떎.");
+      setBusyMessage("업로드 파일을 분석하는 중입니다.");
       const nextJobId = await ensureJob();
       const token = await getAccessToken();
-      if (!token) throw new Error("濡쒓렇?몄씠 ?꾩슂?⑸땲??");
+      if (!token) throw new Error("로그인이 필요합니다.");
 
       const res = await fetch(`/api/admin/exam-builder/jobs/${nextJobId}/analyze`, {
         method: "POST",
@@ -311,7 +314,7 @@ export default function ExamBuilderPage() {
         },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "遺꾩꽍???ㅽ뙣?덉뒿?덈떎.");
+      if (!res.ok) throw new Error(data?.error || "분석에 실패했습니다.");
 
       setReferenceFiles(
         data.files
@@ -320,10 +323,10 @@ export default function ExamBuilderPage() {
       );
       setAnalysis(data.analysis);
       setBlueprint(data.blueprint);
-      setBusyMessage("遺꾩꽍???꾨즺?섏뿀?듬땲??");
+      setBusyMessage("분석이 완료되었습니다.");
       setStep("analysis");
     } catch (error) {
-      setBusyMessage(error instanceof Error ? error.message : "遺꾩꽍 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
+      setBusyMessage(error instanceof Error ? error.message : "분석 중 오류가 발생했습니다.");
     }
   };
 
@@ -389,15 +392,20 @@ export default function ExamBuilderPage() {
   const handleStartGeneration = async () => {
     if (!blueprint || !validation.isValid) return;
     setGeneratedFiles([]);
-    const localJob = startGenerationJob();
+    const localJob = {
+      ...startGenerationJob(),
+      startedAt: Date.now(),
+      totalProblems: blueprint.items.length,
+      estimatedSecondsPerProblem: 55,
+    };
     setJob(localJob);
     setStep("generation");
 
     try {
-      setBusyMessage("?쒗뿕吏 ?뚯씪???앹꽦?섎뒗 以묒엯?덈떎.");
+      setBusyMessage("시험지 파일을 생성하는 중입니다.");
       const nextJobId = await ensureJob();
       const token = await getAccessToken();
-      if (!token || !analysis) throw new Error("?앹꽦???꾩슂???뺣낫媛 遺議깊빀?덈떎.");
+      if (!token || !analysis) throw new Error("생성에 필요한 정보가 부족합니다.");
 
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 15 * 60 * 1000);
@@ -413,7 +421,7 @@ export default function ExamBuilderPage() {
       });
       window.clearTimeout(timeoutId);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "?뚯씪 ?앹꽦???ㅽ뙣?덉뒿?덈떎.");
+      if (!res.ok) throw new Error(data?.error || "파일 생성에 실패했습니다.");
 
       setExamSetId(data.examSetId);
       if (data.blueprint) setBlueprint(data.blueprint);
@@ -421,10 +429,10 @@ export default function ExamBuilderPage() {
       setJob({
         ...localJob,
         progress: 100,
-        currentStepId: "export",
+        currentStepId: "completed",
         status: "completed",
       });
-      setBusyMessage("?뚯씪 ?앹꽦???꾨즺?섏뿀?듬땲??");
+      setBusyMessage("파일 생성이 완료되었습니다.");
       setStep("result");
     } catch (error) {
       const errorMessage =
@@ -432,7 +440,7 @@ export default function ExamBuilderPage() {
           ? "생성 시간이 15분을 넘었습니다. 문항 수를 줄이거나 다시 시도해 주세요."
           : error instanceof Error
             ? error.message
-            : "?뚯씪 ?앹꽦 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.";
+            : "파일 생성 중 오류가 발생했습니다.";
 
       setJob({
         ...localJob,
@@ -502,7 +510,7 @@ export default function ExamBuilderPage() {
 
     return (
       <div className="suddak-card-soft exam-builder-empty-state">
-        ?댁쟾 ?④퀎???뺣낫媛 ?꾩슂?⑸땲?? ?④퀎 踰꾪듉???뚮윭 ?먮쫫???ㅼ떆 ?뺤씤?섏꽭??
+        이전 단계의 정보가 필요합니다. 단계 버튼을 눌러 흐름을 다시 확인해 주세요.
       </div>
     );
   };
@@ -522,31 +530,32 @@ export default function ExamBuilderPage() {
           <header className="suddak-card exam-builder-header">
             <Link href="/" className="suddak-btn suddak-btn-ghost">
               <ChevronLeft size={18} />
-              ?덉쑝濡?            </Link>
+              홈으로
+            </Link>
             <div>
-              <span className="exam-builder-eyebrow">?숉삎?쒗뿕吏</span>
-              <h1>?숉삎?쒗뿕吏 ?쒖옉</h1>
-              <p>湲곗〈 ?쒗뿕吏???뺤떇怨?異쒖젣 ?먮쫫??遺꾩꽍??鍮꾩듂??援ъ“???쒗뿕吏瑜??쒖옉?섎뒗 湲곕뒫?낅땲??</p>
+              <span className="exam-builder-eyebrow">동형시험지</span>
+              <h1>동형시험지 제작</h1>
+              <p>기존 시험지의 형식과 출제 흐름을 분석해 비슷한 구조의 시험지를 제작하는 기능입니다.</p>
             </div>
             <span className="suddak-badge">
               <ShieldAlert size={14} />
-              愿由ъ옄 ?꾩슜 湲곕뒫
+              관리자 전용 기능
             </span>
           </header>
 
           <div className="suddak-card exam-builder-access-card">
             <ShieldAlert size={28} />
-            <h1>愿由ъ옄 ?꾩슜 湲곕뒫</h1>
+            <h1>관리자 전용 기능</h1>
             <p>
-              ?꾩옱 ?숉삎?쒗뿕吏 ?쒖옉 湲곕뒫? ?덉젙?곸씤 ?덉쭏 愿由щ? ?꾪빐 愿由ъ옄留??ъ슜?????덉뒿?덈떎. ?쇰컲 ?좎? 怨듦컻??異뷀썑
-              ?쒓났???덉젙?낅땲??
+              현재 동형시험지 제작 기능은 안정적인 자료 관리를 위해 관리자만 사용할 수 있습니다. 일반 사용자 공개는 추후
+              제공할 예정입니다.
             </p>
             <button
               type="button"
               className="suddak-btn suddak-btn-ghost"
-              onClick={() => alert("?꾩옱 ?숉삎?쒗뿕吏 ?쒖옉? 愿由ъ옄留??ъ슜?????덉뒿?덈떎.")}
+              onClick={() => alert("현재 동형시험지 제작은 관리자만 사용할 수 있습니다.")}
             >
-              愿由ъ옄 ?꾩슜 湲곕뒫
+              관리자 전용 기능
             </button>
           </div>
         </div>
@@ -560,7 +569,7 @@ export default function ExamBuilderPage() {
         <header className="suddak-card exam-builder-header">
           <Link href="/naesin" className="suddak-btn suddak-btn-ghost">
             <ChevronLeft size={16} />
-            내신쌤
+            내신딱딱
           </Link>
           <div>
             <span className="exam-builder-eyebrow">관리자 전용</span>

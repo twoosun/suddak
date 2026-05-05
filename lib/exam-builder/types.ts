@@ -8,7 +8,7 @@ export type ExamBuilderStep =
 export type ReferenceFileKind =
   | "수능특강"
   | "수능완성"
-  | "평가원/교육청 기출"
+  | "평가원 기출"
   | "학교 기출"
   | "학교 프린트"
   | "직접 제작 자료";
@@ -87,6 +87,9 @@ export type ExamGenerationJob = {
   progress: number;
   currentStepId: string;
   status: "running" | "completed";
+  startedAt?: number;
+  totalProblems?: number;
+  estimatedSecondsPerProblem?: number;
 };
 
 export type GeneratedExamFile = {
