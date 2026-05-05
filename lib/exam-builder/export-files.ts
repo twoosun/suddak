@@ -510,12 +510,9 @@ export async function buildExamPdfBuffer(
 export const generatedFileDefinitions: Array<{
   role: FileRole;
   label: string;
-  format: "DOCX" | "PDF";
+  format: "DOCX";
 }> = [
   { role: "exam", label: "시험지 원문", format: "DOCX" },
-  { role: "exam", label: "시험지 원문", format: "PDF" },
   { role: "solution", label: "정답 및 해설지", format: "DOCX" },
-  { role: "solution", label: "정답 및 해설지", format: "PDF" },
   { role: "analysis", label: "출제 분석표", format: "DOCX" },
-  { role: "analysis", label: "출제 분석표", format: "PDF" },
 ];

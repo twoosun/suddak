@@ -1,10 +1,6 @@
 import { NextRequest } from "next/server";
 
-import {
-  buildExamDocxBuffer,
-  buildExamPdfBuffer,
-  generatedFileDefinitions,
-} from "@/lib/exam-builder/export-files";
+import { buildExamDocxBuffer, generatedFileDefinitions } from "@/lib/exam-builder/export-files";
 import {
   type GenerationReferenceFile,
   generateProblemsWithAI,
@@ -49,7 +45,9 @@ function normalizeSubject(value: string) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const user = await getAdminUserFromRequest(req);
-  if (!user) return Response.json({ error: "동형시험지 제작 기능은 관리자만 사용할 수 있습니다." }, { status: 403 });
+  if (!user) {
+    return Response.json({ error: "동형시험지 제작 기능은 관리자만 사용할 수 있습니다." }, { status: 403 });
+  }
 
   const { jobId } = await params;
   const body = (await req.json()) as GenerateBody;
@@ -59,6 +57,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!blueprint || !analysis) {
     return Response.json({ error: "설계표와 분석 결과가 필요합니다." }, { status: 400 });
   }
+
+  const updateProgress = async (progress: number, currentStep: string, status = "generating") => {
+    await supabaseAdmin
+      .from("exam_builder_jobs")
+      .update({
+        status,
+        progress,
+        current_step: currentStep,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId)
+      .eq("user_id", user.id);
+  };
+
+  await updateProgress(22, "references");
 
   const { data: referenceRows } = await supabaseAdmin
     .from("exam_builder_reference_files")
@@ -85,15 +98,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     });
   }
 
-  const generatedBlueprint = await generateProblemsWithAI(blueprint, analysis, referenceFiles);
+  await updateProgress(25, "draft");
+  const generatedBlueprint = await generateProblemsWithAI(
+    blueprint,
+    analysis,
+    referenceFiles,
+    async (event) => {
+      await updateProgress(event.progress, event.step);
+    },
+  );
   generatedBlueprint.subject = normalizeSubject(generatedBlueprint.subject);
 
   await supabaseAdmin
     .from("exam_builder_jobs")
     .update({
       status: "generating",
-      progress: 55,
-      current_step: "export",
+      progress: 74,
+      current_step: "layout",
       blueprint: generatedBlueprint,
       analysis,
       updated_at: new Date().toISOString(),
@@ -127,21 +148,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (examSetError) return Response.json({ error: examSetError.message }, { status: 500 });
 
   await ensureExamBuilderBucket();
+  await updateProgress(80, "export");
 
   const generatedFiles = [];
   const baseName = sanitizeStorageName(generatedBlueprint.title);
 
   for (const definition of generatedFileDefinitions) {
-    const buffer =
-      definition.format === "DOCX"
-        ? await buildExamDocxBuffer(generatedBlueprint, analysis, definition.role)
-        : await buildExamPdfBuffer(generatedBlueprint, analysis, definition.role);
+    const buffer = await buildExamDocxBuffer(generatedBlueprint, analysis, definition.role);
     const extension = definition.format.toLowerCase();
-    const path = `generated/${user.id}/${examSet.id}/${baseName}-${definition.role}.${extension}`;
+    const storagePath = `generated/${user.id}/${examSet.id}/${baseName}-${definition.role}.${extension}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("exam-builder")
-      .upload(path, buffer, {
+      .upload(storagePath, buffer, {
         contentType: getStorageContentType(definition.format),
         upsert: true,
       });
@@ -156,9 +175,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           file_role: definition.role,
           format: definition.format,
           storage_bucket: "exam-builder",
-          storage_path: path,
+          storage_path: storagePath,
         },
-        { onConflict: "exam_set_id,file_role,format" }
+        { onConflict: "exam_set_id,file_role,format" },
       )
       .select("id, file_role, format, storage_path")
       .single();
@@ -167,7 +186,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { data: signed } = await supabaseAdmin.storage
       .from("exam-builder")
-      .createSignedUrl(path, 60 * 60);
+      .createSignedUrl(storagePath, 60 * 60);
 
     generatedFiles.push({
       id: fileRow.id,
@@ -175,6 +194,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       format: definition.format,
       href: signed?.signedUrl ?? "#",
     });
+
+    await updateProgress(
+      80 + Math.floor((generatedFiles.length / generatedFileDefinitions.length) * 15),
+      "export",
+    );
   }
 
   await supabaseAdmin

@@ -17,6 +17,11 @@ type GeneratedProblemResponse = {
   items: GeneratedProblemItem[];
 };
 
+export type GenerationProgressEvent = {
+  progress: number;
+  step: string;
+};
+
 export type GenerationReferenceFile = {
   name: string;
   kind: string;
@@ -87,16 +92,26 @@ export async function generateProblemsWithAI(
   blueprint: ExamBlueprint,
   analysis: ReferenceAnalysisResult,
   referenceFiles: GenerationReferenceFile[] = [],
+  onProgress?: (event: GenerationProgressEvent) => Promise<void>,
 ) {
   if (!process.env.OPENAI_API_KEY) {
     return mergeGeneratedItems(blueprint, []);
   }
 
   try {
-    const response = await client.responses.create({
+    await onProgress?.({ progress: 25, step: "draft" });
+
+    const generatedItems: GeneratedProblemItem[] = [];
+    const totalItems = Math.max(1, blueprint.items.length);
+
+    for (const [index, item] of blueprint.items.entries()) {
+      const startProgress = 25 + Math.floor((index / totalItems) * 45);
+      await onProgress?.({ progress: startProgress, step: `draft:${item.number}` });
+
+      const response = await client.responses.create({
       model: process.env.EXAM_BUILDER_GENERATION_MODEL || "gpt-4.1",
       store: false,
-      max_output_tokens: Math.min(30000, Math.max(9000, blueprint.items.length * 1400)),
+      max_output_tokens: 5000,
       input: [
         {
           role: "developer",
@@ -115,6 +130,7 @@ export async function generateProblemsWithAI(
                 "수식은 Markdown LaTeX로 작성하되 깨진 명령을 만들지 마라. 인라인은 $...$, 블록은 $$...$$만 사용하라.",
                 "문항 본문에는 참고 위치, 업로드 자료명, 생성 지시문을 쓰지 마라.",
                 "각 문항은 실제 학생에게 그대로 제시할 수 있는 완성 문항이어야 한다.",
+                "이번 호출에서는 요청된 단 하나의 문항만 만든다.",
               ].join("\n"),
             },
           ],
@@ -133,7 +149,8 @@ export async function generateProblemsWithAI(
                   subject: blueprint.subject,
                   sourceRange: blueprint.sourceRange,
                   referenceSummary: blueprint.referenceSummary,
-                  items: blueprint.items.map((item) => ({
+                  items: [
+                    {
                     number: item.number,
                     format: item.format,
                     referenceLocation: item.referenceLocation,
@@ -143,7 +160,8 @@ export async function generateProblemsWithAI(
                     difficulty: item.difficulty,
                     transformStrength: item.transformStrength,
                     intent: item.intent,
-                  })),
+                    },
+                  ],
                 },
               }),
             },
@@ -163,13 +181,23 @@ export async function generateProblemsWithAI(
           schema: generatedProblemSchema,
         },
       },
-    });
+      });
 
-    const rawText = response.output_text || "";
-    if (!rawText.trim()) return mergeGeneratedItems(blueprint, []);
+      const rawText = response.output_text || "";
+      if (rawText.trim()) {
+        const parsed = JSON.parse(rawText) as GeneratedProblemResponse;
+        const generatedItem = parsed.items?.find((entry) => Math.round(entry.number) === item.number);
+        if (generatedItem) generatedItems.push(generatedItem);
+      }
 
-    const parsed = JSON.parse(rawText) as GeneratedProblemResponse;
-    return mergeGeneratedItems(blueprint, parsed.items || []);
+      await onProgress?.({
+        progress: 25 + Math.floor(((index + 1) / totalItems) * 45),
+        step: `check:${item.number}`,
+      });
+    }
+
+    await onProgress?.({ progress: 72, step: "solution" });
+    return mergeGeneratedItems(blueprint, generatedItems);
   } catch {
     return mergeGeneratedItems(blueprint, []);
   }

@@ -8,15 +8,18 @@ type Props = {
 };
 
 export default function GenerationProgressStep({ job, steps }: Props) {
-  const activeIndex = steps.findIndex((step) => step.id === job.currentStepId);
+  const baseStepId = job.currentStepId.split(":")[0];
+  const itemNumber = job.currentStepId.includes(":") ? job.currentStepId.split(":")[1] : "";
+  const activeIndex = steps.findIndex((step) => step.id === baseStepId);
   const currentStep = steps[activeIndex] ?? steps[0];
+  const currentLabel = itemNumber ? `${currentStep.label} (${itemNumber}번)` : currentStep.label;
 
   return (
     <div className="exam-builder-step">
       <div className="exam-builder-progress-panel">
         <div className="exam-builder-progress-top">
           <span>현재 단계</span>
-          <strong>{currentStep.label}</strong>
+          <strong>{currentLabel}</strong>
           <b>{Math.round(job.progress)}%</b>
         </div>
         <div className="exam-builder-progress-track">

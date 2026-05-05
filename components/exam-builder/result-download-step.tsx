@@ -22,6 +22,8 @@ export default function ResultDownloadStep({
   examSetId,
   onEditBlueprint,
 }: Props) {
+  const downloadableFiles = files.filter((file) => file.format !== "PDF");
+
   const handlePublish = async (publish: boolean) => {
     if (!jobId || !examSetId) return;
 
@@ -41,7 +43,7 @@ export default function ResultDownloadStep({
   return (
     <div className="exam-builder-step">
       <div className="exam-builder-result-grid">
-        {files.map((file) => (
+        {downloadableFiles.map((file) => (
           <a
             key={file.id}
             href={file.href}
