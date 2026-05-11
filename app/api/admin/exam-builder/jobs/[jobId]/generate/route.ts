@@ -63,6 +63,16 @@ function normalizeSeed(row: Record<string, unknown>): GenerationSeed {
   };
 }
 
+function getPublicGenerationError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (/rate limit|tokens per min|429/i.test(message)) {
+    return "AI 요청 한도를 초과했습니다. 잠시 후 다시 시도하거나 문항 수를 줄여 생성해 주세요.";
+  }
+
+  return message || "문항 생성 중 오류가 발생했습니다.";
+}
+
 async function loadApprovedTrainingSeeds(subject: string) {
   const normalizedSubject = normalizeSubject(subject);
   let query = supabaseAdmin
@@ -250,7 +260,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     return Response.json({ examSetId: examSet.id, blueprint: generatedBlueprint, files: generatedFiles });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "문항 생성 중 오류가 발생했습니다.";
+    const message = getPublicGenerationError(error);
     await updateProgress(0, "error", "failed");
     return Response.json({ error: message }, { status: 500 });
   }

@@ -50,6 +50,8 @@ type GenerationProgress = {
   value: number;
   label: string;
   detail: string;
+  elapsedSeconds: number;
+  remainingSeconds: number | null;
 };
 
 type CreditsStatus = {
@@ -58,12 +60,44 @@ type CreditsStatus = {
   canGenerateSimilarProblem: boolean;
 };
 
-const GENERATION_PROGRESS_STEPS: GenerationProgress[] = [
-  { value: 8, label: "요청 준비", detail: "원본 문제와 참고 풀이를 정리하고 있습니다." },
-  { value: 28, label: "초안 생성", detail: "변형 조건을 반영해 새 문항 초안을 만드는 중입니다." },
-  { value: 56, label: "내부 검수", detail: "문제, 정답, 풀이, 선지 구성이 서로 맞는지 확인하고 있습니다." },
-  { value: 82, label: "최종 보정", detail: "표현과 포맷을 다듬고 export 가능한 형태로 정리하고 있습니다." },
+const GENERATION_ESTIMATE_SECONDS = 55;
+const GENERATION_PROGRESS_PHASES = [
+  { until: 0.12, label: "요청 준비", detail: "원본 기록과 보유 딱을 확인하고 생성 요청을 준비하고 있습니다." },
+  { until: 0.32, label: "딱씨앗 참조", detail: "승인된 딱씨앗 데이터를 함께 참고해 유형과 발상 방향을 잡고 있습니다." },
+  { until: 0.58, label: "초안 생성", detail: "원본과 같은 풀이 구조를 유지하면서 조건과 수치를 변형하고 있습니다." },
+  { until: 0.78, label: "정답 검증", detail: "생성된 문제의 조건, 정답, LaTeX 형식을 점검하고 있습니다." },
+  { until: 1, label: "풀이 정리", detail: "해설과 내보내기 가능한 최종 문항 형태를 정돈하고 있습니다." },
 ];
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) return `${seconds}초`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes}분 ${rest}초` : `${minutes}분`;
+}
+
+function estimateGenerationProgress(startedAt: number): GenerationProgress {
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const ratio = Math.min(elapsedSeconds / GENERATION_ESTIMATE_SECONDS, 1);
+  const phase = GENERATION_PROGRESS_PHASES.find((item) => ratio <= item.until) ?? GENERATION_PROGRESS_PHASES.at(-1)!;
+  const value =
+    elapsedSeconds <= GENERATION_ESTIMATE_SECONDS
+      ? Math.min(92, Math.max(6, Math.round(ratio * 92)))
+      : Math.min(96, 92 + Math.floor((elapsedSeconds - GENERATION_ESTIMATE_SECONDS) / 12));
+  const remainingSeconds =
+    elapsedSeconds <= GENERATION_ESTIMATE_SECONDS ? GENERATION_ESTIMATE_SECONDS - elapsedSeconds : null;
+
+  return {
+    value,
+    label: phase.label,
+    detail:
+      remainingSeconds === null
+        ? `${phase.detail} 예상보다 오래 걸리고 있어 계속 확인 중입니다.`
+        : phase.detail,
+    elapsedSeconds,
+    remainingSeconds,
+  };
+}
 
 function normalizeHistoryItem(row: Record<string, unknown>): SimilarSourceItem | null {
   const id = Number(row.id);
@@ -298,7 +332,8 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   const [result, setResult] = useState<SimilarResult | null>(null);
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const exportRootRef = useRef<HTMLDivElement | null>(null);
-  const generationTimerRef = useRef<number[]>([]);
+  const generationTimerRef = useRef<number | null>(null);
+  const generationStartedAtRef = useRef<number | null>(null);
 
   const formatCredits = (value: number) => value.toLocaleString("ko-KR");
 
@@ -357,14 +392,6 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
     setIsDark(getStoredTheme() === "dark");
     setMounted(true);
   }, []);
-
-  useEffect(
-    () => () => {
-      generationTimerRef.current.forEach((timerId) => window.clearTimeout(timerId));
-      generationTimerRef.current = [];
-    },
-    [],
-  );
 
   useEffect(() => {
     if (!mounted) return;
@@ -500,32 +527,50 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
   }, [mounted, selectedHistoryId]);
 
   const clearGenerationProgressTimers = () => {
-    generationTimerRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    generationTimerRef.current = [];
+    if (generationTimerRef.current !== null) {
+      window.clearInterval(generationTimerRef.current);
+      generationTimerRef.current = null;
+    }
   };
 
   const startGenerationProgress = () => {
     clearGenerationProgressTimers();
-    setGenerationProgress(GENERATION_PROGRESS_STEPS[0]);
+    const startedAt = Date.now();
+    generationStartedAtRef.current = startedAt;
+    setGenerationProgress(estimateGenerationProgress(startedAt));
 
-    generationTimerRef.current = GENERATION_PROGRESS_STEPS.slice(1).map((step, index) =>
-      window.setTimeout(() => {
-        setGenerationProgress((current) => {
-          if (!current || current.value >= step.value) return current;
-          return step;
-        });
-      }, (index + 1) * 2200),
-    );
+    generationTimerRef.current = window.setInterval(() => {
+      setGenerationProgress(estimateGenerationProgress(startedAt));
+    }, 1000);
   };
 
   const finishGenerationProgress = (success: boolean) => {
     clearGenerationProgressTimers();
+    const elapsedSeconds = generationStartedAtRef.current
+      ? Math.max(0, Math.floor((Date.now() - generationStartedAtRef.current) / 1000))
+      : 0;
+    generationStartedAtRef.current = null;
     setGenerationProgress(
       success
-        ? { value: 100, label: "생성 완료", detail: "유사문제를 저장했고 export 준비도 끝났습니다." }
+        ? {
+            value: 100,
+            label: "생성 완료",
+            detail: "유사문제를 저장했고 내보내기 준비도 끝났습니다.",
+            elapsedSeconds,
+            remainingSeconds: 0,
+          }
         : null,
     );
   };
+
+  useEffect(() => {
+    return () => {
+      if (generationTimerRef.current !== null) {
+        window.clearInterval(generationTimerRef.current);
+        generationTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSelectHistory = (nextValue: string) => {
     const nextHistoryId = Number(nextValue);
@@ -908,6 +953,14 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
                   />
                 </div>
                 <div style={{ fontWeight: 800 }}>{generationProgress.label}</div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "13px", fontWeight: 850 }}>
+                  <span>경과 {formatDuration(generationProgress.elapsedSeconds)}</span>
+                  <span>
+                    {generationProgress.remainingSeconds === null
+                      ? "남은 시간 계산 중"
+                      : `예상 남은 시간 ${formatDuration(generationProgress.remainingSeconds)}`}
+                  </span>
+                </div>
                 <div style={{ color: "var(--muted)", lineHeight: 1.7 }}>{generationProgress.detail}</div>
               </div>
             ) : null}

@@ -1,10 +1,63 @@
 import OpenAI from "openai";
+import type {
+  Response,
+  ResponseCreateParamsNonStreaming,
+} from "openai/resources/responses/responses";
 
 import type { BlueprintItem, ExamBlueprint, ReferenceAnalysisResult } from "./types";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const EXAM_BUILDER_GENERATION_MODEL =
+  process.env.EXAM_BUILDER_GENERATION_MODEL || "gpt-4.1-mini";
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRateLimitError(error: unknown) {
+  const candidate = error as { status?: unknown; code?: unknown; type?: unknown };
+  const message = getErrorMessage(error);
+
+  return (
+    candidate.status === 429 ||
+    candidate.code === "rate_limit_exceeded" ||
+    candidate.type === "tokens" ||
+    /rate limit|tokens per min|429/i.test(message)
+  );
+}
+
+function getRetryDelayMs(error: unknown, attempt: number) {
+  const message = getErrorMessage(error);
+  const seconds = Number(message.match(/try again in\s+([\d.]+)s/i)?.[1]);
+  const fallback = 2500 * (attempt + 1);
+  return Math.min(15000, Math.max(1000, Number.isFinite(seconds) ? seconds * 1000 + 500 : fallback));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function createResponseWithRateLimitRetry(params: ResponseCreateParamsNonStreaming): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await client.responses.create(params);
+    } catch (error) {
+      if (!isRateLimitError(error) || attempt === 2) {
+        throw error;
+      }
+
+      lastError = error;
+      await sleep(getRetryDelayMs(error, attempt));
+    }
+  }
+
+  throw lastError;
+}
 
 type GeneratedProblemItem = {
   number: number;
@@ -215,8 +268,8 @@ export async function generateProblemsWithAI(
     const relevantSeeds = pickRelevantSeeds(item, trainingSeeds);
     await onProgress?.({ progress: startProgress, step: `draft:${item.number}` });
 
-    const response = await client.responses.create({
-      model: process.env.EXAM_BUILDER_GENERATION_MODEL || "gpt-4.1",
+    const response = await createResponseWithRateLimitRetry({
+      model: EXAM_BUILDER_GENERATION_MODEL,
       store: false,
       max_output_tokens: 5200,
       input: [

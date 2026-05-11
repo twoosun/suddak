@@ -45,6 +45,22 @@ type CreditActionRow = {
   amount: number;
 };
 
+type GenerationSeed = {
+  id: string;
+  subject: string | null;
+  unit: string | null;
+  difficulty: string | null;
+  core_concepts: string[] | null;
+  key_idea: string | null;
+  solution_strategy: string | null;
+  trap_point: string | null;
+  common_mistake: string | null;
+  variation_points: string[] | null;
+  similar_problem_seed: string | null;
+  abstraction_summary: string | null;
+  generation_instruction: string | null;
+};
+
 const DEFAULT_WARNING = "변형 문제 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
 const SIMILAR_MODEL = "gpt-4o-mini";
 const SIMILAR_MAX_OUTPUT_TOKENS = 2000;
@@ -78,6 +94,92 @@ async function getHistoryItem(historyId: number, userId: string) {
   return data;
 }
 
+function seedSearchText(seed: GenerationSeed) {
+  return [
+    seed.subject,
+    seed.unit,
+    seed.difficulty,
+    ...(seed.core_concepts ?? []),
+    seed.key_idea,
+    seed.solution_strategy,
+    seed.trap_point,
+    seed.common_mistake,
+    ...(seed.variation_points ?? []),
+    seed.similar_problem_seed,
+    seed.abstraction_summary,
+    seed.generation_instruction,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function scoreSeed(seed: GenerationSeed, sourceText: string) {
+  const haystack = seedSearchText(seed);
+  const words = Array.from(
+    new Set(
+      sourceText
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\\]+/gu, " ")
+        .split(/\s+/)
+        .filter((word) => word.length >= 2),
+    ),
+  ).slice(0, 80);
+
+  return words.filter((word) => haystack.includes(word)).length;
+}
+
+async function getRelevantGenerationSeeds(recognizedText: string, solveResult: string) {
+  const { data, error } = await supabaseAdmin
+    .from("problem_idea_seeds")
+    .select(
+      "id, subject, unit, difficulty, core_concepts, key_idea, solution_strategy, trap_point, common_mistake, variation_points, similar_problem_seed, abstraction_summary, generation_instruction",
+    )
+    .eq("use_for_generation", true)
+    .order("quality_score", { ascending: false })
+    .limit(24);
+
+  if (error) {
+    console.error("[api/similar] seed lookup failed:", error);
+    return [] as GenerationSeed[];
+  }
+
+  const sourceText = `${recognizedText}\n${solveResult}`;
+  return ((data ?? []) as GenerationSeed[])
+    .map((seed) => ({ seed, score: scoreSeed(seed, sourceText) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(({ seed }) => seed);
+}
+
+function buildGenerationSeedContext(seeds: GenerationSeed[]) {
+  if (seeds.length === 0) return "";
+
+  return [
+    "[Approved 딱씨앗 generation data]",
+    "Use these reviewed abstract seeds as reference for topic, key idea, traps, variation direction, and solution structure.",
+    "Do not copy any source wording. If the current source problem conflicts with a seed, prioritize the current source problem.",
+    JSON.stringify(
+      seeds.map((seed) => ({
+        subject: seed.subject,
+        unit: seed.unit,
+        difficulty: seed.difficulty,
+        core_concepts: seed.core_concepts,
+        key_idea: seed.key_idea,
+        solution_strategy: seed.solution_strategy,
+        trap_point: seed.trap_point,
+        common_mistake: seed.common_mistake,
+        variation_points: seed.variation_points,
+        similar_problem_seed: seed.similar_problem_seed,
+        abstraction_summary: seed.abstraction_summary,
+        generation_instruction: seed.generation_instruction,
+      })),
+      null,
+      2,
+    ),
+  ].join("\n");
+}
+
 async function spendSimilarProblemCredits(userId: string) {
   const { data, error } = await supabaseAdmin.rpc("spend_user_credits", {
     p_user_id: userId,
@@ -108,7 +210,7 @@ async function refundSimilarProblemCredits(userId: string) {
   return (Array.isArray(data) ? data[0] : data) as CreditActionRow | null;
 }
 
-function buildDraftPrompt(previousIssues: string[] = []) {
+function buildDraftPrompt(previousIssues: string[] = [], seedContext = "") {
   const retrySection =
     previousIssues.length > 0
       ? ["", "[Previous failures to fix]", ...previousIssues.map((issue, index) => `${index + 1}. ${issue}`)]
@@ -127,6 +229,10 @@ function buildDraftPrompt(previousIssues: string[] = []) {
     "If the problem is multiple-choice, choices must use `1.`, `2.`, `3.`, `4.`, `5.`.",
     "variationNote must clearly explain what changed from the source problem.",
     "Fill meta.subjectLabel, meta.subtopic, meta.difficulty, and meta.difficultyLabel.",
+    seedContext
+      ? "Use the approved 딱씨앗 generation data below as a quality reference for mathematical structure and variation strategy."
+      : "",
+    seedContext,
     "",
     "Return format:",
     "{",
@@ -452,12 +558,12 @@ function validateFinalDraft(draft: SimilarDraft) {
   return issues;
 }
 
-async function generateValidatedSimilarProblem(recognizedText: string, solveResult: string) {
+async function generateValidatedSimilarProblem(recognizedText: string, solveResult: string, seedContext = "") {
   let retryIssues: string[] = [];
   let lastIssues: string[] = [];
 
   for (let attempt = 1; attempt <= SIMILAR_MAX_RETRIES; attempt += 1) {
-    const outlineText = await requestSimilarDraft(buildDraftPrompt(retryIssues), recognizedText, solveResult);
+    const outlineText = await requestSimilarDraft(buildDraftPrompt(retryIssues, seedContext), recognizedText, solveResult);
 
     if (!outlineText) {
       lastIssues = ["draft response was empty"];
@@ -669,7 +775,12 @@ export async function POST(req: NextRequest) {
     let finalCredits = creditCharge.credits;
 
     try {
-      parsed = await generateValidatedSimilarProblem(recognizedText, solveResult);
+      const generationSeeds = await getRelevantGenerationSeeds(recognizedText, solveResult);
+      parsed = await generateValidatedSimilarProblem(
+        recognizedText,
+        solveResult,
+        buildGenerationSeedContext(generationSeeds),
+      );
     } catch (error) {
       console.error("[api/similar][POST] generation error:", error);
       try {

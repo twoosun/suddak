@@ -2799,6 +2799,46 @@ a {
   background: #ffffff;
 }
 
+.questi-recognition-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.questi-recognition-preview {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.questi-recognition-preview-title {
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.questi-recognition-preview p {
+  margin: 0;
+  color: #71717a;
+  line-height: 1.7;
+}
+
+.questi-recognition-preview .suddak-markdown {
+  color: #111827;
+  line-height: 1.8;
+}
+
+.questi-recognition-preview .katex-display {
+  padding: 8px 0;
+  border-radius: 8px;
+  background: #fbfbff;
+}
+
 .questi-solve-button {
   display: inline-flex;
   align-items: center;

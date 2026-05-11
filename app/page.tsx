@@ -153,6 +153,28 @@ function extractAnswerSection(markdown: string) {
   };
 }
 
+function normalizeRecognizedMathText(value: string) {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, expression: string) => `$$\n${expression.trim()}\n$$`)
+    .replace(/\\\(((?:\\.|[^\\\n])+?)\\\)/g, (_, expression: string) => `$${expression.trim()}$`)
+    .replace(/(^|[^\\a-zA-Z])(?:\?|\uFFFD)?rac(?=\s*\{)/g, "$1\\frac")
+    .replace(/(^|[^\\a-zA-Z])(?:\?|\uFFFD)?sqrt(?=\s*\{)/g, "$1\\sqrt")
+    .replace(/(^|[^\\a-zA-Z])(?:\?|\uFFFD)?left\b/g, "$1\\left")
+    .replace(/(^|[^\\a-zA-Z])(?:\?|\uFFFD)?right\b/g, "$1\\right")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function withInlineMathDelimiter(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^\${1,2}[\s\S]*\${1,2}$/.test(trimmed)) return trimmed;
+  if (trimmed.includes("\n")) return `$$\n${trimmed}\n$$`;
+  return `$${trimmed}$`;
+}
+
 function GraphPreview({ graph }: { graph: GraphSpec }) {
   const width = 420;
   const height = 260;
@@ -452,7 +474,7 @@ export default function HomePage() {
         return;
       }
 
-      setRecognizedText(data.result || "");
+      setRecognizedText(normalizeRecognizedMathText(data.result || ""));
       setNoticeText("문제 인식이 끝났어요. 잘못 읽힌 부분을 확인하고 풀이를 시작하세요.");
     } catch {
       setNoticeText("문제 인식 중 오류가 발생했어요.");
@@ -529,8 +551,9 @@ export default function HomePage() {
     }
 
     const { start, end } = formulaSelection;
-    const nextText = `${recognizedText.slice(0, start)}${formula}${recognizedText.slice(end)}`;
-    const nextCursor = start + formula.length;
+    const normalizedFormula = withInlineMathDelimiter(formula);
+    const nextText = `${recognizedText.slice(0, start)}${normalizedFormula}${recognizedText.slice(end)}`;
+    const nextCursor = start + normalizedFormula.length;
     setRecognizedText(nextText);
     setFormulaHelperOpen(false);
 
@@ -539,6 +562,31 @@ export default function HomePage() {
       textarea?.focus();
       textarea?.setSelectionRange(nextCursor, nextCursor);
     });
+  };
+
+  const wrapSelectionAsMath = (displayMode: boolean) => {
+    const textarea = recognizedTextareaRef.current;
+    const start = textarea?.selectionStart ?? recognizedText.length;
+    const end = textarea?.selectionEnd ?? start;
+    const selected = recognizedText.slice(start, end).trim();
+    const fallback = displayMode ? "\n\n$$\n\n$$" : "$$";
+    const wrapped = selected
+      ? displayMode
+        ? `$$\n${selected}\n$$`
+        : `$${selected}$`
+      : fallback;
+    const nextText = `${recognizedText.slice(0, start)}${wrapped}${recognizedText.slice(end)}`;
+    const nextCursor = selected ? start + wrapped.length : start + (displayMode ? 4 : 1);
+
+    setRecognizedText(nextText);
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const prettifyRecognizedText = () => {
+    setRecognizedText((current) => normalizeRecognizedMathText(current));
   };
 
   const parsedSolveResult = solveResult ? extractAnswerSection(solveResult) : { answer: "", body: "" };
@@ -747,8 +795,29 @@ export default function HomePage() {
             className="questi-textarea questi-recognition-textarea"
             value={recognizedText}
             onChange={(event) => setRecognizedText(event.target.value)}
-            placeholder="문제 인식 결과가 여기에 표시됩니다. 직접 문제를 입력해도 됩니다."
+            placeholder="문제 인식 결과가 여기에 표시됩니다. 수식은 $...$ 또는 $$...$$ 형태로 고쳐 주세요."
           />
+
+          <div className="questi-recognition-tools" aria-label="수식 편집 도구">
+            <button type="button" className="questi-formula-button" onClick={() => wrapSelectionAsMath(false)}>
+              인라인 수식
+            </button>
+            <button type="button" className="questi-formula-button" onClick={() => wrapSelectionAsMath(true)}>
+              블록 수식
+            </button>
+            <button type="button" className="questi-formula-button" onClick={prettifyRecognizedText}>
+              LaTeX 정리
+            </button>
+          </div>
+
+          <div className="questi-recognition-preview" aria-live="polite">
+            <div className="questi-recognition-preview-title">조판 미리보기</div>
+            {recognizedText.trim() ? (
+              <MarkdownMathBlock content={recognizedText} isDark={false} variant="plain" />
+            ) : (
+              <p>인식된 문제를 LaTeX 형태로 바로 확인할 수 있습니다.</p>
+            )}
+          </div>
 
           <div className="questi-action-row">
             <button
