@@ -25,6 +25,17 @@ type SimilarDraft = {
   } | null;
 };
 
+type SimilarBlueprint = {
+  problemType?: string;
+  coreStructure?: string;
+  fixedElements?: string[];
+  variableElements?: string[];
+  safeGenerationPlan?: string;
+  numericStrategy?: string;
+  validationChecklist?: string[];
+  riskPoints?: string[];
+};
+
 type SimilarOutline = Omit<SimilarDraft, "solution">;
 
 type SimilarVerificationResult = {
@@ -62,9 +73,26 @@ type GenerationSeed = {
 };
 
 const DEFAULT_WARNING = "변형 문제 생성 결과입니다. 수치와 조건은 반드시 다시 확인해 주세요.";
-const SIMILAR_MODEL = "gpt-4o-mini";
+const SIMILAR_MODEL = process.env.SIMILAR_MODEL || "gpt-4o-mini";
 const SIMILAR_MAX_OUTPUT_TOKENS = 2000;
 const SIMILAR_MAX_RETRIES = 3;
+
+class SimilarGenerationError extends Error {
+  public readonly publicMessage: string;
+  public readonly issues: string[];
+
+  constructor(issues: string[]) {
+    super(
+      `유사문제 생성 검증에 반복 실패했습니다. ${
+        issues.length > 0 ? issues.join(", ") : "unknown error"
+      }`,
+    );
+    this.name = "SimilarGenerationError";
+    this.issues = issues;
+    this.publicMessage =
+      "생성된 초안이 검수 단계에서 조건 모순 또는 정답 불일치로 걸러졌습니다. 사용한 딱은 자동으로 환불되며, 원본 OCR을 한 번 확인한 뒤 다시 시도해 주세요.";
+  }
+}
 
 async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -210,7 +238,34 @@ async function refundSimilarProblemCredits(userId: string) {
   return (Array.isArray(data) ? data[0] : data) as CreditActionRow | null;
 }
 
-function buildDraftPrompt(previousIssues: string[] = [], seedContext = "") {
+function buildBlueprintPrompt(seedContext = "") {
+  return [
+    "You are a Korean high-school math problem designer.",
+    "Before writing a similar problem, analyze the source and produce a safe generation blueprint.",
+    "Return exactly one JSON object and nothing else.",
+    "The blueprint must explain how to choose or transform numbers so the generated problem remains solvable.",
+    "Do not write the final problem yet.",
+    "If the source problem has fragile numeric conditions such as extrema, interval range, tangency, roots, sequences, probability counts, or parameter constraints, describe a reverse-engineering strategy instead of guessing numbers.",
+    seedContext
+      ? "Use the approved 딱씨앗 generation data as reference for the core idea, allowed variations, traps, and common mistakes."
+      : "",
+    seedContext,
+    "",
+    "Return format:",
+    "{",
+    '  "problemType": "short type name",',
+    '  "coreStructure": "what must be preserved from the original",',
+    '  "fixedElements": ["elements that must stay structurally equivalent"],',
+    '  "variableElements": ["elements that may change"],',
+    '  "safeGenerationPlan": "step-by-step plan to generate a mathematically valid variant",',
+    '  "numericStrategy": "how to choose numbers/conditions without contradictions",',
+    '  "validationChecklist": ["checks the draft must pass"],',
+    '  "riskPoints": ["likely ways the draft can become invalid"]',
+    "}",
+  ].join("\n");
+}
+
+function buildDraftPrompt(blueprint: SimilarBlueprint | null, previousIssues: string[] = [], seedContext = "") {
   const retrySection =
     previousIssues.length > 0
       ? ["", "[Previous failures to fix]", ...previousIssues.map((issue, index) => `${index + 1}. ${issue}`)]
@@ -223,6 +278,9 @@ function buildDraftPrompt(previousIssues: string[] = [], seedContext = "") {
     "Return exactly one JSON object and nothing else.",
     "The new problem must be solvable, internally consistent, and appropriate for Korean high-school math.",
     "Change numbers or conditions enough to make it a distinct similar problem while preserving the topic and level.",
+    "First follow the safe generation blueprint. Do not invent fragile numeric conditions by intuition.",
+    "For extrema/range/tangency/root/sequence/counting conditions, choose numbers by reverse-engineering from valid equations or by using the blueprint's numericStrategy.",
+    "After choosing numbers, mentally verify the final answer before returning JSON.",
     "All math must use valid LaTeX.",
     "Inline math uses $...$ and display math uses $$...$$ only.",
     "Do not use \\(...\\), \\[...\\], \\begin, or \\end.",
@@ -233,6 +291,9 @@ function buildDraftPrompt(previousIssues: string[] = [], seedContext = "") {
       ? "Use the approved 딱씨앗 generation data below as a quality reference for mathematical structure and variation strategy."
       : "",
     seedContext,
+    "",
+    "[Safe generation blueprint]",
+    JSON.stringify(blueprint ?? {}, null, 2),
     "",
     "Return format:",
     "{",
@@ -272,6 +333,42 @@ function buildVerificationPrompt(candidate: string) {
     "",
     "[Candidate JSON]",
     candidate,
+  ].join("\n");
+}
+
+function buildRepairPrompt(candidate: string, verification: string, blueprint: SimilarBlueprint | null) {
+  return [
+    "You repair a generated Korean high-school math problem that failed verification.",
+    "Return exactly one JSON object and nothing else.",
+    "Keep the same problem type and level, but fix every mathematical inconsistency.",
+    "You may change numbers, interval endpoints, options, or the requested value if needed.",
+    "Do not preserve a broken condition. Prefer a simpler valid variant over a clever invalid one.",
+    "Use the safe generation blueprint and verification issues as constraints.",
+    "All math must use valid LaTeX with $...$ or $$...$$ only.",
+    "",
+    "Return format:",
+    "{",
+    '  "title": "similar problem title",',
+    '  "problem": "repaired problem statement",',
+    '  "answer": "final answer only",',
+    '  "variationNote": "what changed and what was repaired",',
+    '  "warning": "short caution text",',
+    '  "meta": {',
+    '    "subjectLabel": "subject",',
+    '    "subtopic": "subtopic",',
+    '    "difficulty": "easy | medium | hard",',
+    '    "difficultyLabel": "쉬움 | 보통 | 어려움"',
+    "  }",
+    "}",
+    "",
+    "[Safe generation blueprint]",
+    JSON.stringify(blueprint ?? {}, null, 2),
+    "",
+    "[Failed candidate JSON]",
+    candidate,
+    "",
+    "[Verification result JSON]",
+    verification,
   ].join("\n");
 }
 
@@ -393,6 +490,10 @@ function parseSimilarOutline(rawText: string) {
   return parseJsonText<SimilarOutline>(rawText);
 }
 
+function parseSimilarBlueprint(rawText: string) {
+  return parseJsonText<SimilarBlueprint>(rawText);
+}
+
 function parseSimilarVerificationResult(rawText: string) {
   return parseJsonText<SimilarVerificationResult>(rawText);
 }
@@ -460,6 +561,39 @@ function sanitizeSimilarDraft(draft: SimilarDraft): SimilarDraft {
     ...sanitizedOutline,
     solution: draft.solution ? repairCommonLatexCorruption(draft.solution).trim() : draft.solution,
   };
+}
+
+function sanitizeStringArray(value: unknown, limit = 8) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? repairCommonLatexCorruption(item).trim() : ""))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function sanitizeBlueprint(blueprint: SimilarBlueprint): SimilarBlueprint {
+  return {
+    problemType: blueprint.problemType?.trim(),
+    coreStructure: blueprint.coreStructure?.trim(),
+    fixedElements: sanitizeStringArray(blueprint.fixedElements),
+    variableElements: sanitizeStringArray(blueprint.variableElements),
+    safeGenerationPlan: blueprint.safeGenerationPlan?.trim(),
+    numericStrategy: blueprint.numericStrategy?.trim(),
+    validationChecklist: sanitizeStringArray(blueprint.validationChecklist),
+    riskPoints: sanitizeStringArray(blueprint.riskPoints),
+  };
+}
+
+function validateBlueprint(blueprint: SimilarBlueprint) {
+  const issues: string[] = [];
+
+  if (!blueprint.problemType?.trim()) issues.push("blueprint.problemType is empty");
+  if (!blueprint.coreStructure?.trim()) issues.push("blueprint.coreStructure is empty");
+  if (!blueprint.safeGenerationPlan?.trim()) issues.push("blueprint.safeGenerationPlan is empty");
+  if (!blueprint.numericStrategy?.trim()) issues.push("blueprint.numericStrategy is empty");
+  if (!blueprint.validationChecklist?.length) issues.push("blueprint.validationChecklist is empty");
+
+  return issues;
 }
 
 function normalizeMeta(meta: SimilarDraft["meta"]): SimilarProblemMeta | null {
@@ -558,12 +692,121 @@ function validateFinalDraft(draft: SimilarDraft) {
   return issues;
 }
 
+function getVerificationIssues(verification: SimilarVerificationResult, fallbackAnswer: string) {
+  const issues = [...(verification.issues ?? [])].filter(Boolean);
+  if (verification.isValid === false) {
+    issues.unshift("verifier marked candidate as invalid");
+  }
+
+  const verifiedAnswer = repairCommonLatexCorruption(
+    verification.correctedAnswer?.trim() || fallbackAnswer.trim() || "",
+  );
+  if (!verifiedAnswer) {
+    issues.push("verification did not produce a usable answer");
+  }
+  issues.push(...validateLatexText(verifiedAnswer, "verifiedAnswer"));
+
+  return { issues, verifiedAnswer };
+}
+
+async function createGenerationBlueprint(recognizedText: string, solveResult: string, seedContext = "") {
+  const blueprintText = await requestSimilarDraft(buildBlueprintPrompt(seedContext), recognizedText, solveResult);
+  if (!blueprintText) return null;
+
+  try {
+    const blueprint = sanitizeBlueprint(parseSimilarBlueprint(blueprintText));
+    const issues = validateBlueprint(blueprint);
+
+    if (issues.length > 0) {
+      console.error("[api/similar] blueprint validation issues:", issues);
+      return null;
+    }
+
+    return blueprint;
+  } catch (error) {
+    console.error("[api/similar] blueprint parse error:", error);
+    console.error("[api/similar] blueprint raw:", blueprintText);
+    return null;
+  }
+}
+
+async function verifySimilarOutline(outline: SimilarOutline, recognizedText: string, solveResult: string) {
+  const verificationText = await requestSimilarDraft(
+    buildVerificationPrompt(JSON.stringify(outline, null, 2)),
+    recognizedText,
+    solveResult,
+  );
+
+  if (!verificationText) {
+    return {
+      verification: null,
+      verificationText: "",
+      issues: ["verification response was empty"],
+      verifiedAnswer: "",
+    };
+  }
+
+  try {
+    const verification = parseSimilarVerificationResult(verificationText);
+    const { issues, verifiedAnswer } = getVerificationIssues(verification, outline.answer?.trim() || "");
+
+    return { verification, verificationText, issues, verifiedAnswer };
+  } catch (error) {
+    console.error("[api/similar] verification parse error:", error);
+    console.error("[api/similar] verification raw:", verificationText);
+    return {
+      verification: null,
+      verificationText,
+      issues: ["verification JSON parse failed"],
+      verifiedAnswer: "",
+    };
+  }
+}
+
+async function repairSimilarOutline(
+  outline: SimilarOutline,
+  verification: SimilarVerificationResult | null,
+  verificationIssues: string[],
+  blueprint: SimilarBlueprint | null,
+  recognizedText: string,
+  solveResult: string,
+) {
+  const repairText = await requestSimilarDraft(
+    buildRepairPrompt(
+      JSON.stringify(outline, null, 2),
+      JSON.stringify(verification ?? { isValid: false, issues: verificationIssues }, null, 2),
+      blueprint,
+    ),
+    recognizedText,
+    solveResult,
+  );
+
+  if (!repairText) {
+    return { outline: null, issues: ["repair response was empty"] };
+  }
+
+  try {
+    const repaired = sanitizeSimilarOutline(parseSimilarOutline(repairText));
+    const outlineIssues = validateSimilarOutline(repaired);
+    return { outline: outlineIssues.length > 0 ? null : repaired, issues: outlineIssues };
+  } catch (error) {
+    console.error("[api/similar] repair parse error:", error);
+    console.error("[api/similar] repair raw:", repairText);
+    return { outline: null, issues: ["repair JSON parse failed"] };
+  }
+}
+
 async function generateValidatedSimilarProblem(recognizedText: string, solveResult: string, seedContext = "") {
   let retryIssues: string[] = [];
   let lastIssues: string[] = [];
+  const blueprint = await createGenerationBlueprint(recognizedText, solveResult, seedContext);
 
   for (let attempt = 1; attempt <= SIMILAR_MAX_RETRIES; attempt += 1) {
-    const outlineText = await requestSimilarDraft(buildDraftPrompt(retryIssues, seedContext), recognizedText, solveResult);
+    const outlineText = await requestSimilarDraft(
+      buildDraftPrompt(blueprint, retryIssues, seedContext),
+      recognizedText,
+      solveResult,
+    );
 
     if (!outlineText) {
       lastIssues = ["draft response was empty"];
@@ -591,57 +834,47 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
       continue;
     }
 
-    const verificationText = await requestSimilarDraft(
-      buildVerificationPrompt(JSON.stringify(outline, null, 2)),
-      recognizedText,
-      solveResult,
-    );
+    let verificationResult = await verifySimilarOutline(outline, recognizedText, solveResult);
 
-    if (!verificationText) {
-      lastIssues = ["verification response was empty"];
-      retryIssues = lastIssues;
-      continue;
-    }
+    if (verificationResult.issues.length > 0) {
+      console.error("[api/similar] verification issues:", verificationResult.issues);
+      const repairResult = await repairSimilarOutline(
+        outline,
+        verificationResult.verification,
+        verificationResult.issues,
+        blueprint,
+        recognizedText,
+        solveResult,
+      );
 
-    let verification: SimilarVerificationResult;
+      if (!repairResult.outline) {
+        console.error("[api/similar] repair issues:", repairResult.issues);
+        lastIssues = [...verificationResult.issues, ...repairResult.issues];
+        retryIssues = lastIssues;
+        continue;
+      }
 
-    try {
-      verification = parseSimilarVerificationResult(verificationText);
-    } catch (error) {
-      console.error("[api/similar] verification parse error:", error);
-      console.error("[api/similar] verification raw:", verificationText);
-      lastIssues = ["verification JSON parse failed"];
-      retryIssues = lastIssues;
-      continue;
-    }
+      outline = repairResult.outline;
+      verificationResult = await verifySimilarOutline(outline, recognizedText, solveResult);
 
-    const verificationIssues = [...(verification.issues ?? [])];
-    if (verification.isValid === false) {
-      verificationIssues.unshift("verifier marked candidate as invalid");
-    }
-
-    const verifiedAnswer = repairCommonLatexCorruption(
-      verification.correctedAnswer?.trim() || outline.answer?.trim() || "",
-    );
-    if (!verifiedAnswer) {
-      verificationIssues.push("verification did not produce a usable answer");
-    }
-    verificationIssues.push(...validateLatexText(verifiedAnswer, "verifiedAnswer"));
-
-    if (verificationIssues.length > 0) {
-      console.error("[api/similar] verification issues:", verificationIssues);
-      lastIssues = verificationIssues;
-      retryIssues = verificationIssues;
-      continue;
+      if (verificationResult.issues.length > 0) {
+        console.error("[api/similar] repaired verification issues:", verificationResult.issues);
+        lastIssues = verificationResult.issues;
+        retryIssues = verificationResult.issues;
+        continue;
+      }
     }
 
     const verifiedDraft: SimilarDraft = sanitizeSimilarDraft({
       ...outline,
-      answer: verifiedAnswer,
+      answer: verificationResult.verifiedAnswer,
     });
 
     const solutionText = await requestSimilarDraft(
-      buildSolutionPrompt(JSON.stringify(verifiedDraft, null, 2), JSON.stringify(verification, null, 2)),
+      buildSolutionPrompt(
+        JSON.stringify(verifiedDraft, null, 2),
+        JSON.stringify(verificationResult.verification ?? { isValid: true }, null, 2),
+      ),
       recognizedText,
       solveResult,
     );
@@ -666,7 +899,7 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
 
     const candidate: SimilarDraft = sanitizeSimilarDraft({
       ...verifiedDraft,
-      answer: repairCommonLatexCorruption(solutionResult.answer?.trim() || verifiedAnswer),
+      answer: repairCommonLatexCorruption(solutionResult.answer?.trim() || verifiedDraft.answer?.trim() || ""),
       solution: solutionResult.solution?.trim() || "",
     });
 
@@ -681,11 +914,7 @@ async function generateValidatedSimilarProblem(recognizedText: string, solveResu
     return candidate;
   }
 
-  throw new Error(
-    `유사문제 생성 검증에 반복 실패했습니다. ${
-      lastIssues.length > 0 ? lastIssues.join(", ") : "unknown error"
-    }`,
-  );
+  throw new SimilarGenerationError(lastIssues);
 }
 
 export async function GET(req: NextRequest) {
@@ -793,9 +1022,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            error instanceof Error && error.message
-              ? error.message
-              : "유사문제 결과를 정리하지 못했습니다.",
+            error instanceof SimilarGenerationError
+              ? error.publicMessage
+              : error instanceof Error && error.message
+                ? error.message
+                : "유사문제 결과를 정리하지 못했습니다.",
+          detail:
+            error instanceof SimilarGenerationError && process.env.NODE_ENV !== "production"
+              ? error.issues.slice(0, 4)
+              : undefined,
         },
         { status: 502 },
       );

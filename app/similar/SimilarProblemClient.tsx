@@ -649,7 +649,7 @@ export default function SimilarProblemClient({ historyId, source }: SimilarProbl
               data.credits >= Number(data.similarProblemCost ?? current?.similarProblemCost ?? 200),
           }));
         }
-        setMessage(data?.error || "유사문제 생성에 실패했습니다.");
+        setMessage(data?.error || "생성된 초안이 검수 단계에서 통과하지 못했습니다. 딱은 환불되며, 원본 문제를 확인한 뒤 다시 시도해 주세요.");
         return;
       }
 
