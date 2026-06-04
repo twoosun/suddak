@@ -2583,6 +2583,129 @@ a {
   }
 }
 
+.june-mock-banner-wrap {
+  width: min(100%, 960px);
+  margin: 14px auto 0;
+}
+
+.june-mock-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  overflow: hidden;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 88% 16%, rgba(34, 197, 94, 0.15), transparent 30%),
+    linear-gradient(135deg, #181818 0%, #151321 52%, #101010 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.26);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    filter 0.15s ease;
+}
+
+.june-mock-banner:hover {
+  transform: translateY(-2px);
+  border-color: rgba(167, 139, 250, 0.42);
+  filter: brightness(1.04);
+}
+
+.june-mock-banner-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.june-mock-banner-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c4b5fd;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.june-mock-banner-kicker span,
+.june-mock-new,
+.june-mock-popup-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe;
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.june-mock-banner h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.7vw, 1.75rem);
+  font-weight: 950;
+  line-height: 1.25;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.june-mock-banner p {
+  max-width: 58ch;
+  margin: 0;
+  color: #d4d4d8;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.june-mock-banner-side {
+  position: relative;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.june-mock-icon-board {
+  width: 104px;
+  height: 76px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  justify-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #c4b5fd;
+}
+
+.june-mock-icon-board svg:nth-child(2) {
+  color: #86efac;
+}
+
+.june-mock-banner-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #8b5cf6;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+  box-shadow: 0 12px 26px rgba(139, 92, 246, 0.24);
+}
+
 .questi-feature-grid {
   width: min(100%, 940px);
   margin: 18px auto 44px;
@@ -3048,6 +3171,156 @@ a {
   margin-top: 12px;
 }
 
+.june-mock-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(10px);
+  animation: june-mock-fade-in 160ms ease both;
+}
+
+.june-mock-popup {
+  position: relative;
+  width: min(100%, 460px);
+  max-height: min(92vh, 640px);
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.18), transparent 36%),
+    #181818;
+  color: #f8fafc;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  animation: june-mock-slide-up 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.june-mock-popup-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: #101010;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.june-mock-popup-close:hover {
+  background: #292929;
+}
+
+.june-mock-popup-icon {
+  width: 54px;
+  height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+}
+
+.june-mock-popup h2 {
+  margin: 0;
+  padding-right: 28px;
+  font-size: clamp(1.35rem, 5vw, 1.85rem);
+  font-weight: 950;
+  line-height: 1.25;
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.june-mock-popup p {
+  margin: 0;
+  color: #d4d4d8;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.june-mock-popup-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.june-mock-popup-primary,
+.june-mock-popup-secondary,
+.june-mock-popup-hide {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.june-mock-popup-primary {
+  border: 1px solid #8b5cf6;
+  background: #8b5cf6;
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(139, 92, 246, 0.24);
+}
+
+.june-mock-popup-secondary {
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #101010;
+  color: #ffffff;
+}
+
+.june-mock-popup-hide {
+  justify-self: center;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+.june-mock-popup-hide:hover {
+  color: #ddd6fe;
+}
+
+@keyframes june-mock-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes june-mock-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .formula-helper-backdrop {
   position: fixed;
   inset: 0;
@@ -3178,6 +3451,42 @@ a {
 @media (max-width: 640px) {
   .questi-page {
     padding: 0 14px 36px;
+  }
+
+  .june-mock-banner {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .june-mock-banner-kicker {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .june-mock-banner p {
+    font-size: 13px;
+  }
+
+  .june-mock-banner-side {
+    display: none;
+  }
+
+  .june-mock-banner-button {
+    width: 100%;
+  }
+
+  .june-mock-popup {
+    padding: 20px 16px 16px;
+  }
+
+  .june-mock-popup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .june-mock-popup-secondary {
+    width: 100%;
   }
 
   .questi-topbar {

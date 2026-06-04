@@ -22,6 +22,8 @@ import MarkdownMathBlock from "@/components/common/MarkdownMathBlock";
 import FileDropzone from "@/components/home/FileDropzone";
 import FormulaHelperModal from "@/components/home/FormulaHelperModal";
 import OcrPreprocessPanel from "@/components/home/OcrPreprocessPanel";
+import JuneMockAnalysisBanner from "@/components/home/JuneMockAnalysisBanner";
+import JuneMockAnalysisPopup from "@/components/home/JuneMockAnalysisPopup";
 import MoreMenu from "@/components/MoreMenu";
 import CurrencyRewardPopup from "@/components/CurrencyRewardPopup";
 import NotificationBellPopup from "@/components/NotificationBellPopup";
@@ -624,6 +626,8 @@ export default function HomePage() {
 
   return (
     <main className="questi-page">
+      <JuneMockAnalysisPopup />
+
       <header className="questi-topbar">
         <Link href="/" className="questi-logo" aria-label="수딱 홈">
           <img src="/logo.png" alt="" />
@@ -645,6 +649,8 @@ export default function HomePage() {
           />
         </div>
       </header>
+
+      <JuneMockAnalysisBanner />
 
       <section className="questi-hero">
         <p className="questi-eyebrow">함께 성장하는 AI 학습 플랫폼</p>
