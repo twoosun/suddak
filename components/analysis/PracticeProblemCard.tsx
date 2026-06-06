@@ -35,12 +35,7 @@ export default function PracticeProblemCard({ problem }: Props) {
       return;
     }
 
-    const numericAnswer = Number(normalizedAnswer);
-    setCheckState(
-      Number.isSafeInteger(numericAnswer) && numericAnswer === problem.answer
-        ? "correct"
-        : "incorrect"
-    );
+    setCheckState(normalizedAnswer === problem.answer ? "correct" : "incorrect");
   };
 
   return (
@@ -84,6 +79,7 @@ export default function PracticeProblemCard({ problem }: Props) {
             pattern="[0-9]*"
             maxLength={3}
             autoComplete="off"
+            aria-label={`${problem.title} 정답 입력`}
             value={answerInput}
             onChange={(event) => {
               setAnswerInput(event.target.value.replace(/\D/g, "").slice(0, 3));
@@ -140,7 +136,7 @@ export default function PracticeProblemCard({ problem }: Props) {
             </span>
           </div>
           <MarkdownMathBlock
-            content={problem.explanation}
+            content={problem.explanation.join("\n\n")}
             isDark={false}
             variant="plain"
             className="june-analysis-math-content"

@@ -5,9 +5,13 @@ import { JUNE_MOCK_OFFICIAL_SOURCE_URL } from "@/lib/juneMockAnalysis";
 
 type Props = {
   compact?: boolean;
+  sourceLocation?: string;
 };
 
-export default function OfficialSourceCard({ compact = false }: Props) {
+export default function OfficialSourceCard({
+  compact = false,
+  sourceLocation,
+}: Props) {
   return (
     <section className="suddak-card june-analysis-source-card">
       <div className="june-analysis-source-icon" aria-hidden="true">
@@ -22,8 +26,8 @@ export default function OfficialSourceCard({ compact = false }: Props) {
         </p>
         {!compact && (
           <ul>
-            <li>수학 영역 공통과목 22번</li>
-            <li>공식 문제지에서 22번 문항을 확인한 뒤 분석을 읽어 보세요.</li>
+            {sourceLocation ? <li>{sourceLocation}</li> : null}
+            <li>공식 문제지에서 해당 문항을 확인한 뒤 분석을 읽어 보세요.</li>
           </ul>
         )}
       </div>

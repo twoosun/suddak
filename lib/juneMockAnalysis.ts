@@ -9,6 +9,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import {
+  JUNE_MOCK_ANALYSIS_CONTENT,
+  JUNE_MOCK_NEW_PRACTICE_PROBLEMS,
+} from "@/lib/juneMockContent";
+
 export const JUNE_MOCK_ANALYSIS_ENABLED = true;
 export const JUNE_MOCK_ANALYSIS_URL = "/analysis/2027-june-mock";
 export const JUNE_MOCK_COMMUNITY_URL = "/community";
@@ -31,14 +36,21 @@ export type AnalysisProblem = {
   concepts: string[];
   difficulty: number;
   status: "published" | "coming-soon";
-  analysisUrl?: string;
+  analysisUrl: string;
   practiceUrl?: string;
   featured?: boolean;
-  officialSourceUrl?: string;
+  officialSourceUrl: string;
+  sourceLocation: string;
+  overview: string[];
+  keyIdeas: string[];
+  solutionSteps: string[];
+  commonMistakes: string[];
+  originalAnswer: string;
 };
 
 export type PracticeProblem = {
   id: string;
+  parentId: string;
   level: 1 | 2 | 3;
   label: string;
   title: string;
@@ -47,11 +59,15 @@ export type PracticeProblem = {
   status: "published" | "coming-soon";
   content: string;
   options?: string[];
-  answer: number;
-  explanation: string;
+  answer: string;
+  explanation: string[];
   difficulty: number;
   tags: string[];
   variationPoint: string;
+  printContent?: string;
+  printAnswerLine?: boolean;
+  sourceLabel?: string;
+  estimatedSpace?: "small" | "medium" | "large";
 };
 
 export type JuneMockSummaryCard = {
@@ -86,62 +102,7 @@ export const JUNE_MOCK_SUMMARY_CARDS: JuneMockSummaryCard[] = [
   },
 ];
 
-export const JUNE_MOCK_ANALYSIS_PROBLEMS: AnalysisProblem[] = [
-  {
-    id: "common-22",
-    subject: "공통",
-    number: 22,
-    title: "귀납적으로 정의된 수열의 경우 분류",
-    summary: "출발점과 증가량을 구분하여 목표값에 도달하는 경로를 체계적으로 세는 문항입니다.",
-    concepts: ["수열", "경우 분류", "경로 해석"],
-    difficulty: 4.5,
-    status: "published",
-    analysisUrl: "/analysis/2027-june-mock/common-22",
-    practiceUrl: "/analysis/2027-june-mock/common-22/practice",
-    featured: true,
-    officialSourceUrl: JUNE_MOCK_OFFICIAL_SOURCE_URL,
-  },
-  {
-    id: "common-21",
-    subject: "공통",
-    number: 21,
-    title: "함수 그래프 조건의 구조화",
-    summary: "함수의 개형과 주어진 조건 사이의 관계를 파악하는 문항입니다.",
-    concepts: ["함수", "그래프", "조건 해석"],
-    difficulty: 4.0,
-    status: "coming-soon",
-  },
-  {
-    id: "calculus-main",
-    subject: "미적분",
-    number: 28,
-    title: "미적분 주요 문항 분석",
-    summary: "조건을 식으로 변환하고 계산 흐름을 정리하는 문항을 분석합니다.",
-    concepts: ["미적분", "조건 해석"],
-    difficulty: 4.0,
-    status: "coming-soon",
-  },
-  {
-    id: "probability-main",
-    subject: "확률과 통계",
-    number: 28,
-    title: "확률과 통계 주요 문항 분석",
-    summary: "경우를 분류하고 누락 없이 계산하는 문항을 분석합니다.",
-    concepts: ["확률과 통계", "경우 분류"],
-    difficulty: 4.0,
-    status: "coming-soon",
-  },
-  {
-    id: "geometry-main",
-    subject: "기하",
-    number: 28,
-    title: "기하 주요 문항 분석",
-    summary: "도형 조건을 구조화하여 해결하는 문항을 분석합니다.",
-    concepts: ["기하", "도형 해석"],
-    difficulty: 4.0,
-    status: "coming-soon",
-  },
-];
+export const JUNE_MOCK_ANALYSIS_PROBLEMS: AnalysisProblem[] = JUNE_MOCK_ANALYSIS_CONTENT;
 
 export const JUNE_MOCK_FEATURED_POINTS = [
   "출발 가능한 항을 먼저 구분하기",
@@ -159,15 +120,16 @@ export const JUNE_MOCK_COMMON_22_IDEAS = [
 
 export const JUNE_MOCK_UPDATE_STATUSES = [
   { label: "공통 22번", status: "공개 완료" },
-  { label: "공통 21번", status: "준비 중" },
-  { label: "미적분 주요 문항", status: "준비 중" },
-  { label: "확률과 통계 주요 문항", status: "준비 중" },
-  { label: "기하 주요 문항", status: "준비 중" },
+  { label: "공통 21번", status: "공개 완료" },
+  { label: "미적분 28번", status: "공개 완료" },
+  { label: "확률과 통계 28번", status: "공개 완료" },
+  { label: "기하 28번", status: "공개 완료" },
 ];
 
 export const JUNE_MOCK_PRACTICE_PROBLEMS: PracticeProblem[] = [
   {
     id: "common-22-level-1",
+    parentId: "common-22",
     level: 1,
     label: "Level 1 · 기본 변형",
     title: "증가량을 바꾸어 다시 세기",
@@ -185,8 +147,8 @@ b_{4n+1} = b_{4n+3} = b_n + 3
 $$
 
 을 만족시킨다. $b_k = 8$을 만족시키는 자연수 $k$의 개수를 구하시오.`,
-    answer: 16,
-    explanation: `$b_1 = 2$에서 시작하는 경우에는 총 6만큼 증가해야 한다.
+    answer: "16",
+    explanation: [`$b_1 = 2$에서 시작하는 경우에는 총 6만큼 증가해야 한다.
 값이 1 증가하는 이동의 횟수를 $x$, 값이 3 증가하는 이동의 횟수를 $y$라고 하면
 
 $$
@@ -216,14 +178,18 @@ $$
 13 + 3 = 16
 $$
 
-이므로 정답은 16이다.`,
+이므로 정답은 16이다.`],
     difficulty: 3.2,
     tags: ["수열", "경우 분류", "경로 해석", "기본 변형"],
     variationPoint:
       "원문의 이동 구조는 유지하면서 두 갈래 이동의 증가량을 4에서 3으로 변경했습니다.",
+    printAnswerLine: true,
+    sourceLabel: "2027학년도 6월 모평 공통 22번 기본 변형",
+    estimatedSpace: "medium",
   },
   {
     id: "common-22-level-2",
+    parentId: "common-22",
     level: 2,
     label: "Level 2 · 구조 변형",
     title: "서로 다른 증가량을 점화식으로 세기",
@@ -245,8 +211,8 @@ c_{4n+3} = c_n + 4
 $$
 
 를 만족시킨다. $c_k = 9$를 만족시키는 자연수 $k$의 개수를 구하시오.`,
-    answer: 40,
-    explanation: `현재 값에서 목표값까지 남은 증가량이 $d$일 때 가능한 경로의 수를 $F(d)$라고 하자.
+    answer: "40",
+    explanation: [`현재 값에서 목표값까지 남은 증가량이 $d$일 때 가능한 경로의 수를 $F(d)$라고 하자.
 
 가능한 이동은 다음과 같다.
 
@@ -289,14 +255,18 @@ $$
 25 + 15 = 40
 $$
 
-이므로 정답은 40이다.`,
+이므로 정답은 40이다.`],
     difficulty: 4.0,
     tags: ["수열", "점화식", "경우 분류", "구조 변형"],
     variationPoint:
       "원문에서는 두 갈래 이동의 증가량이 같았지만, 이 문항에서는 각각 3과 4로 다르게 설정했습니다.",
+    printAnswerLine: true,
+    sourceLabel: "2027학년도 6월 모평 공통 22번 구조 변형",
+    estimatedSpace: "large",
   },
   {
     id: "common-22-level-3",
+    parentId: "common-22",
     level: 3,
     label: "Level 3 · 심화 변형",
     title: "조건을 만족하는 첨자의 합 추적하기",
@@ -314,9 +284,9 @@ $$
 d_{4n+1} = d_{4n+3} = d_n + 3
 $$
 
-을 만족시킨다. $d_k = 8$을 만족시키는 모든 자연수 $k$의 합을 $S$라 하자. $S/2$의 값을 구하시오.`,
-    answer: 940,
-    explanation: `현재 첨자가 $x$일 때 가능한 이동은 다음과 같다.
+을 만족시킨다. $d_k = 8$을 만족시키는 모든 자연수 $k$의 합을 $S$라 하자. $\\frac{S}{2}$의 값을 구하시오.`,
+    answer: "940",
+    explanation: [`현재 첨자가 $x$일 때 가능한 이동은 다음과 같다.
 
 - $x \\to 2x$
 - $x \\to 4x + 1$
@@ -368,13 +338,35 @@ $$
 \\frac{S}{2} = 940
 $$
 
-이므로 정답은 940이다.`,
+이므로 정답은 940이다.`],
     difficulty: 4.7,
     tags: ["수열", "경로 추적", "첨자의 합", "심화 변형"],
     variationPoint:
       "원문의 경우의 수 계산을 확장하여, 조건을 만족하는 첨자의 합을 재귀적으로 추적하도록 만들었습니다.",
+    printAnswerLine: true,
+    sourceLabel: "2027학년도 6월 모평 공통 22번 심화 변형",
+    estimatedSpace: "large",
   },
 ];
+
+for (const problem of JUNE_MOCK_PRACTICE_PROBLEMS) {
+  problem.printContent = problem.content;
+}
+
+export const JUNE_MOCK_ALL_PRACTICE_PROBLEMS = [
+  ...JUNE_MOCK_PRACTICE_PROBLEMS,
+  ...JUNE_MOCK_NEW_PRACTICE_PROBLEMS,
+];
+
+export function getJuneMockAnalysisProblem(problemId: string) {
+  return JUNE_MOCK_ANALYSIS_PROBLEMS.find((problem) => problem.id === problemId);
+}
+
+export function getJuneMockPracticeProblems(problemId: string) {
+  return JUNE_MOCK_ALL_PRACTICE_PROBLEMS.filter(
+    (problem) => problem.parentId === problemId
+  );
+}
 
 export const JUNE_MOCK_DETAIL_SECTIONS = [
   { title: "문항 한눈에 보기", icon: FileText },
