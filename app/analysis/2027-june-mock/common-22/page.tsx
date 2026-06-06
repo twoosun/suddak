@@ -47,7 +47,7 @@ export default function Common22AnalysisPage() {
                   </ul>
                 ) : isPracticeSection ? (
                   <div className="june-analysis-placeholder-block">
-                    <p>분석 내용이 곧 업데이트됩니다.</p>
+                    <p>수딱 자체 제작 단답형 유사문항 3제가 공개되었습니다.</p>
                     <Link
                       href="/analysis/2027-june-mock/common-22/practice"
                       className="suddak-btn suddak-btn-primary"

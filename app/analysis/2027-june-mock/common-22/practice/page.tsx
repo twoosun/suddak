@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, PenLine } from "lucide-react";
+import { ArrowLeft, PenLine } from "lucide-react";
 
+import PracticeProblemCard from "@/components/analysis/PracticeProblemCard";
 import PageContainer from "@/components/common/PageContainer";
 import { JUNE_MOCK_PRACTICE_PROBLEMS } from "@/lib/juneMockAnalysis";
 
@@ -16,23 +17,16 @@ export default function Common22PracticePage() {
         <header className="suddak-card june-analysis-detail-hero">
           <span className="june-analysis-badge">수딱 자체 제작</span>
           <h1>공통 22번 유사문항 3제</h1>
-          <p>숫자만 바꾼 문제부터 구조를 변형한 문제까지 단계별로 연습해 보세요.</p>
+          <p>
+            기본 구조부터 심화 변형까지 단계별로 연습해 보세요.
+            <br />
+            모든 문항은 수딱이 직접 제작한 단답형 문항입니다.
+          </p>
         </header>
 
         <section className="june-analysis-practice-grid" aria-label="공통 22번 유사문항 목록">
           {JUNE_MOCK_PRACTICE_PROBLEMS.map((problem) => (
-            <article key={problem.id} className="suddak-card june-analysis-practice-card">
-              <span className="suddak-badge">{problem.label}</span>
-              <h2>{problem.title}</h2>
-              <p>{problem.description}</p>
-              <div className="june-analysis-practice-placeholder">
-                <LockKeyhole size={20} />
-                <span>유사문항이 곧 공개됩니다.</span>
-              </div>
-              {problem.content ? (
-                <div className="june-analysis-practice-content">{problem.content}</div>
-              ) : null}
-            </article>
+            <PracticeProblemCard key={problem.id} problem={problem} />
           ))}
         </section>
 

@@ -43,11 +43,15 @@ export type PracticeProblem = {
   label: string;
   title: string;
   description: string;
+  questionType: "short-answer";
   status: "published" | "coming-soon";
-  content?: string;
+  content: string;
   options?: string[];
-  answer?: number;
-  explanation?: string;
+  answer: number;
+  explanation: string;
+  difficulty: number;
+  tags: string[];
+  variationPoint: string;
 };
 
 export type JuneMockSummaryCard = {
@@ -166,25 +170,209 @@ export const JUNE_MOCK_PRACTICE_PROBLEMS: PracticeProblem[] = [
     id: "common-22-level-1",
     level: 1,
     label: "Level 1 · 기본 변형",
-    title: "풀이 구조 익히기",
-    description: "원문의 풀이 구조를 익히는 문제",
-    status: "coming-soon",
+    title: "증가량을 바꾸어 다시 세기",
+    description: "원문과 같은 풀이 구조를 익히는 기본 변형 문제입니다.",
+    questionType: "short-answer",
+    status: "published",
+    content: `수열 $\\{b_n\\}$은 $b_1 = 2$, $b_3 = 5$이고, 모든 자연수 $n$에 대하여
+
+$$
+b_{2n} = b_n + 1
+$$
+
+$$
+b_{4n+1} = b_{4n+3} = b_n + 3
+$$
+
+을 만족시킨다. $b_k = 8$을 만족시키는 자연수 $k$의 개수를 구하시오.`,
+    answer: 16,
+    explanation: `$b_1 = 2$에서 시작하는 경우에는 총 6만큼 증가해야 한다.
+값이 1 증가하는 이동의 횟수를 $x$, 값이 3 증가하는 이동의 횟수를 $y$라고 하면
+
+$$
+x + 3y = 6
+$$
+
+이다.
+
+가능한 경우는 다음과 같다.
+
+- $(x, y) = (6, 0)$: 1가지
+- $(x, y) = (3, 1)$: 이동 순서 4가지 $\\times$ 두 갈래 선택 2가지 $= 8$가지
+- $(x, y) = (0, 2)$: 두 갈래 선택 $2^2 = 4$가지
+
+따라서 $b_1 = 2$에서 출발하는 경우는 13가지이다.
+
+$b_3 = 5$에서 시작하는 경우에는 총 3만큼 증가해야 한다.
+
+- 1 증가 이동을 3번 사용하는 경우: 1가지
+- 3 증가 이동을 1번 사용하는 경우: 두 갈래 선택 2가지
+
+따라서 $b_3 = 5$에서 출발하는 경우는 3가지이다.
+
+두 경우를 더하면
+
+$$
+13 + 3 = 16
+$$
+
+이므로 정답은 16이다.`,
+    difficulty: 3.2,
+    tags: ["수열", "경우 분류", "경로 해석", "기본 변형"],
+    variationPoint:
+      "원문의 이동 구조는 유지하면서 두 갈래 이동의 증가량을 4에서 3으로 변경했습니다.",
   },
   {
     id: "common-22-level-2",
     level: 2,
     label: "Level 2 · 구조 변형",
-    title: "조건이 달라지는 변형",
-    description: "출발점과 증가량 조건이 달라지는 문제",
-    status: "coming-soon",
+    title: "서로 다른 증가량을 점화식으로 세기",
+    description: "두 갈래 이동의 증가량이 서로 달라진 구조 변형 문제입니다.",
+    questionType: "short-answer",
+    status: "published",
+    content: `수열 $\\{c_n\\}$은 $c_1 = 1$, $c_3 = 2$이고, 모든 자연수 $n$에 대하여
+
+$$
+c_{2n} = c_n + 1
+$$
+
+$$
+c_{4n+1} = c_n + 3
+$$
+
+$$
+c_{4n+3} = c_n + 4
+$$
+
+를 만족시킨다. $c_k = 9$를 만족시키는 자연수 $k$의 개수를 구하시오.`,
+    answer: 40,
+    explanation: `현재 값에서 목표값까지 남은 증가량이 $d$일 때 가능한 경로의 수를 $F(d)$라고 하자.
+
+가능한 이동은 다음과 같다.
+
+- 값이 1 증가하는 이동
+- 값이 3 증가하는 이동
+- 값이 4 증가하는 이동
+
+따라서
+
+$$
+F(0) = 1
+$$
+
+이고, $d$가 양수일 때
+
+$$
+F(d) = F(d - 1) + F(d - 3) + F(d - 4)
+$$
+
+이다. 단, 아래첨자가 음수인 항은 0으로 처리한다.
+
+차례대로 계산하면
+
+$$
+\\begin{aligned}
+F(0)&=1, & F(1)&=1, & F(2)&=1, \\\\
+F(3)&=2, & F(4)&=4, & F(5)&=6, \\\\
+F(6)&=9, & F(7)&=15, & F(8)&=25
+\\end{aligned}
+$$
+
+이다.
+
+$c_1 = 1$에서 시작하는 경우에는 8만큼 증가해야 하므로 25가지이다.
+$c_3 = 2$에서 시작하는 경우에는 7만큼 증가해야 하므로 15가지이다.
+
+따라서
+
+$$
+25 + 15 = 40
+$$
+
+이므로 정답은 40이다.`,
+    difficulty: 4.0,
+    tags: ["수열", "점화식", "경우 분류", "구조 변형"],
+    variationPoint:
+      "원문에서는 두 갈래 이동의 증가량이 같았지만, 이 문항에서는 각각 3과 4로 다르게 설정했습니다.",
   },
   {
     id: "common-22-level-3",
     level: 3,
     label: "Level 3 · 심화 변형",
-    title: "역추적과 경우 분류",
-    description: "경우를 역추적하여 분류해야 하는 문제",
-    status: "coming-soon",
+    title: "조건을 만족하는 첨자의 합 추적하기",
+    description:
+      "가능한 경로의 개수를 넘어 조건을 만족하는 첨자의 합까지 추적하는 심화 문제입니다.",
+    questionType: "short-answer",
+    status: "published",
+    content: `수열 $\\{d_n\\}$은 $d_1 = 1$, $d_3 = 3$이고, 모든 자연수 $n$에 대하여
+
+$$
+d_{2n} = d_n + 1
+$$
+
+$$
+d_{4n+1} = d_{4n+3} = d_n + 3
+$$
+
+을 만족시킨다. $d_k = 8$을 만족시키는 모든 자연수 $k$의 합을 $S$라 하자. $S/2$의 값을 구하시오.`,
+    answer: 940,
+    explanation: `현재 첨자가 $x$일 때 가능한 이동은 다음과 같다.
+
+- $x \\to 2x$
+- $x \\to 4x + 1$
+- $x \\to 4x + 3$
+
+현재 값에서 목표값까지 남은 증가량이 $m$일 때, 도달 가능한 모든 첨자의 합을 $T_m(x)$라고 하자.
+
+초기값은
+
+$$
+T_0(x) = x
+$$
+
+이다.
+
+각 이동에 따라 다음 점화식을 얻는다.
+
+$$
+T_m(x) = T_{m-1}(2x) + T_{m-3}(4x+1) + T_{m-3}(4x+3)
+$$
+
+단, 아래첨자가 음수인 항은 0으로 처리한다.
+
+$d_1 = 1$에서 출발하는 경우에는 7만큼 증가해야 하므로
+
+$$
+T_7(1) = 1468
+$$
+
+이다.
+
+$d_3 = 3$에서 출발하는 경우에는 5만큼 증가해야 하므로
+
+$$
+T_5(3) = 412
+$$
+
+이다.
+
+따라서
+
+$$
+S = 1468 + 412 = 1880
+$$
+
+이고,
+
+$$
+\\frac{S}{2} = 940
+$$
+
+이므로 정답은 940이다.`,
+    difficulty: 4.7,
+    tags: ["수열", "경로 추적", "첨자의 합", "심화 변형"],
+    variationPoint:
+      "원문의 경우의 수 계산을 확장하여, 조건을 만족하는 첨자의 합을 재귀적으로 추적하도록 만들었습니다.",
   },
 ];
 

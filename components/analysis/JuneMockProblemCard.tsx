@@ -28,7 +28,13 @@ export default function JuneMockProblemCard({ problem }: Props) {
       </div>
       <div className="june-analysis-problem-status">
         <span>난이도 {problem.difficulty.toFixed(1)} / 5.0</span>
-        <strong>{isPublished ? "분석 공개" : "업데이트 예정"}</strong>
+        <strong>
+          {isPublished
+            ? problem.practiceUrl
+              ? "유사문항 3제 공개"
+              : "분석 공개"
+            : "업데이트 예정"}
+        </strong>
       </div>
       <div className="june-analysis-card-actions">
         {isPublished && problem.analysisUrl ? (
@@ -44,7 +50,7 @@ export default function JuneMockProblemCard({ problem }: Props) {
         {isPublished && problem.practiceUrl ? (
           <Link href={problem.practiceUrl} className="suddak-btn suddak-btn-ghost">
             <PenLine size={16} />
-            유사문항 풀기
+            바로 풀어 보기
           </Link>
         ) : null}
         {isPublished && problem.officialSourceUrl ? (
