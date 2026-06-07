@@ -14,3 +14,11 @@ Creating turbopack project { dir: 'C:\\Users\\Admin\\math-ai', testMode: true }
 ○ Compiling /naesin/[id] ...
  GET /naesin 200 in 8.7s (next.js: 5.7s, application-code: 3.0s)
  GET /naesin/calculus-ch05-derivative-applications 200 in 8.9s (next.js: 8.5s, application-code: 341ms)
+✓ Compiled in 490ms
+✓ Compiled in 1247ms
+✓ Compiled in 835ms
+✓ Compiled in 1010ms
+ GET /materials/calculus/chapter-05/calculus-ch05-problems.pdf 404 in 187ms (next.js: 90ms, application-code: 97ms)
+ GET /api/naesinddak/materials/calculus-ch05-derivative-applications/access 200 in 3.8s (next.js: 3.6s, application-code: 206ms)
+ GET /naesin 200 in 4.2s (next.js: 233ms, application-code: 4.0s)
+ GET /api/naesinddak/materials/calculus-ch05-derivative-applications/download?file=problemPdf 401 in 5.3s (next.js: 5.3s, application-code: 13ms)

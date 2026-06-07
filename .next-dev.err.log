@@ -1,0 +1,32 @@
+⨯ ./app/naesin/page.tsx:6:1
+Module not found: Can't resolve '@/components/naesin/exam-set-card'
+  [90m4 |[0m [36mimport[0m [33mPageContainer[0m [36mfrom[0m [32m"@/components/common/PageContainer"[0m;
+  [90m5 |[0m [36mimport[0m [33mSectionCard[0m [36mfrom[0m [32m"@/components/common/SectionCard"[0m;
+[31m[1m>[0m [90m6 |[0m [36mimport[0m [33mExamSetCard[0m [36mfrom[0m [32m"@/components/naesin/exam-set-card"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m7 |[0m [36mimport[0m [33mNaesinHeader[0m [36mfrom[0m [32m"@/components/naesin/naesin-header"[0m;
+  [90m8 |[0m [36mimport[0m [33mSubjectFilter[0m [36mfrom[0m [32m"@/components/naesin/subject-filter"[0m;
+  [90m9 |[0m [36mimport[0m { fetchPublishedNaesinExamSets } [36mfrom[0m [32m"@/lib/naesin/data"[0m;
+
+Import map: aliased to relative './components/naesin/exam-set-card' inside of [project]/
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./app/naesin/page.tsx:6:1
+Module not found: Can't resolve '@/components/naesin/exam-set-card'
+  [90m4 |[0m [36mimport[0m [33mPageContainer[0m [36mfrom[0m [32m"@/components/common/PageContainer"[0m;
+  [90m5 |[0m [36mimport[0m [33mSectionCard[0m [36mfrom[0m [32m"@/components/common/SectionCard"[0m;
+[31m[1m>[0m [90m6 |[0m [36mimport[0m [33mExamSetCard[0m [36mfrom[0m [32m"@/components/naesin/exam-set-card"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m7 |[0m [36mimport[0m [33mNaesinHeader[0m [36mfrom[0m [32m"@/components/naesin/naesin-header"[0m;
+  [90m8 |[0m [36mimport[0m [33mSubjectFilter[0m [36mfrom[0m [32m"@/components/naesin/subject-filter"[0m;
+  [90m9 |[0m [36mimport[0m { fetchPublishedNaesinExamSets } [36mfrom[0m [32m"@/lib/naesin/data"[0m;
+
+Import map: aliased to relative './components/naesin/exam-set-card' inside of [project]/
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+

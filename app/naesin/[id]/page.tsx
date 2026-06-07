@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Download, FileText, Lock, RotateCcw, Sparkles } from "lucide-react";
+import { FileText, RotateCcw, Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
+import MaterialDownloadPanel from "@/components/naesin/material-download-panel";
 import NaesinHeader from "@/components/naesin/naesin-header";
 import { fetchPublishedNaesinExamSet } from "@/lib/naesin/data";
 
@@ -50,7 +51,7 @@ export default async function NaesinDetailPage({ params }: Props) {
             <dl className="naesin-info-list">
               <div>
                 <dt>과목</dt>
-                <dd>수학</dd>
+                <dd>{examSet.subjectName ?? "수학"}</dd>
               </div>
               <div>
                 <dt>세부 과목</dt>
@@ -88,29 +89,7 @@ export default async function NaesinDetailPage({ params }: Props) {
             description="문제지와 정답·해설지를 형식별로 제공합니다."
             id="solutions"
           >
-            <div className="naesin-download-list">
-              {examSet.downloads.map((asset) => (
-                <a
-                  key={`${asset.label}-${asset.format}`}
-                  href={asset.available ? asset.path : undefined}
-                  download={asset.available ? asset.downloadName ?? true : undefined}
-                  className={`suddak-card-soft naesin-download-card ${
-                    !asset.available ? "naesin-download-card-disabled" : ""
-                  }`}
-                  aria-label={`${examSet.units[0] ?? examSet.title} ${asset.label} ${asset.format} 다운로드`}
-                  aria-disabled={!asset.available}
-                  rel="noopener noreferrer"
-                >
-                  {asset.available ? <Download size={18} /> : <Lock size={18} />}
-                  <div>
-                    <strong>
-                      {asset.label} {asset.format}
-                    </strong>
-                    <span>{asset.available ? "다운로드 가능" : "파일 준비 중"}</span>
-                  </div>
-                </a>
-              ))}
-            </div>
+            <MaterialDownloadPanel examSet={examSet} />
           </SectionCard>
         </div>
 

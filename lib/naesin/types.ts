@@ -16,6 +16,7 @@ export type NaesinMaterialType =
   | "변형 문제 세트";
 
 export type NaesinDownloadAsset = {
+  key?: "problemPdf" | "problemDocx" | "solutionPdf" | "solutionDocx" | "combinedPdf";
   label: string;
   format: "PDF" | "DOCX";
   path: string;
@@ -29,6 +30,7 @@ export type NaesinExamSet = {
   subject: Exclude<NaesinSubject, "all">;
   subjectLabel: string;
   subjectDetail?: string;
+  subjectName?: string;
   units: string[];
   examRange: string;
   problemCount: number;
@@ -39,8 +41,10 @@ export type NaesinExamSet = {
   category?: string;
   sourceBasis: string[];
   includedTopics?: string[];
+  tags?: string[];
   publishStatus: "공개" | "비공개" | "검수중";
   featured: boolean;
+  priceDdak?: number;
   estimatedMinutes: number;
   estimatedMinutesLabel?: string;
   updatedAt: string;

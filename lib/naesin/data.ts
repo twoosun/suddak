@@ -1,6 +1,43 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStaticNaesinExamSet, staticNaesinExamSets } from "./static-materials";
-import type { NaesinDifficulty, NaesinExamSet } from "./types";
+import type { NaesinDifficulty, NaesinDownloadAsset, NaesinExamSet } from "./types";
+
+export const NAESINDDAK_STORAGE_BUCKET = "naesinddak-materials";
+
+export type NaesinddakFileKey =
+  | "problemPdf"
+  | "problemDocx"
+  | "solutionPdf"
+  | "solutionDocx"
+  | "combinedPdf";
+
+const FILE_LABELS: Record<NaesinddakFileKey, { label: string; format: "PDF" | "DOCX"; downloadName: string }> = {
+  problemPdf: {
+    label: "문제지",
+    format: "PDF",
+    downloadName: "calculus-ch05-problems.pdf",
+  },
+  problemDocx: {
+    label: "문제지",
+    format: "DOCX",
+    downloadName: "calculus-ch05-problems.docx",
+  },
+  solutionPdf: {
+    label: "정답·해설",
+    format: "PDF",
+    downloadName: "calculus-ch05-solutions.pdf",
+  },
+  solutionDocx: {
+    label: "정답·해설",
+    format: "DOCX",
+    downloadName: "calculus-ch05-solutions.docx",
+  },
+  combinedPdf: {
+    label: "문제지·해설 통합",
+    format: "PDF",
+    downloadName: "calculus-ch05-combined.pdf",
+  },
+};
 
 type ExamFileRow = {
   file_role: "exam" | "solution" | "analysis";
@@ -23,6 +60,96 @@ type ExamSetRow = {
   } | null;
   naesin_exam_files?: ExamFileRow[];
 };
+
+type NaesinddakMaterialRow = {
+  id: string;
+  title: string;
+  description: string;
+  detail_description: string | null;
+  subject: string;
+  subject_detail: string;
+  unit: string;
+  category: string;
+  problem_count_label: string;
+  set_count_label: string;
+  estimated_minutes_label: string;
+  status: "public" | "private";
+  price_ddak: number;
+  tags: string[] | null;
+  included_topics: string[] | null;
+  source_basis: string[] | null;
+  file_paths: Partial<Record<NaesinddakFileKey, string>> | null;
+  featured: boolean | null;
+  updated_at: string;
+};
+
+function subjectSlug(subjectDetail: string): NaesinExamSet["subject"] {
+  if (subjectDetail === "미적분") return "calculus";
+  if (subjectDetail === "수학 I") return "math-1";
+  if (subjectDetail === "수학 II") return "math-2";
+  if (subjectDetail === "확률과 통계") return "probability";
+  if (subjectDetail === "기하") return "geometry";
+  return "common-math";
+}
+
+function buildDownloadAssets(filePaths: Partial<Record<NaesinddakFileKey, string>> | null) {
+  return (Object.entries(filePaths ?? {}) as Array<[NaesinddakFileKey, string]>)
+    .filter(([, path]) => Boolean(path))
+    .map(
+      ([key, path]): NaesinDownloadAsset => ({
+        key,
+        label: FILE_LABELS[key].label,
+        format: FILE_LABELS[key].format,
+        path,
+        available: true,
+        downloadName: FILE_LABELS[key].downloadName,
+      })
+    );
+}
+
+function mapNaesinddakMaterial(row: NaesinddakMaterialRow): NaesinExamSet {
+  return {
+    id: row.id,
+    title: row.title,
+    subject: subjectSlug(row.subject_detail),
+    subjectLabel: row.subject_detail,
+    subjectDetail: row.subject_detail,
+    subjectName: row.subject,
+    units: [row.unit],
+    examRange: row.included_topics?.join(", ") ?? "",
+    problemCount: 0,
+    problemCountLabel: row.problem_count_label,
+    setCountLabel: row.set_count_label,
+    difficulty: "상",
+    materialType: "변형 문제 세트",
+    category: row.category,
+    sourceBasis: row.source_basis ?? [],
+    includedTopics: row.included_topics ?? [],
+    tags: row.tags ?? [],
+    publishStatus: row.status === "public" ? "공개" : "비공개",
+    featured: Boolean(row.featured),
+    priceDdak: Number(row.price_ddak ?? 0),
+    estimatedMinutes: Number.parseInt(row.estimated_minutes_label, 10) || 50,
+    estimatedMinutesLabel: row.estimated_minutes_label,
+    updatedAt: row.updated_at,
+    description: row.description,
+    detailDescription: row.detail_description ?? undefined,
+    downloads: buildDownloadAssets(row.file_paths),
+  };
+}
+
+async function fetchNaesinddakMaterials() {
+  const { data, error } = await supabaseAdmin
+    .from("naesinddak_materials")
+    .select(
+      "id,title,description,detail_description,subject,subject_detail,unit,category,problem_count_label,set_count_label,estimated_minutes_label,status,price_ddak,tags,included_topics,source_basis,file_paths,featured,updated_at"
+    )
+    .eq("status", "public")
+    .order("updated_at", { ascending: false });
+
+  if (error || !data) return null;
+  return (data as NaesinddakMaterialRow[]).map(mapNaesinddakMaterial);
+}
 
 function getRoleLabel(role: ExamFileRow["file_role"]) {
   if (role === "exam") return "문제지";
@@ -86,6 +213,8 @@ async function mapExamSet(row: ExamSetRow): Promise<NaesinExamSet> {
 
 export async function fetchPublishedNaesinExamSets() {
   try {
+    const materialSets = (await fetchNaesinddakMaterials()) ?? staticNaesinExamSets;
+
     const { data, error } = await supabaseAdmin
       .from("naesin_exam_sets")
       .select(
@@ -94,16 +223,31 @@ export async function fetchPublishedNaesinExamSets() {
       .eq("is_published", true)
       .order("created_at", { ascending: false });
 
-    if (error || !data) return staticNaesinExamSets;
+    if (error || !data) return materialSets;
 
     const databaseSets = await Promise.all((data as ExamSetRow[]).map(mapExamSet));
-    return [...staticNaesinExamSets, ...databaseSets];
+    return [...materialSets, ...databaseSets];
   } catch {
     return staticNaesinExamSets;
   }
 }
 
 export async function fetchPublishedNaesinExamSet(id: string) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("naesinddak_materials")
+      .select(
+        "id,title,description,detail_description,subject,subject_detail,unit,category,problem_count_label,set_count_label,estimated_minutes_label,status,price_ddak,tags,included_topics,source_basis,file_paths,featured,updated_at"
+      )
+      .eq("id", id)
+      .eq("status", "public")
+      .maybeSingle();
+
+    if (!error && data) return mapNaesinddakMaterial(data as NaesinddakMaterialRow);
+  } catch {
+    // Fall through to static and legacy exam-builder data.
+  }
+
   const staticSet = getStaticNaesinExamSet(id);
   if (staticSet) return staticSet;
 
@@ -122,4 +266,20 @@ export async function fetchPublishedNaesinExamSet(id: string) {
   } catch {
     return null;
   }
+}
+
+export async function getNaesinddakStoragePath(materialId: string, fileKey: NaesinddakFileKey) {
+  const material = await fetchPublishedNaesinExamSet(materialId);
+  const asset = material?.downloads.find((download) => download.key === fileKey);
+  return asset?.path ?? null;
+}
+
+export function isNaesinddakFileKey(value: string | null): value is NaesinddakFileKey {
+  return (
+    value === "problemPdf" ||
+    value === "problemDocx" ||
+    value === "solutionPdf" ||
+    value === "solutionDocx" ||
+    value === "combinedPdf"
+  );
 }
