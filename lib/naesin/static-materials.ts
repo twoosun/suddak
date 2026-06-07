@@ -38,6 +38,14 @@ export const staticNaesinExamSets: NaesinExamSet[] = [
         available: true,
         downloadName: "calculus-ch06-problems.pdf",
       },
+      {
+        key: "solutionPdf",
+        label: "정답·해설",
+        format: "PDF",
+        path: "calculus/chapter-06/calculus-ch06-solutions.pdf",
+        available: true,
+        downloadName: "calculus-ch06-solutions.pdf",
+      },
     ],
   },
   {

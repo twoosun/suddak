@@ -291,7 +291,8 @@ values (
   '["여러 가지 함수의 적분", "치환적분법", "부분적분법", "적분 계산 전략", "수능형 변형"]'::jsonb,
   '["수능특강 핵심 개념", "적분법 기본 유형", "치환적분·부분적분 유형", "수능형 변형 흐름"]'::jsonb,
   '{
-    "problemPdf": "calculus/chapter-06/calculus-ch06-problems.pdf"
+    "problemPdf": "calculus/chapter-06/calculus-ch06-problems.pdf",
+    "solutionPdf": "calculus/chapter-06/calculus-ch06-solutions.pdf"
   }'::jsonb,
   true
 )
