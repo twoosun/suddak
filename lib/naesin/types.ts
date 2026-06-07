@@ -20,6 +20,7 @@ export type NaesinDownloadAsset = {
   format: "PDF" | "DOCX";
   path: string;
   available: boolean;
+  downloadName?: string;
 };
 
 export type NaesinExamSet = {
@@ -27,17 +28,24 @@ export type NaesinExamSet = {
   title: string;
   subject: Exclude<NaesinSubject, "all">;
   subjectLabel: string;
+  subjectDetail?: string;
   units: string[];
   examRange: string;
   problemCount: number;
+  problemCountLabel?: string;
+  setCountLabel?: string;
   difficulty: NaesinDifficulty;
   materialType: NaesinMaterialType;
+  category?: string;
   sourceBasis: string[];
+  includedTopics?: string[];
   publishStatus: "공개" | "비공개" | "검수중";
   featured: boolean;
   estimatedMinutes: number;
+  estimatedMinutesLabel?: string;
   updatedAt: string;
   description: string;
+  detailDescription?: string;
   downloads: NaesinDownloadAsset[];
 };
 

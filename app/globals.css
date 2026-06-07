@@ -1752,8 +1752,14 @@ a {
 
 .naesin-card-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.naesin-online-disabled {
+  width: 100%;
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .naesin-disabled-link,
@@ -2353,6 +2359,10 @@ a {
   .exam-builder-analysis-columns,
   .exam-builder-action-row {
     grid-template-columns: 1fr;
+  }
+
+  .naesin-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .exam-builder-preview-list > div {

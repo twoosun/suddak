@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 type Props = {
+  id?: string;
   title?: string;
   description?: string;
   children: ReactNode;
@@ -13,6 +14,7 @@ type Props = {
 
 /* # 1. 공통 카드 */
 export default function SectionCard({
+  id,
   title,
   description,
   children,
@@ -22,6 +24,7 @@ export default function SectionCard({
 }: Props) {
   return (
     <section
+      id={id}
       className="suddak-card"
       style={{
         padding: "20px",

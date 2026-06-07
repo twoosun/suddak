@@ -1,0 +1,16 @@
+
+> math-ai@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.3 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 1873ms
+Creating turbopack project { dir: 'C:\\Users\\Admin\\math-ai', testMode: true }
+- Experiments (use with caution):
+  · proxyClientMaxBodySize: "50mb"
+
+○ Compiling /naesin/[id] ...
+ GET /naesin 200 in 8.7s (next.js: 5.7s, application-code: 3.0s)
+ GET /naesin/calculus-ch05-derivative-applications 200 in 8.9s (next.js: 8.5s, application-code: 341ms)

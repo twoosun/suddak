@@ -1,0 +1,76 @@
+import type { NaesinExamSet } from "./types";
+
+export const staticNaesinExamSets: NaesinExamSet[] = [
+  {
+    id: "calculus-ch05-derivative-applications",
+    subject: "calculus",
+    subjectLabel: "미적분",
+    subjectDetail: "미적분",
+    units: ["05. 도함수의 활용"],
+    examRange: "함수의 증가와 감소, 극대와 극소, 그래프의 개형, 방정식과 부등식, 속도와 가속도",
+    problemCount: 0,
+    problemCountLabel: "?? 문항",
+    setCountLabel: "1세트",
+    difficulty: "상",
+    materialType: "변형 문제 세트",
+    category: "수능특강 내신 대비 변형",
+    title: "수학(미적분) 05. 도함수의 활용 내신 대비 변형 문제 세트",
+    description:
+      "함수의 증가와 감소, 극대·극소, 그래프의 개형, 방정식과 부등식, 속도와 가속도 유형을 수능특강 흐름에 맞춰 구성한 자체 변형 문제 세트입니다.",
+    detailDescription:
+      "수능특강 미적분 05단원 도함수의 활용의 핵심 유형을 바탕으로 시작한 자체 변형 문제 세트입니다. 예제·유제, Level 1, Level 2, Level 3, 수능 기출문제 변형 흐름으로 구성되어 학교 시험 대비와 단원별 복습에 활용할 수 있습니다.",
+    sourceBasis: [
+      "수능특강 핵심 개념",
+      "예제·유제 유형",
+      "Level 1~3 흐름",
+      "수능 기출문제 변형",
+    ],
+    includedTopics: [
+      "함수의 증가와 감소",
+      "극대와 극소",
+      "함수의 그래프",
+      "방정식과 부등식에의 활용",
+      "속도와 가속도",
+      "수능 기출문제 변형",
+    ],
+    publishStatus: "공개",
+    featured: true,
+    estimatedMinutes: 50,
+    estimatedMinutesLabel: "50분",
+    updatedAt: "2026-06-08",
+    downloads: [
+      {
+        label: "문제지",
+        format: "DOCX",
+        path: "/materials/calculus/chapter-05/calculus-ch05-problems.docx",
+        available: true,
+        downloadName: "calculus-ch05-problems.docx",
+      },
+      {
+        label: "문제지",
+        format: "PDF",
+        path: "/materials/calculus/chapter-05/calculus-ch05-problems.pdf",
+        available: true,
+        downloadName: "calculus-ch05-problems.pdf",
+      },
+      {
+        label: "정답·해설",
+        format: "PDF",
+        path: "/materials/calculus/chapter-05/calculus-ch05-solutions.pdf",
+        available: true,
+        downloadName: "calculus-ch05-solutions.pdf",
+      },
+      {
+        label: "정답·해설",
+        format: "DOCX",
+        path: "/materials/calculus/chapter-05/calculus-ch05-solutions.docx",
+        available: true,
+        downloadName: "calculus-ch05-solutions.docx",
+      },
+    ],
+  },
+];
+
+export function getStaticNaesinExamSet(id: string) {
+  return staticNaesinExamSets.find((set) => set.id === id) ?? null;
+}
