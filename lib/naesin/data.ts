@@ -102,7 +102,7 @@ function buildDownloadAssets(filePaths: Partial<Record<NaesinddakFileKey, string
         format: FILE_LABELS[key].format,
         path,
         available: true,
-        downloadName: FILE_LABELS[key].downloadName,
+        downloadName: path.split("/").pop() ?? FILE_LABELS[key].downloadName,
       })
     );
 }

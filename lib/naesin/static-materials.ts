@@ -2,6 +2,45 @@ import type { NaesinExamSet } from "./types";
 
 export const staticNaesinExamSets: NaesinExamSet[] = [
   {
+    id: "calculus-ch06-integration-methods",
+    subject: "calculus",
+    subjectLabel: "미적분",
+    subjectDetail: "미적분",
+    subjectName: "수학",
+    units: ["06. 여러 가지 적분법"],
+    examRange: "여러 가지 함수의 적분, 치환적분법, 부분적분법",
+    problemCount: 0,
+    problemCountLabel: "?? 문항",
+    setCountLabel: "1세트",
+    difficulty: "상",
+    materialType: "변형 문제 세트",
+    category: "수능특강 내신 대비 변형",
+    priceDdak: 1000,
+    title: "수학(미적분) 06. 여러 가지 적분법 내신 대비 변형 문제 세트",
+    description:
+      "여러 가지 함수의 적분, 치환적분법, 부분적분법 유형을 수능특강 흐름에 맞춰 구성한 자체 변형 문제 세트입니다.",
+    detailDescription:
+      "수능특강 미적분 06단원 여러 가지 적분법의 핵심 유형을 바탕으로 제작한 자체 변형 문제 세트입니다. 학교 시험 대비와 단원별 복습에 활용할 수 있도록 개념 흐름과 풀이 구조를 반영했습니다.",
+    sourceBasis: ["수능특강 핵심 개념", "적분법 기본 유형", "치환적분·부분적분 유형", "수능형 변형 흐름"],
+    tags: ["수학(미적분 영역)", "예상기출", "여러 가지 적분법", "자체 변형"],
+    includedTopics: ["여러 가지 함수의 적분", "치환적분법", "부분적분법", "적분 계산 전략", "수능형 변형"],
+    publishStatus: "공개",
+    featured: true,
+    estimatedMinutes: 50,
+    estimatedMinutesLabel: "50분",
+    updatedAt: "2026-06-08",
+    downloads: [
+      {
+        key: "problemPdf",
+        label: "문제지",
+        format: "PDF",
+        path: "calculus/chapter-06/calculus-ch06-problems.pdf",
+        available: true,
+        downloadName: "calculus-ch06-problems.pdf",
+      },
+    ],
+  },
+  {
     id: "calculus-ch05-derivative-applications",
     subject: "calculus",
     subjectLabel: "미적분",
@@ -21,12 +60,7 @@ export const staticNaesinExamSets: NaesinExamSet[] = [
       "함수의 증가와 감소, 극대·극소, 그래프의 개형, 방정식과 부등식, 속도와 가속도 유형을 수능특강 흐름에 맞춰 구성한 자체 변형 문제 세트입니다.",
     detailDescription:
       "수능특강 미적분 05단원 도함수의 활용의 핵심 유형을 바탕으로 시작한 자체 변형 문제 세트입니다. 예제·유제, Level 1, Level 2, Level 3, 수능 기출문제 변형 흐름으로 구성되어 학교 시험 대비와 단원별 복습에 활용할 수 있습니다.",
-    sourceBasis: [
-      "수능특강 핵심 개념",
-      "예제·유제 유형",
-      "Level 1~3 흐름",
-      "수능 기출문제 변형",
-    ],
+    sourceBasis: ["수능특강 핵심 개념", "예제·유제 유형", "Level 1~3 흐름", "수능 기출문제 변형"],
     tags: ["수학(미적분 영역)", "예상기출", "도함수의 활용", "자체 변형"],
     includedTopics: [
       "함수의 증가와 감소",

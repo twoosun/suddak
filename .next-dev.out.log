@@ -22,3 +22,5 @@ Creating turbopack project { dir: 'C:\\Users\\Admin\\math-ai', testMode: true }
  GET /api/naesinddak/materials/calculus-ch05-derivative-applications/access 200 in 3.8s (next.js: 3.6s, application-code: 206ms)
  GET /naesin 200 in 4.2s (next.js: 233ms, application-code: 4.0s)
  GET /api/naesinddak/materials/calculus-ch05-derivative-applications/download?file=problemPdf 401 in 5.3s (next.js: 5.3s, application-code: 13ms)
+✓ Compiled in 703ms
+✓ Compiled in 219ms

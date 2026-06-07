@@ -30,3 +30,117 @@ Import map: aliased to relative './components/naesin/exam-set-card' inside of [p
 https://nextjs.org/docs/messages/module-not-found
 
 
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/[id]/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/[id]/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/[id]/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./lib/naesin/data.ts:2:1
+Module not found: Can't resolve './static-materials'
+  [90m1 |[0m [36mimport[0m { supabaseAdmin } [36mfrom[0m [32m"@/lib/supabaseAdmin"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { getStaticNaesinExamSet, staticNaesinExamSets } [36mfrom[0m [32m"./static-materials"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m [36mtype[0m { [33mNaesinDifficulty[0m, [33mNaesinDownloadAsset[0m, [33mNaesinExamSet[0m } [36mfrom[0m [32m"./types"[0m;
+  [90m4 |[0m
+  [90m5 |[0m [36mexport[0m [36mconst[0m [33mNAESINDDAK_STORAGE_BUCKET[0m = [32m"naesinddak-materials"[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./lib/naesin/data.ts
+    ./app/naesin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+

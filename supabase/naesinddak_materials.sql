@@ -252,3 +252,66 @@ do update set
   file_paths = excluded.file_paths,
   featured = excluded.featured,
   updated_at = now();
+
+insert into public.naesinddak_materials (
+  id,
+  title,
+  description,
+  detail_description,
+  subject,
+  subject_detail,
+  unit,
+  category,
+  problem_count_label,
+  set_count_label,
+  estimated_minutes_label,
+  status,
+  price_ddak,
+  tags,
+  included_topics,
+  source_basis,
+  file_paths,
+  featured
+)
+values (
+  'calculus-ch06-integration-methods',
+  '수학(미적분) 06. 여러 가지 적분법 내신 대비 변형 문제 세트',
+  '여러 가지 함수의 적분, 치환적분법, 부분적분법 유형을 수능특강 흐름에 맞춰 구성한 자체 변형 문제 세트입니다.',
+  '수능특강 미적분 06단원 여러 가지 적분법의 핵심 유형을 바탕으로 제작한 자체 변형 문제 세트입니다. 학교 시험 대비와 단원별 복습에 활용할 수 있도록 개념 흐름과 풀이 구조를 반영했습니다.',
+  '수학',
+  '미적분',
+  '06. 여러 가지 적분법',
+  '수능특강 내신 대비 변형',
+  '?? 문항',
+  '1세트',
+  '50분',
+  'public',
+  1000,
+  '["수학(미적분 영역)", "예상기출", "여러 가지 적분법", "자체 변형"]'::jsonb,
+  '["여러 가지 함수의 적분", "치환적분법", "부분적분법", "적분 계산 전략", "수능형 변형"]'::jsonb,
+  '["수능특강 핵심 개념", "적분법 기본 유형", "치환적분·부분적분 유형", "수능형 변형 흐름"]'::jsonb,
+  '{
+    "problemPdf": "calculus/chapter-06/calculus-ch06-problems.pdf"
+  }'::jsonb,
+  true
+)
+on conflict (id)
+do update set
+  title = excluded.title,
+  description = excluded.description,
+  detail_description = excluded.detail_description,
+  subject = excluded.subject,
+  subject_detail = excluded.subject_detail,
+  unit = excluded.unit,
+  category = excluded.category,
+  problem_count_label = excluded.problem_count_label,
+  set_count_label = excluded.set_count_label,
+  estimated_minutes_label = excluded.estimated_minutes_label,
+  status = excluded.status,
+  price_ddak = excluded.price_ddak,
+  tags = excluded.tags,
+  included_topics = excluded.included_topics,
+  source_basis = excluded.source_basis,
+  file_paths = excluded.file_paths,
+  featured = excluded.featured,
+  updated_at = now();
