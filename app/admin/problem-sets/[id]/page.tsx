@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
-import { adminFetch } from "@/lib/problem-bank/admin-client";
+import { adminFetch, openAdminStorageFile } from "@/lib/problem-bank/admin-client";
 import type { ProblemRow, ProblemSetRow } from "@/lib/problem-bank/types";
 
 type SetItem = {
@@ -27,6 +27,13 @@ type SetResponse = {
 type ProblemListResponse = {
   problems: ProblemRow[];
 };
+
+const fileCards = [
+  { role: "problem_pdf_url", label: "문제 PDF", bucket: "problem-set-files", accept: "application/pdf" },
+  { role: "solution_pdf_url", label: "해설 PDF", bucket: "problem-set-files", accept: "application/pdf" },
+  { role: "docx_url", label: "DOCX", bucket: "problem-set-files", accept: ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  { role: "thumbnail_url", label: "썸네일", bucket: "thumbnails", accept: "image/png,image/jpeg,image/webp" },
+] as const;
 
 export default function ProblemSetDetailPage() {
   const params = useParams<{ id: string }>();
@@ -104,6 +111,14 @@ export default function ProblemSetDetailPage() {
     await load();
   };
 
+  const openFile = async (bucket: string, path: string | null | undefined) => {
+    try {
+      await openAdminStorageFile(bucket, path);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "파일을 열지 못했습니다.");
+    }
+  };
+
   return (
     <PageContainer topPadding={24} bottomPadding={56}>
       <header style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -116,17 +131,22 @@ export default function ProblemSetDetailPage() {
 
       <SectionCard title="파일 교체 / 미리보기">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-          {[
-            ["problem_pdf_url", "문제 PDF"],
-            ["solution_pdf_url", "해설 PDF"],
-            ["docx_url", "DOCX"],
-            ["thumbnail_url", "썸네일"],
-          ].map(([role, label]) => (
-            <label key={role} className="suddak-card-soft" style={{ padding: 12, display: "grid", gap: 8 }}>
+          {fileCards.map(({ role, label, bucket, accept }) => (
+            <div key={role} className="suddak-card-soft" style={{ padding: 12, display: "grid", gap: 8 }}>
               <strong>{label}</strong>
-              <span style={{ color: "var(--muted)", wordBreak: "break-all" }}>{set?.[role as keyof ProblemSetRow] ? String(set[role as keyof ProblemSetRow]) : "파일 없음"}</span>
-              <input type="file" onChange={(e) => void upload(role, e.target.files?.[0] ?? null)} />
-            </label>
+              <span style={{ color: "var(--muted)", wordBreak: "break-all" }}>
+                {set?.[role] ? String(set[role]) : "업로드된 파일 없음"}
+              </span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => void openFile(bucket, set?.[role])} disabled={!set?.[role]}>
+                  미리보기 / 다운로드
+                </button>
+                <label className="suddak-btn suddak-btn-primary" style={{ cursor: "pointer" }}>
+                  파일 업로드
+                  <input type="file" accept={accept} onChange={(e) => void upload(role, e.target.files?.[0] ?? null)} style={{ display: "none" }} />
+                </label>
+              </div>
+            </div>
           ))}
         </div>
       </SectionCard>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import PageContainer from "@/components/common/PageContainer";
 import SectionCard from "@/components/common/SectionCard";
-import { adminFetch } from "@/lib/problem-bank/admin-client";
+import { adminFetch, openAdminStorageFile } from "@/lib/problem-bank/admin-client";
 import type { ExamTemplateRow, GeneratedExamRow, ProblemRow } from "@/lib/problem-bank/types";
 
 type TemplatesResponse = {
@@ -15,6 +15,12 @@ type GeneratorResponse = {
   problems: ProblemRow[];
   exam?: GeneratedExamRow;
 };
+
+const generatedExamFileCards = [
+  { role: "pdf_url", label: "시험지 PDF", accept: "application/pdf" },
+  { role: "docx_url", label: "시험지 DOCX", accept: ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  { role: "solution_pdf_url", label: "해설 PDF", accept: "application/pdf" },
+] as const;
 
 export default function ExamGeneratorPage() {
   const [templates, setTemplates] = useState<ExamTemplateRow[]>([]);
@@ -95,6 +101,14 @@ export default function ExamGeneratorPage() {
     setExam(data.exam);
   };
 
+  const openFile = async (path: string | null | undefined) => {
+    try {
+      await openAdminStorageFile("generated-exams", path);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "파일을 열지 못했습니다.");
+    }
+  };
+
   return (
     <PageContainer topPadding={24} bottomPadding={56}>
       <header style={{ marginBottom: 16 }}>
@@ -147,16 +161,20 @@ export default function ExamGeneratorPage() {
       {exam ? (
         <SectionCard title="PDF/DOCX/해설지 연결">
           <p style={{ color: "var(--muted)", fontWeight: 700 }}>저장 ID: {exam.id}</p>
-          {[
-            ["pdf_url", "시험지 PDF"],
-            ["docx_url", "시험지 DOCX"],
-            ["solution_pdf_url", "해설 PDF"],
-          ].map(([role, label]) => (
-            <label key={role} className="suddak-card-soft" style={{ padding: 12, display: "grid", gap: 8, marginTop: 8 }}>
+          {generatedExamFileCards.map(({ role, label, accept }) => (
+            <div key={role} className="suddak-card-soft" style={{ padding: 12, display: "grid", gap: 8, marginTop: 8 }}>
               <strong>{label}</strong>
-              <span style={{ wordBreak: "break-all", color: "var(--muted)" }}>{String(exam[role as keyof GeneratedExamRow] ?? "파일 없음")}</span>
-              <input type="file" onChange={(e) => void upload(role, e.target.files?.[0] ?? null)} />
-            </label>
+              <span style={{ wordBreak: "break-all", color: "var(--muted)" }}>{exam[role] ? String(exam[role]) : "업로드된 파일 없음"}</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" className="suddak-btn suddak-btn-ghost" onClick={() => void openFile(exam[role])} disabled={!exam[role]}>
+                  미리보기 / 다운로드
+                </button>
+                <label className="suddak-btn suddak-btn-primary" style={{ cursor: "pointer" }}>
+                  파일 업로드
+                  <input type="file" accept={accept} onChange={(e) => void upload(role, e.target.files?.[0] ?? null)} style={{ display: "none" }} />
+                </label>
+              </div>
+            </div>
           ))}
         </SectionCard>
       ) : null}

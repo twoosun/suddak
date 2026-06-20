@@ -17,6 +17,25 @@ export const PROBLEM_SET_FILES_BUCKET = "problem-set-files";
 export const GENERATED_EXAMS_BUCKET = "generated-exams";
 export const THUMBNAILS_BUCKET = "thumbnails";
 
+const SIGNED_URL_EXPIRES_IN_SECONDS = 60 * 10;
+
+const PROBLEM_SET_FILE_TYPES = {
+  problem_pdf_url: "problem-pdf",
+  solution_pdf_url: "solution-pdf",
+  docx_url: "docx",
+  thumbnail_url: "thumbnail",
+} as const;
+
+const GENERATED_EXAM_FILE_TYPES = {
+  pdf_url: "pdf",
+  docx_url: "docx",
+  solution_pdf_url: "solution-pdf",
+} as const;
+
+export type ProblemSetFileRole = keyof typeof PROBLEM_SET_FILE_TYPES;
+export type GeneratedExamFileRole = keyof typeof GENERATED_EXAM_FILE_TYPES;
+export type StorageBucketName = typeof PROBLEM_SET_FILES_BUCKET | typeof GENERATED_EXAMS_BUCKET | typeof THUMBNAILS_BUCKET;
+
 export type AdminContext = {
   user: User;
 };
@@ -66,7 +85,7 @@ function asNumber(value: unknown) {
 
 function requireNumber(name: string, value: unknown) {
   const next = asNumber(value);
-  if (next === null) throw new Error(`${name}가 필요합니다.`);
+  if (next === null) throw new Error(`${name} 값이 필요합니다.`);
   return next;
 }
 
@@ -78,7 +97,7 @@ export async function requireAdmin(req: NextRequest): Promise<AdminContext | Res
 
 export function generateProblemCodeFromPayload(payload: unknown) {
   const row = asRecord(payload);
-  if (!row) throw new Error("문항 코드 입력은 객체여야 합니다.");
+  if (!row) throw new Error("문항코드 입력은 객체여야 합니다.");
 
   const codeSystem = asString(row.codeSystem ?? row.code_system);
   const variantCode = asOptionalString(row.variantCode ?? row.variant_code) ?? undefined;
@@ -169,14 +188,14 @@ export async function validateProblemsImport(payload: unknown): Promise<ImportVa
 
   valid.forEach((problem, index) => {
     if (localCodes.has(problem.problem_code)) {
-      issues.push({ index, field: "problem_code", message: "업로드 JSON 안에서 중복된 problem_code입니다." });
+      issues.push({ index, field: "problem_code", message: "업로드 JSON 안에서 중복된 문항코드입니다." });
       duplicateCodes.push(problem.problem_code);
       return;
     }
     localCodes.add(problem.problem_code);
   });
 
-  if (valid.length) {
+  if (valid.length && issues.length === 0) {
     const { data, error } = await supabaseAdmin
       .from("problems")
       .select("problem_code")
@@ -189,7 +208,7 @@ export async function validateProblemsImport(payload: unknown): Promise<ImportVa
     const existing = new Set((data ?? []).map((item) => item.problem_code as string));
     valid.forEach((item, index) => {
       if (existing.has(item.problem_code)) {
-        issues.push({ index, field: "problem_code", message: "이미 저장된 problem_code입니다." });
+        issues.push({ index, field: "problem_code", message: "이미 존재하는 문항코드입니다." });
         duplicateCodes.push(item.problem_code);
       }
     });
@@ -253,7 +272,7 @@ export async function removeProblemFromSet(itemId: string) {
 
 export async function reorderProblemSetItems(items: Array<{ id: string; order_index: number }>) {
   for (const item of items) {
-      const { error } = await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("problem_set_items")
       .update({ order_index: 100000 + item.order_index })
       .eq("id", item.id);
@@ -279,6 +298,19 @@ function getStorageContentType(file: File) {
   return "application/octet-stream";
 }
 
+function assertAllowedFileType(fileType: string, file: File) {
+  const lower = file.name.toLowerCase();
+  if (fileType.endsWith("pdf") && !lower.endsWith(".pdf")) {
+    throw new Error("PDF 파일만 업로드할 수 있습니다.");
+  }
+  if (fileType === "docx" && !lower.endsWith(".docx")) {
+    throw new Error("DOCX 파일만 업로드할 수 있습니다.");
+  }
+  if (fileType === "thumbnail" && !/\.(png|jpe?g|webp)$/i.test(lower)) {
+    throw new Error("썸네일은 PNG, JPG, WEBP 파일만 업로드할 수 있습니다.");
+  }
+}
+
 function sanitizeFileName(value: string) {
   return (
     value
@@ -290,31 +322,87 @@ function sanitizeFileName(value: string) {
   );
 }
 
-async function ensureBucket(bucket: string) {
+async function ensureStorageBucket(bucket: StorageBucketName) {
+  const isPublic = bucket === THUMBNAILS_BUCKET;
   const { data } = await supabaseAdmin.storage.getBucket(bucket);
-  if (data) return;
-  const { error } = await supabaseAdmin.storage.createBucket(bucket, { public: false });
+  if (data) {
+    if (data.public !== isPublic) {
+      const { error } = await supabaseAdmin.storage.updateBucket(bucket, { public: isPublic });
+      if (error) throw new Error(error.message);
+    }
+    return;
+  }
+  const { error } = await supabaseAdmin.storage.createBucket(bucket, { public: isPublic });
   if (error && !/already exists/i.test(error.message)) throw new Error(error.message);
 }
 
-export async function uploadFileToBucket(bucket: string, folder: string, file: File) {
-  await ensureBucket(bucket);
-  const path = `${folder}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
+export async function ensureProblemBankStorageBuckets() {
+  await Promise.all([
+    ensureStorageBucket(PROBLEM_SET_FILES_BUCKET),
+    ensureStorageBucket(GENERATED_EXAMS_BUCKET),
+    ensureStorageBucket(THUMBNAILS_BUCKET),
+  ]);
+}
+
+export function normalizeStoredStoragePath(bucket: StorageBucketName, value: string | null | undefined) {
+  const next = (value ?? "").trim().replace(/^\/+/, "");
+  if (!next) return null;
+  if (bucket === PROBLEM_SET_FILES_BUCKET && next.startsWith(`${PROBLEM_SET_FILES_BUCKET}/`)) {
+    return next.slice(PROBLEM_SET_FILES_BUCKET.length + 1);
+  }
+  if (bucket === THUMBNAILS_BUCKET && next.startsWith(`${THUMBNAILS_BUCKET}/`)) {
+    return next.slice(THUMBNAILS_BUCKET.length + 1);
+  }
+  if (bucket === GENERATED_EXAMS_BUCKET && next.startsWith(`${GENERATED_EXAMS_BUCKET}/${GENERATED_EXAMS_BUCKET}/`)) {
+    return next.slice(GENERATED_EXAMS_BUCKET.length + 1);
+  }
+  return next;
+}
+
+export async function createStorageAccessUrl(bucket: StorageBucketName, storedPath: string, expiresIn = SIGNED_URL_EXPIRES_IN_SECONDS) {
+  const path = normalizeStoredStoragePath(bucket, storedPath);
+  if (!path) throw new Error("업로드된 파일이 없습니다.");
+
+  if (bucket === THUMBNAILS_BUCKET) {
+    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(path);
+    return { url: data.publicUrl, path, expiresIn: null };
+  }
+
+  const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (error) throw new Error(error.message || "파일 접근 URL을 만들지 못했습니다.");
+  if (!data?.signedUrl) throw new Error("파일 접근 URL을 만들지 못했습니다.");
+  return { url: data.signedUrl, path, expiresIn };
+}
+
+export async function uploadFileToBucket(bucket: StorageBucketName, folder: string, fileType: string, file: File) {
+  await ensureProblemBankStorageBuckets();
+  assertAllowedFileType(fileType, file);
+  const path = `${folder}/${fileType}/${Date.now()}-${sanitizeFileName(file.name)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   const { error } = await supabaseAdmin.storage.from(bucket).upload(path, buffer, {
     contentType: getStorageContentType(file),
-    upsert: true,
+    upsert: false,
   });
   if (error) throw new Error(error.message);
-  return `${bucket}/${path}`;
+  return path;
 }
 
-export async function uploadProblemSetFile(setId: string, role: string, file: File) {
+export function getProblemSetFileBucket(role: ProblemSetFileRole) {
+  return role === "thumbnail_url" ? THUMBNAILS_BUCKET : PROBLEM_SET_FILES_BUCKET;
+}
+
+export function getGeneratedExamFileBucket() {
+  return GENERATED_EXAMS_BUCKET;
+}
+
+export async function uploadProblemSetFile(setId: string, role: ProblemSetFileRole, file: File) {
   const bucket = role === "thumbnail_url" ? THUMBNAILS_BUCKET : PROBLEM_SET_FILES_BUCKET;
-  const url = await uploadFileToBucket(bucket, `problem-sets/${setId}`, file);
+  // Replacement policy: upload the new object and move the DB pointer.
+  // Old objects are intentionally left in Storage for a future orphan cleanup job.
+  const path = await uploadFileToBucket(bucket, `problem-sets/${setId}`, PROBLEM_SET_FILE_TYPES[role], file);
   const { data, error } = await supabaseAdmin
     .from("problem_sets")
-    .update({ [role]: url })
+    .update({ [role]: path })
     .eq("id", setId)
     .select("*")
     .single();
@@ -359,11 +447,13 @@ export async function saveGeneratedExam(payload: Partial<GeneratedExamInsert>) {
   return data;
 }
 
-export async function uploadGeneratedExamFile(examId: string, role: "pdf_url" | "docx_url" | "solution_pdf_url", file: File) {
-  const url = await uploadFileToBucket(GENERATED_EXAMS_BUCKET, `generated-exams/${examId}`, file);
+export async function uploadGeneratedExamFile(examId: string, role: GeneratedExamFileRole, file: File) {
+  // Replacement policy: upload the new object and move the DB pointer.
+  // Old objects are intentionally left in Storage for a future orphan cleanup job.
+  const path = await uploadFileToBucket(GENERATED_EXAMS_BUCKET, `generated-exams/${examId}`, GENERATED_EXAM_FILE_TYPES[role], file);
   const { data, error } = await supabaseAdmin
     .from("generated_exams")
-    .update({ [role]: url })
+    .update({ [role]: path })
     .eq("id", examId)
     .select("*")
     .single();

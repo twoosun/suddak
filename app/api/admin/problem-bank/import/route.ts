@@ -15,6 +15,6 @@ export async function POST(req: NextRequest) {
     const result = mode === "validate" ? await validateProblemsImport(body) : await importProblemsFromJson(body);
     return Response.json(result);
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "JSON 업로드 처리에 실패했습니다." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "JSON import 처리에 실패했습니다." }, { status: 400 });
   }
 }

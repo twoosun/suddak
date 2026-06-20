@@ -26,6 +26,21 @@ export async function adminFetch<T>(url: string, init: RequestInit = {}) {
   return readAdminJson<T>(res);
 }
 
+export async function openAdminStorageFile(bucket: string, path: string | null | undefined, expiresIn = 60 * 10) {
+  if (!path) throw new Error("업로드된 파일이 없습니다.");
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
+  const data = await adminFetch<{ url: string }>("/api/admin/storage/signed-url", {
+    method: "POST",
+    body: JSON.stringify({ bucket, path, expiresIn }),
+  });
+  if (popup) {
+    popup.location.href = data.url;
+  } else {
+    window.location.href = data.url;
+  }
+}
+
 export function toJsonOrString(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;

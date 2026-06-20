@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
     const problemCode = generateProblemCodeFromPayload(body);
     return Response.json({ problem_code: problemCode });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "문항 코드를 생성하지 못했습니다." }, { status: 400 });
+    return Response.json({ error: error instanceof Error ? error.message : "문항코드를 생성하지 못했습니다." }, { status: 400 });
   }
 }

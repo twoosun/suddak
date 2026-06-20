@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { requireAdmin, uploadGeneratedExamFile } from "@/lib/problem-bank/server";
+import { requireAdmin, type GeneratedExamFileRole, uploadGeneratedExamFile } from "@/lib/problem-bank/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const formData = await req.formData();
-    const role = String(formData.get("role") || "") as "pdf_url" | "docx_url" | "solution_pdf_url";
+    const role = String(formData.get("role") || "") as GeneratedExamFileRole;
     const file = formData.get("file");
     if (!allowedRoles.has(role)) return Response.json({ error: "파일 역할이 올바르지 않습니다." }, { status: 400 });
     if (!(file instanceof File)) return Response.json({ error: "업로드할 파일이 없습니다." }, { status: 400 });

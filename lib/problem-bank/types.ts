@@ -104,6 +104,8 @@ export type ProblemSetRow = {
   unit: string | null;
   problem_count_text: string | null;
   price_dak: number;
+  // These legacy *_url columns store Supabase Storage object paths for new uploads.
+  // Older rows may contain "bucket/path"; access URLs are resolved server-side.
   problem_pdf_url: string | null;
   solution_pdf_url: string | null;
   docx_url: string | null;
@@ -172,6 +174,8 @@ export type GeneratedExamRow = {
   source_filter_json: JsonValue | null;
   difficulty_policy_json: JsonValue | null;
   problem_ids_json: string[] | JsonValue;
+  // These legacy *_url columns store Supabase Storage object paths for new uploads.
+  // Older rows may contain "bucket/path"; access URLs are resolved server-side.
   pdf_url: string | null;
   docx_url: string | null;
   solution_pdf_url: string | null;
