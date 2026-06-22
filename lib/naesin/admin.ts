@@ -63,10 +63,12 @@ function asBoolean(value: unknown) {
   return value === true || value === "true";
 }
 
-function asNonNegativeInteger(value: unknown, fallback = 0) {
-  const number = Number(value ?? fallback);
-  if (!Number.isFinite(number) || number < 0) return fallback;
-  return Math.floor(number);
+function asPriceDdak(value: unknown) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number) || number < 0 || !Number.isInteger(number)) {
+    throw new Error("잠금해제 비용은 0 이상의 정수 딱으로 입력해 주세요.");
+  }
+  return number;
 }
 
 function slugify(value: string) {
@@ -162,13 +164,33 @@ export function normalizeNaesinddakMaterialPayload(payload: unknown) {
     set_count_label: asString(row.set_count_label) || "1세트",
     estimated_minutes_label: asString(row.estimated_minutes_label) || "50분",
     status: asString(row.status) === "public" ? "public" : "private",
-    price_ddak: asNonNegativeInteger(row.price_ddak),
+    price_ddak: asPriceDdak(row.price_ddak),
     tags: asStringArray(row.tags),
     included_topics: asStringArray(row.included_topics),
     source_basis: asStringArray(row.source_basis),
     featured: asBoolean(row.featured),
     updated_at: new Date().toISOString(),
   };
+}
+
+function hasAnyFilePath(filePaths: unknown) {
+  if (!filePaths || typeof filePaths !== "object" || Array.isArray(filePaths)) return false;
+  return Object.values(filePaths).some((value) => typeof value === "string" && value.trim());
+}
+
+async function assertCanPublish(materialId: string, nextStatus: string) {
+  if (nextStatus !== "public") return;
+
+  const { data, error } = await supabaseAdmin
+    .from("naesinddak_materials")
+    .select("file_paths")
+    .eq("id", materialId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!hasAnyFilePath(data?.file_paths)) {
+    throw new Error("최종 공개하려면 PDF 또는 DOCX 파일을 최소 1개 이상 업로드해 주세요.");
+  }
 }
 
 export async function listNaesinddakMaterialsForAdmin() {
@@ -183,6 +205,8 @@ export async function listNaesinddakMaterialsForAdmin() {
 
 export async function upsertNaesinddakMaterial(payload: unknown) {
   const material = normalizeNaesinddakMaterialPayload(payload);
+  await assertCanPublish(material.id, material.status);
+
   const { data, error } = await supabaseAdmin
     .from("naesinddak_materials")
     .upsert(material, { onConflict: "id" })
@@ -195,6 +219,8 @@ export async function upsertNaesinddakMaterial(payload: unknown) {
 
 export async function updateNaesinddakMaterial(id: string, payload: unknown) {
   const material = normalizeNaesinddakMaterialPayload({ ...asRecord(payload), id });
+  await assertCanPublish(id, material.status);
+
   const { id: _id, ...update } = material;
   void _id;
 

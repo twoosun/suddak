@@ -65,6 +65,10 @@ function fileNameFromPath(path: string | undefined) {
   return path.split("/").pop() ?? path;
 }
 
+function uploadedFileCount(material: NaesinddakMaterialAdminRow | null | undefined) {
+  return Object.values(material?.file_paths ?? {}).filter(Boolean).length;
+}
+
 function materialToForm(material: NaesinddakMaterialAdminRow) {
   return {
     id: material.id,
@@ -134,14 +138,14 @@ export default function NaesinddakMaterialsAdminPage() {
     setEditingId(null);
   };
 
-  const save = async () => {
+  const save = async (nextForm = form) => {
     try {
       setBusy(true);
       setMessage("자료를 저장하는 중입니다.");
 
       const payload = {
-        ...form,
-        price_ddak: Number(form.price_ddak || 0),
+        ...nextForm,
+        price_ddak: Number(nextForm.price_ddak || 0),
       };
 
       const data = await adminFetch<MaterialResponse>(
@@ -155,7 +159,11 @@ export default function NaesinddakMaterialsAdminPage() {
       setEditingId(data.material.id);
       setForm(materialToForm(data.material));
       await load();
-      setMessage("자료를 저장했습니다. 이제 파일을 업로드할 수 있습니다.");
+      setMessage(
+        data.material.status === "public"
+          ? "자료를 최종 공개했습니다."
+          : "자료를 저장했습니다. 필요한 파일만 업로드한 뒤 public으로 바꾸면 최종 공개됩니다."
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "자료를 저장하지 못했습니다.");
     } finally {
@@ -170,7 +178,7 @@ export default function NaesinddakMaterialsAdminPage() {
   };
 
   const remove = async (material: NaesinddakMaterialAdminRow) => {
-    if (!confirm(`${material.title} 자료를 삭제할까요? 구매 기록이 있으면 삭제에 실패할 수 있습니다.`)) {
+    if (!confirm(`${material.title} 자료를 삭제할까요? 구매 기록도 함께 정리됩니다.`)) {
       return;
     }
 
@@ -248,7 +256,7 @@ export default function NaesinddakMaterialsAdminPage() {
 
         <SectionCard
           title={editingId ? "자료 수정" : "새 자료 만들기"}
-          description="파일은 자료를 한 번 저장한 뒤 역할별로 업로드할 수 있습니다. public 상태인 자료만 내신딱딱 목록에 노출됩니다."
+          description="모든 파일을 올릴 필요는 없습니다. 자료를 저장한 뒤 PDF 또는 DOCX 파일을 최소 1개만 업로드해도 public으로 최종 공개할 수 있습니다."
           rightSlot={
             <button type="button" className="suddak-btn suddak-btn-ghost" onClick={resetForm}>
               새 자료
@@ -271,7 +279,20 @@ export default function NaesinddakMaterialsAdminPage() {
             <input className="suddak-input" placeholder="문항 수 표시 예: 32문항" value={form.problem_count_label} onChange={(e) => setValue("problem_count_label", e.target.value)} />
             <input className="suddak-input" placeholder="세트 수 표시 예: 1세트" value={form.set_count_label} onChange={(e) => setValue("set_count_label", e.target.value)} />
             <input className="suddak-input" placeholder="예상 시간 예: 50분" value={form.estimated_minutes_label} onChange={(e) => setValue("estimated_minutes_label", e.target.value)} />
-            <input className="suddak-input" type="number" min="0" placeholder="가격 ddak" value={form.price_ddak} onChange={(e) => setValue("price_ddak", e.target.value)} />
+            <label className="suddak-card-soft" style={{ padding: 10, display: "grid", gap: 6 }}>
+              <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 900 }}>
+                잠금해제 비용(딱)
+              </span>
+              <input
+                className="suddak-input"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="예: 1000"
+                value={form.price_ddak}
+                onChange={(e) => setValue("price_ddak", e.target.value)}
+              />
+            </label>
             <select className="suddak-input" value={form.status} onChange={(e) => setValue("status", e.target.value)}>
               <option value="private">private</option>
               <option value="public">public</option>
@@ -292,8 +313,22 @@ export default function NaesinddakMaterialsAdminPage() {
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
             <button type="button" className="suddak-btn suddak-btn-primary" onClick={() => void save()} disabled={busy}>
-              저장
+              {form.status === "public" ? "최종 공개 저장" : "임시 저장"}
             </button>
+            {editingId && form.status !== "public" && uploadedFileCount(editingMaterial) > 0 && (
+              <button
+                type="button"
+                className="suddak-btn suddak-btn-primary"
+                onClick={() => {
+                  const nextForm = { ...form, status: "public" };
+                  setForm(nextForm);
+                  void save(nextForm);
+                }}
+                disabled={busy}
+              >
+                부분 업로드로 최종 공개
+              </button>
+            )}
             {editingId && (
               <Link href={`/naesin/${editingId}`} className="suddak-btn suddak-btn-ghost">
                 상세 페이지 보기
@@ -304,7 +339,11 @@ export default function NaesinddakMaterialsAdminPage() {
 
         <SectionCard
           title="파일 업로드"
-          description={editingId ? "업로드할 파일 역할을 선택하세요. 새 파일을 올리면 해당 역할의 다운로드 경로가 교체됩니다." : "자료를 먼저 저장하면 파일 업로드가 열립니다."}
+          description={
+            editingId
+              ? `현재 ${uploadedFileCount(editingMaterial)}개 파일이 업로드되어 있습니다. 필요한 슬롯만 채워도 최종 공개할 수 있습니다.`
+              : "자료를 먼저 임시 저장하면 파일 업로드가 열립니다."
+          }
         >
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
             {fileSlots.map((slot) => {
