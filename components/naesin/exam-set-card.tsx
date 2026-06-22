@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Lock, PlayCircle, WalletCards, X } from "lucide-react";
 
 import { getSessionWithRecovery } from "@/lib/supabase";
+import { downloadNaesinddakAsset } from "@/lib/naesin/download-client";
 import type { NaesinDownloadAsset, NaesinExamSet } from "@/lib/naesin/types";
 
 type Props = {
@@ -187,25 +188,12 @@ export default function ExamSetCard({ examSet }: Props) {
     setNotice(null);
 
     try {
-      const session = await getSessionWithRecovery();
-      if (!session?.access_token) {
-        setNotice({ tone: "error", text: "로그인이 필요합니다." });
-        return;
-      }
-
-      const res = await fetch(`/api/naesinddak/materials/${examSet.id}/download?file=${asset.key}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      await downloadNaesinddakAsset(examSet.id, asset);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "다운로드 요청 중 오류가 발생했습니다.",
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-
-      if (!res.ok || !data.url) {
-        setNotice({ tone: "error", text: data.error || "다운로드를 준비하지 못했습니다." });
-        return;
-      }
-
-      window.open(data.url, "_blank", "noopener,noreferrer");
-    } catch {
-      setNotice({ tone: "error", text: "다운로드 요청 중 오류가 발생했습니다." });
     } finally {
       setBusy(false);
     }
@@ -325,7 +313,7 @@ export default function ExamSetCard({ examSet }: Props) {
                   {busy ? <Lock size={18} /> : <Download size={18} />}
                   <div>
                     <strong>{downloadLabel(asset)}</strong>
-                    <span>서버에서 60초 signed URL 발급</span>
+                    <span>클릭하면 바로 다운로드됩니다</span>
                   </div>
                 </button>
               ))}

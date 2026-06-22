@@ -47,6 +47,30 @@ export async function GET(req: Request, ctx: RouteContext<"/api/naesinddak/mater
       return NextResponse.json({ error: "요청한 파일을 찾을 수 없습니다." }, { status: 400 });
     }
 
+    if (url.searchParams.get("attachment") === "1") {
+      const { data: blob, error: downloadError } = await supabaseAdmin.storage
+        .from(NAESINDDAK_STORAGE_BUCKET)
+        .download(storagePath);
+
+      if (downloadError || !blob) {
+        console.error("[api/naesinddak/download] file download error:", downloadError);
+        return NextResponse.json(
+          { error: "자료 파일을 내려받지 못했습니다. 잠시 후 다시 시도해 주세요." },
+          { status: 500 }
+        );
+      }
+
+      const filename = encodeURIComponent(storagePath.split("/").pop() ?? `${fileKey}.pdf`);
+
+      return new NextResponse(blob, {
+        headers: {
+          "Content-Type": blob.type || "application/octet-stream",
+          "Content-Disposition": `attachment; filename*=UTF-8''${filename}`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    }
+
     const { data, error } = await supabaseAdmin.storage
       .from(NAESINDDAK_STORAGE_BUCKET)
       .createSignedUrl(storagePath, 60);

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Lock, WalletCards } from "lucide-react";
 
 import { getSessionWithRecovery } from "@/lib/supabase";
+import { downloadNaesinddakAsset } from "@/lib/naesin/download-client";
 import type { NaesinDownloadAsset, NaesinExamSet } from "@/lib/naesin/types";
 
 type Props = {
@@ -46,7 +47,7 @@ export default function MaterialDownloadPanel({ examSet }: Props) {
     [examSet.downloads]
   );
 
-  async function refreshAccess() {
+  const refreshAccess = useCallback(async () => {
     const session = await getSessionWithRecovery();
     const headers: HeadersInit = session?.access_token
       ? { Authorization: `Bearer ${session.access_token}` }
@@ -63,13 +64,13 @@ export default function MaterialDownloadPanel({ examSet }: Props) {
       credits: typeof data.credits === "number" ? data.credits : null,
       priceDdak: typeof data.priceDdak === "number" ? data.priceDdak : examSet.priceDdak ?? 1000,
     });
-  }
+  }, [examSet.id, examSet.priceDdak]);
 
   useEffect(() => {
     void refreshAccess().catch(() => {
       setMessage("자료 상태를 불러오지 못했습니다.");
     });
-  }, [examSet.id]);
+  }, [refreshAccess]);
 
   async function purchase() {
     setBusy(true);
@@ -110,23 +111,9 @@ export default function MaterialDownloadPanel({ examSet }: Props) {
     setMessage(null);
 
     try {
-      const session = await getSessionWithRecovery();
-      if (!session?.access_token) {
-        setMessage("로그인이 필요합니다.");
-        return;
-      }
-
-      const res = await fetch(`/api/naesinddak/materials/${examSet.id}/download?file=${asset.key}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-
-      if (!res.ok || !data.url) {
-        setMessage(data.error || "다운로드를 준비하지 못했습니다.");
-        return;
-      }
-
-      window.open(data.url, "_blank", "noopener,noreferrer");
+      await downloadNaesinddakAsset(examSet.id, asset);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "다운로드를 준비하지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -175,7 +162,7 @@ export default function MaterialDownloadPanel({ examSet }: Props) {
             {access.canDownload ? <Download size={18} /> : <Lock size={18} />}
             <div>
               <strong>{assetLabel(asset)}</strong>
-              <span>{access.canDownload ? "60초 signed URL 발급" : "구매 후 다운로드 가능"}</span>
+              <span>{access.canDownload ? "클릭하면 바로 다운로드됩니다" : "구매 후 다운로드 가능"}</span>
             </div>
           </button>
         ))}
