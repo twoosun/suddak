@@ -1,0 +1,42 @@
+import { NextRequest } from "next/server";
+
+import {
+  isNaesinddakAdminFileKey,
+  uploadNaesinddakMaterialFile,
+} from "@/lib/naesin/admin";
+import { requireAdmin } from "@/lib/problem-bank/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type RouteParams = {
+  params: Promise<{ id: string }>;
+};
+
+export async function POST(req: NextRequest, { params }: RouteParams) {
+  const admin = await requireAdmin(req);
+  if (admin instanceof Response) return admin;
+
+  try {
+    const { id } = await params;
+    const formData = await req.formData();
+    const fileKey = String(formData.get("fileKey") || "");
+    const file = formData.get("file");
+
+    if (!isNaesinddakAdminFileKey(fileKey)) {
+      return Response.json({ error: "파일 역할이 올바르지 않습니다." }, { status: 400 });
+    }
+
+    if (!(file instanceof File)) {
+      return Response.json({ error: "업로드할 파일이 없습니다." }, { status: 400 });
+    }
+
+    const material = await uploadNaesinddakMaterialFile(id, fileKey, file);
+    return Response.json({ material });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "파일 업로드에 실패했습니다." },
+      { status: 400 }
+    );
+  }
+}

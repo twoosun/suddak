@@ -26,9 +26,9 @@ export default function NaesinHeader({ compact = false }: Props) {
             <Home size={16} />
             수딱
           </Link>
-          <Link href="/admin/exam-builder" className="suddak-btn suddak-btn-primary">
+          <Link href="/admin/naesinddak-materials" className="suddak-btn suddak-btn-primary">
             <Wrench size={16} />
-            시험지 생성
+            자료 업로드
           </Link>
         </div>
       )}

@@ -89,9 +89,9 @@ export default async function NaesinPage({ searchParams }: Props) {
           title="공개 자료"
           description="아직 공개된 내신딱딱 자료가 없습니다. 관리자 제작기에서 검수 후 게시하면 이 목록에 표시됩니다."
           rightSlot={
-            <Link href="/admin/exam-builder" className="suddak-btn suddak-btn-ghost">
+            <Link href="/admin/naesinddak-materials" className="suddak-btn suddak-btn-ghost">
               <Archive size={16} />
-              제작 도구
+              자료 업로드
             </Link>
           }
         >
