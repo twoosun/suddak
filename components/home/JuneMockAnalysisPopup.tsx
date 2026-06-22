@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, X } from "lucide-react";
+import { BookOpenCheck, X } from "lucide-react";
 
 import {
   JUNE_MOCK_ANALYSIS_ENABLED,
@@ -99,18 +99,18 @@ export default function JuneMockAnalysisPopup() {
         </button>
 
         <div className="june-mock-popup-icon" aria-hidden="true">
-          <BarChart3 size={28} />
+          <BookOpenCheck size={28} />
         </div>
-        <span className="june-mock-popup-badge">6평 특집</span>
-        <h2 id="june-mock-popup-title">6평 분석이 올라왔어요!</h2>
+        <span className="june-mock-popup-badge">기말 대비</span>
+        <h2 id="june-mock-popup-title">수특수완 변형문제가 탑재됐어요!</h2>
         <p id="june-mock-popup-description">
-          공통 22번을 비롯한 주요 문항의 핵심 아이디어를 정리했어요.
-          문항별 유사문제로 바로 복습해 보세요.
+          기말고사 대비용 수특수완 변형문제를 내신딱딱에 올려두었어요.
+          시험 전 단원별 핵심 유형을 바로 연습해 보세요.
         </p>
 
         <div className="june-mock-popup-actions">
           <Link href={JUNE_MOCK_ANALYSIS_URL} className="june-mock-popup-primary">
-            6평 분석 보러 가기
+            내신딱딱 바로가기
           </Link>
           <button type="button" className="june-mock-popup-secondary" onClick={closeForSession}>
             닫기

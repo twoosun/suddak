@@ -15,14 +15,14 @@ import {
 } from "@/lib/juneMockContent";
 
 export const JUNE_MOCK_ANALYSIS_ENABLED = true;
-export const JUNE_MOCK_ANALYSIS_URL = "/analysis/2027-june-mock";
+export const JUNE_MOCK_ANALYSIS_URL = "/naesin";
 export const JUNE_MOCK_COMMUNITY_URL = "/community";
 export const JUNE_MOCK_OFFICIAL_SOURCE_URL = "https://cdn.kice.re.kr/suneung27mo06/index.html";
 
 export const JUNE_MOCK_POPUP_STORAGE_KEY =
-  "suddak-june-mock-analysis-popup-hidden-until";
+  "suddak-naesin-final-exam-popup-hidden-until";
 export const JUNE_MOCK_POPUP_SESSION_KEY =
-  "suddak-june-mock-analysis-popup-closed-session";
+  "suddak-naesin-final-exam-popup-closed-session";
 
 export type AnalysisSubject = "공통" | "미적분" | "확률과 통계" | "기하";
 export type AnalysisSubjectFilter = "전체" | AnalysisSubject;

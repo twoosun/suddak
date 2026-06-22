@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, FileText, PenLine } from "lucide-react";
+import { BookOpenCheck, FileText, PenLine } from "lucide-react";
 
 import {
   JUNE_MOCK_ANALYSIS_ENABLED,
@@ -10,17 +10,17 @@ export default function JuneMockAnalysisBanner() {
   if (!JUNE_MOCK_ANALYSIS_ENABLED) return null;
 
   return (
-    <section className="june-mock-banner-wrap" aria-label="2027학년도 6월 평가원 모의고사 수학 분석">
+    <section className="june-mock-banner-wrap" aria-label="기말고사 대비 수특수완 변형문제">
       <Link href={JUNE_MOCK_ANALYSIS_URL} className="june-mock-banner">
         <div className="june-mock-banner-copy">
           <div className="june-mock-banner-kicker">
-            <span>6평 특집</span>
-            2027학년도 6월 평가원 모의고사
+            <span>기말 대비</span>
+            수특수완 변형문제 탑재
           </div>
-          <h2>6평 수학 분석 & 유사문항 공개</h2>
+          <h2>기말고사 대비 수특수완 변형문제 탑재!</h2>
           <p>
-            공통 22번부터 주요 문항의 핵심 아이디어를 확인하고, 수딱 자체 제작
-            유사문항으로 바로 복습해 보세요.
+            내신 시험에 자주 나오는 수특수완 핵심 유형을 변형문제로 바로 연습해 보세요.
+            내신딱딱에서 단원별로 빠르게 확인할 수 있어요.
           </p>
         </div>
 
@@ -28,12 +28,12 @@ export default function JuneMockAnalysisBanner() {
           <span className="june-mock-new">NEW</span>
           <div className="june-mock-icon-board">
             <FileText size={28} />
-            <BarChart3 size={24} />
+            <BookOpenCheck size={24} />
             <PenLine size={22} />
           </div>
         </div>
 
-        <span className="june-mock-banner-button">분석 보러 가기</span>
+        <span className="june-mock-banner-button">내신딱딱 바로가기</span>
       </Link>
     </section>
   );
