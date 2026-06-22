@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import PageContainer from "@/components/common/PageContainer";
@@ -45,7 +45,7 @@ const emptyForm = {
   price_dak: "0",
 };
 
-export default function ProblemNewPage() {
+function ProblemNewForm() {
   const router = useRouter();
   const params = useSearchParams();
   const editId = params.get("id");
@@ -222,5 +222,19 @@ export default function ProblemNewPage() {
         <button type="button" className="suddak-btn suddak-btn-primary" onClick={() => void save()} style={{ marginTop: 12 }}>저장</button>
       </SectionCard>
     </PageContainer>
+  );
+}
+
+export default function ProblemNewPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageContainer topPadding={24} bottomPadding={56}>
+          <SectionCard title="문항 등록">불러오는 중입니다.</SectionCard>
+        </PageContainer>
+      }
+    >
+      <ProblemNewForm />
+    </Suspense>
   );
 }
