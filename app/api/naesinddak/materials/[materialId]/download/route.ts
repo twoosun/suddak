@@ -71,9 +71,11 @@ export async function GET(req: Request, ctx: RouteContext<"/api/naesinddak/mater
       });
     }
 
+    const filename = storagePath.split("/").pop() ?? `${fileKey}.pdf`;
+    const shouldDownload = url.searchParams.get("download") === "1" || url.searchParams.get("redirect") === "1";
     const { data, error } = await supabaseAdmin.storage
       .from(NAESINDDAK_STORAGE_BUCKET)
-      .createSignedUrl(storagePath, 60);
+      .createSignedUrl(storagePath, 60, shouldDownload ? { download: filename } : undefined);
 
     if (error || !data?.signedUrl) {
       console.error("[api/naesinddak/download] signed url error:", error);

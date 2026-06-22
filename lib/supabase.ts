@@ -28,5 +28,15 @@ export async function getSessionWithRecovery(): Promise<Session | null> {
     return null;
   }
 
-  return data.session ?? null;
+  if (data.session?.access_token) {
+    return data.session;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  const {
+    data: { session: retrySession },
+  } = await supabase.auth.getSession();
+
+  return retrySession ?? null;
 }

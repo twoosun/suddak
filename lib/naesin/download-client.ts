@@ -3,12 +3,6 @@
 import { getSessionWithRecovery } from "@/lib/supabase";
 import type { NaesinDownloadAsset } from "@/lib/naesin/types";
 
-function fallbackDownloadName(asset: NaesinDownloadAsset) {
-  if (asset.downloadName) return asset.downloadName;
-  if (asset.path) return asset.path.split("/").pop() || `${asset.key ?? "naesinddak-file"}.${asset.format.toLowerCase()}`;
-  return `${asset.key ?? "naesinddak-file"}.${asset.format.toLowerCase()}`;
-}
-
 export async function downloadNaesinddakAsset(materialId: string, asset: NaesinDownloadAsset) {
   if (!asset.key) {
     throw new Error("다운로드할 파일 정보가 없습니다.");
@@ -21,7 +15,7 @@ export async function downloadNaesinddakAsset(materialId: string, asset: NaesinD
   }
 
   const res = await fetch(
-    `/api/naesinddak/materials/${materialId}/download?file=${asset.key}&attachment=1`,
+    `/api/naesinddak/materials/${materialId}/download?file=${asset.key}&download=1`,
     {
       headers: { Authorization: `Bearer ${session.access_token}` },
       cache: "no-store",
@@ -33,17 +27,11 @@ export async function downloadNaesinddakAsset(materialId: string, asset: NaesinD
     throw new Error(data?.error || "다운로드를 준비하지 못했습니다.");
   }
 
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = fallbackDownloadName(asset);
-  link.rel = "noopener";
-  link.style.display = "none";
+  const data = (await res.json()) as { url?: string };
 
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  if (!data.url) {
+    throw new Error("다운로드 링크를 생성하지 못했습니다.");
+  }
 
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  window.location.assign(data.url);
 }

@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { getSessionWithRecovery, supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [isDark, setIsDark] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,8 +86,7 @@ export default function LoginPage() {
       }
 
       setMessage("로그인 성공! 바로 홈으로 이동할게.");
-      router.replace("/");
-      router.refresh();
+      window.location.replace("/");
     } catch (error) {
       console.error(error);
       setMessage("로그인 중 오류가 발생했어.");

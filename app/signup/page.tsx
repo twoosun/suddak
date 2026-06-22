@@ -168,8 +168,7 @@ export default function SignupPage() {
       setMessage("회원가입이 완료되었어. 잠시 후 이동할게.");
 
       setTimeout(() => {
-        router.push("/");
-        router.refresh();
+        window.location.replace("/");
       }, 700);
     } catch (error) {
       console.error(error);
