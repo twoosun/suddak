@@ -196,32 +196,66 @@ export default function NaesinddakMaterialsAdminPage() {
   };
 
   const uploadFile = async (fileKey: NaesinddakFileKey, file: File | null | undefined) => {
-    if (!editingId) {
-      setMessage("먼저 자료 정보를 저장한 뒤 파일을 업로드해 주세요.");
-      return;
-    }
-
     if (!file) return;
 
     try {
       setUploadingKey(fileKey);
+      const shouldPublishAfterUpload = form.status === "public";
+      let materialId = editingId;
+
+      if (!materialId) {
+        setMessage("파일 업로드를 위해 자료를 임시 저장하는 중입니다.");
+        const draftPayload = {
+          ...form,
+          status: "private",
+          price_ddak: Number(form.price_ddak || 0),
+        };
+        const draft = await adminFetch<MaterialResponse>("/api/admin/naesinddak-materials", {
+          method: "POST",
+          body: JSON.stringify(draftPayload),
+        });
+
+        materialId = draft.material.id;
+        setEditingId(materialId);
+        setForm(materialToForm(draft.material));
+      }
+
       setMessage(`${file.name} 업로드 중입니다.`);
 
       const formData = new FormData();
       formData.append("fileKey", fileKey);
       formData.append("file", file);
 
-      const data = await adminFetch<MaterialResponse>(
-        `/api/admin/naesinddak-materials/${editingId}/upload`,
+      let data = await adminFetch<MaterialResponse>(
+        `/api/admin/naesinddak-materials/${materialId}/upload`,
         {
           method: "POST",
           body: formData,
         }
       );
 
+      if (shouldPublishAfterUpload) {
+        data = await adminFetch<MaterialResponse>(
+          `/api/admin/naesinddak-materials/${materialId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              ...form,
+              id: materialId,
+              status: "public",
+              price_ddak: Number(form.price_ddak || 0),
+            }),
+          }
+        );
+      }
+
       setForm(materialToForm(data.material));
       await load();
-      setMessage(`${file.name} 업로드가 완료되었습니다.`);
+      setMessage(
+        shouldPublishAfterUpload
+          ? `${file.name} 업로드 후 자료를 최종 공개했습니다.`
+          : `${file.name} 업로드가 완료되었습니다.`
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "파일 업로드에 실패했습니다.");
     } finally {
@@ -342,7 +376,7 @@ export default function NaesinddakMaterialsAdminPage() {
           description={
             editingId
               ? `현재 ${uploadedFileCount(editingMaterial)}개 파일이 업로드되어 있습니다. 필요한 슬롯만 채워도 최종 공개할 수 있습니다.`
-              : "자료를 먼저 임시 저장하면 파일 업로드가 열립니다."
+              : "제목을 입력한 뒤 파일을 선택하면 비공개 초안을 자동 저장하고 바로 업로드합니다."
           }
         >
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
@@ -365,7 +399,7 @@ export default function NaesinddakMaterialsAdminPage() {
                   <input
                     type="file"
                     accept={slot.accept}
-                    disabled={!editingId || Boolean(uploadingKey)}
+                    disabled={busy || Boolean(uploadingKey)}
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null;
                       event.currentTarget.value = "";
